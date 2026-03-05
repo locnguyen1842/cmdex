@@ -12,29 +12,74 @@ type Category struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// Command represents a saved CLI command
-type Command struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	CommandText string    `json:"commandText"`
-	Tags        []string  `json:"tags"`
-	CategoryID  string    `json:"categoryId"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+// VariableDefinition stores per-command variable metadata
+type VariableDefinition struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Example     string `json:"example"`
+	Default     string `json:"default"` // plain value or CEL expression
 }
 
-// VariablePrompt represents a parsed variable placeholder from a command
+// VariablePreset stores a named set of variable values for a command
+type VariablePreset struct {
+	ID     string            `json:"id"`
+	Name   string            `json:"name"`
+	Values map[string]string `json:"values"`
+}
+
+// Command represents a saved CLI command
+type Command struct {
+	ID          string               `json:"id"`
+	Title       string               `json:"title"`
+	Description string               `json:"description"`
+	CommandText string               `json:"commandText"`
+	Tags        []string             `json:"tags"`
+	Variables   []VariableDefinition `json:"variables"`
+	Presets     []VariablePreset     `json:"presets"`
+	CategoryID  string               `json:"categoryId"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
+}
+
+// VariablePrompt is returned to the frontend when prompting for variable values
 type VariablePrompt struct {
 	Name         string `json:"name"`
 	Placeholder  string `json:"placeholder"`
-	DefaultValue string `json:"defaultValue"`
+	Description  string `json:"description"`
+	Example      string `json:"example"`
+	DefaultExpr  string `json:"defaultExpr"`  // raw CEL/literal expression from definition
+	DefaultValue string `json:"defaultValue"` // evaluated default ready to use
+}
+
+// ExecutionRecord captures a single command execution for history
+type ExecutionRecord struct {
+	ID          string    `json:"id"`
+	CommandID   string    `json:"commandId"`
+	CommandText string    `json:"commandText"`
+	FinalCmd    string    `json:"finalCmd"`
+	Output      string    `json:"output"`
+	Error       string    `json:"error"`
+	ExitCode    int       `json:"exitCode"`
+	ExecutedAt  time.Time `json:"executedAt"`
+}
+
+// TerminalInfo describes a detected terminal emulator
+type TerminalInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// AppSettings stores user preferences
+type AppSettings struct {
+	Locale   string `json:"locale"`
+	Terminal string `json:"terminal"` // terminal ID; empty = auto-detect
 }
 
 // AppData is the root data structure persisted to disk
 type AppData struct {
-	Categories []Category `json:"categories"`
-	Commands   []Command  `json:"commands"`
+	Categories []Category  `json:"categories"`
+	Commands   []Command   `json:"commands"`
+	Settings   AppSettings `json:"settings"`
 }
 
 // ExecutionResult holds the output of a command execution

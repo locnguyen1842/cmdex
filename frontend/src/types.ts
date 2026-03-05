@@ -9,12 +9,27 @@ export interface Category {
   updatedAt: string;
 }
 
+export interface VariableDefinition {
+  name: string;
+  description: string;
+  example: string;
+  default: string;
+}
+
+export interface VariablePreset {
+  id: string;
+  name: string;
+  values: Record<string, string>;
+}
+
 export interface Command {
   id: string;
   title: string;
   description: string;
   commandText: string;
   tags: string[];
+  variables: VariableDefinition[];
+  presets: VariablePreset[];
   categoryId: string;
   createdAt: string;
   updatedAt: string;
@@ -23,11 +38,30 @@ export interface Command {
 export interface VariablePrompt {
   name: string;
   placeholder: string;
+  description: string;
+  example: string;
+  defaultExpr: string;
   defaultValue: string;
+}
+
+export interface TerminalInfo {
+  id: string;
+  name: string;
 }
 
 export interface ExecutionResult {
   output: string;
   error: string;
   exitCode: number;
+}
+
+export interface ExecutionRecord {
+  id: string;
+  commandId: string;
+  commandText: string;
+  finalCmd: string;
+  output: string;
+  error: string;
+  exitCode: number;
+  executedAt: string;
 }

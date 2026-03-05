@@ -1,30 +1,142 @@
-import React, { useState } from 'react';
-import { VariablePrompt as VariablePromptType } from '../types';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { VariablePrompt as VariablePromptType, VariablePreset } from '../types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Plus, Check, X, Copy, Play } from 'lucide-react';
 
 interface VariablePromptProps {
+  mode: 'manage' | 'fill';
   variables: VariablePromptType[];
   commandText: string;
+  presets: VariablePreset[];
+  defaultPresetId?: string;
+  initialValues?: Record<string, string>;
+  onPresetChange?: (presetId: string) => void;
   onSubmit: (values: Record<string, string>) => void;
   onCancel: () => void;
+  onSavePreset: (name: string, values: Record<string, string>) => Promise<void>;
+  onUpdatePreset: (presetId: string, name: string, values: Record<string, string>) => Promise<void>;
+  onDeletePreset: (presetId: string) => Promise<void>;
 }
 
 const VariablePrompt: React.FC<VariablePromptProps> = ({
+  mode,
   variables,
   commandText,
+  presets,
+  defaultPresetId,
+  initialValues,
+  onPresetChange,
   onSubmit,
   onCancel,
+  onSavePreset,
+  onUpdatePreset,
+  onDeletePreset,
 }) => {
-  const [values, setValues] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    variables.forEach(v => {
-      init[v.name] = v.defaultValue || '';
-    });
-    return init;
-  });
-
-  const handleSubmit = () => {
-    onSubmit(values);
+  const { t } = useTranslation();
+  const resolveInitialPreset = (): VariablePreset | undefined => {
+    if (mode !== 'manage' || presets.length === 0) return undefined;
+    if (defaultPresetId) {
+      const found = presets.find(p => p.id === defaultPresetId);
+      if (found) return found;
+    }
+    return presets[0];
   };
+
+  const initialPreset = resolveInitialPreset();
+
+  const buildDefaults = () => {
+    const init: Record<string, string> = {};
+    if (initialPreset) {
+      variables.forEach(v => {
+        init[v.name] = initialPreset.values[v.name] ?? v.defaultValue ?? '';
+      });
+    } else {
+      variables.forEach(v => {
+        init[v.name] = initialValues?.[v.name] || v.defaultValue || '';
+      });
+    }
+    return init;
+  };
+
+  const [values, setValues] = useState<Record<string, string>>(buildDefaults);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(() => initialPreset?.id ?? '');
+  const [copied, setCopied] = useState(false);
+  const [editingPresetNameId, setEditingPresetNameId] = useState<string>('');
+  const [editingName, setEditingName] = useState('');
+  const [toolbarName, setToolbarName] = useState(() => {
+    if (initialPreset) return initialPreset.name;
+    if (mode === 'manage') return 'Default';
+    return '';
+  });
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const toolbarNameInputRef = useRef<HTMLInputElement>(null);
+  const [editingToolbarName, setEditingToolbarName] = useState(() => mode === 'manage' && presets.length === 0);
+  const isCreatingNew = mode === 'manage' && presets.length === 0;
+
+  const selectedPreset = presets.find(p => p.id === selectedPresetId) || null;
+  const [snapshotValues, setSnapshotValues] = useState<Record<string, string>>(() => {
+    if (initialPreset) {
+      const snap: Record<string, string> = {};
+      variables.forEach(v => { snap[v.name] = initialPreset.values[v.name] ?? v.defaultValue ?? ''; });
+      return snap;
+    }
+    return {};
+  });
+  const [snapshotName, setSnapshotName] = useState(() => initialPreset?.name ?? '');
+
+  const isDirty = useMemo(() => {
+    if (isCreatingNew) return toolbarName.trim().length > 0;
+    if (!selectedPreset) return false;
+    const nameChanged = toolbarName.trim() !== snapshotName;
+    const valuesChanged = variables.some(v => (values[v.name] || '') !== (snapshotValues[v.name] || ''));
+    return nameChanged || valuesChanged;
+  }, [values, snapshotValues, selectedPreset, variables, toolbarName, snapshotName, isCreatingNew]);
+
+  const prevPresetsRef = useRef(presets);
+  useEffect(() => {
+    if (mode !== 'manage') return;
+    const prev = prevPresetsRef.current;
+    if (presets.length > prev.length) {
+      const newest = presets[presets.length - 1];
+      if (newest) handleSelectPreset(newest.id);
+    } else if (presets.length < prev.length) {
+      if (!presets.find(p => p.id === selectedPresetId)) {
+        if (presets.length > 0) {
+          handleSelectPreset(presets[0].id);
+        } else {
+          setSelectedPresetId('');
+          setToolbarName('Default');
+          setSnapshotValues({});
+          setSnapshotName('');
+          onPresetChange?.('');
+        }
+      }
+    }
+    prevPresetsRef.current = presets;
+  }, [presets]);
+
+  useEffect(() => {
+    if (editingPresetNameId && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [editingPresetNameId]);
+
+  useEffect(() => {
+    if (editingToolbarName && toolbarNameInputRef.current) {
+      toolbarNameInputRef.current.focus();
+      toolbarNameInputRef.current.select();
+    }
+  }, [editingToolbarName]);
+
+  const handleSubmit = () => onSubmit(values);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -33,57 +145,265 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     }
   };
 
-  // Build preview of command with substituted values
-  const getPreview = () => {
+  const getPreviewText = () => {
     let preview = commandText;
     for (const [name, value] of Object.entries(values)) {
-      preview = preview.replaceAll(`{?${name}}`, value || `{?${name}}`);
+      preview = preview.replaceAll(`\${${name}}`, value || `\${${name}}`);
     }
     return preview;
   };
 
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>🔧 Fill in Variables</h2>
-          <button className="btn-icon" onClick={onCancel}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="variable-prompt-list">
-            {variables.map((v, i) => (
-              <div key={v.name} className="variable-prompt-item">
-                <div className="var-name">{v.name}</div>
-                <input
-                  className="form-input form-input-mono"
-                  type="text"
-                  placeholder={`Enter value for ${v.name}`}
-                  value={values[v.name] || ''}
-                  onChange={(e) =>
-                    setValues({ ...values, [v.name]: e.target.value })
-                  }
-                  onKeyDown={handleKeyDown}
-                  autoFocus={i === 0}
-                />
-              </div>
-            ))}
-          </div>
+  const renderPreview = (): React.ReactNode[] => {
+    const regex = /(\$\{\w+\})/g;
+    const parts = commandText.split(regex);
+    return parts.map((part, i) => {
+      const match = part.match(/^\$\{(\w+)\}$/);
+      if (match) {
+        const varName = match[1];
+        const val = values[varName];
+        if (val) {
+          return <span key={i} className="var-filled">{val}</span>;
+        }
+        return <span key={i} className="var-missing">{part}</span>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
 
-          <div className="detail-section" style={{ marginTop: 20 }}>
-            <div className="detail-section-title">Preview</div>
-            <div className="command-text-box" style={{ fontSize: 12 }}>
-              {getPreview()}
+  const handleCopyPreview = useCallback(() => {
+    navigator.clipboard.writeText(getPreviewText()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [commandText, values]);
+
+  const handleSelectPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    onPresetChange?.(presetId);
+    const preset = presets.find(p => p.id === presetId);
+    if (!preset) return;
+    const newValues: Record<string, string> = {};
+    variables.forEach(v => {
+      newValues[v.name] = preset.values[v.name] ?? v.defaultValue ?? '';
+    });
+    setValues(newValues);
+    setSnapshotValues({ ...newValues });
+    setToolbarName(preset.name);
+    setSnapshotName(preset.name);
+  };
+
+  const handleCreatePreset = async (name?: string) => {
+    const presetName = name || toolbarName.trim() || 'Default';
+    await onSavePreset(presetName, { ...values });
+  };
+
+  const handleSaveCurrentPreset = async () => {
+    if (isCreatingNew) {
+      await handleCreatePreset();
+      return;
+    }
+    if (!selectedPreset || !isDirty) return;
+    const name = toolbarName.trim() || selectedPreset.name;
+    await onUpdatePreset(selectedPresetId, name, { ...values });
+    setSnapshotValues({ ...values });
+    setSnapshotName(name);
+    setToolbarName(name);
+  };
+
+  const handleDeletePreset = async () => {
+    if (!selectedPresetId) return;
+    await onDeletePreset(selectedPresetId);
+    setSelectedPresetId('');
+    setSnapshotValues({});
+  };
+
+  const handleDoubleClickName = (preset: VariablePreset) => {
+    setEditingPresetNameId(preset.id);
+    setEditingName(preset.name);
+  };
+
+  const commitNameEdit = async () => {
+    if (!editingPresetNameId || !editingName.trim()) {
+      setEditingPresetNameId('');
+      return;
+    }
+    const preset = presets.find(p => p.id === editingPresetNameId);
+    if (preset && editingName.trim() !== preset.name) {
+      await onUpdatePreset(editingPresetNameId, editingName.trim(), preset.values);
+    }
+    setEditingPresetNameId('');
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-7xl p-0">
+        <DialogHeader className="px-6 pt-6 pb-0">
+          <DialogTitle>{mode === 'manage' ? t('variablePrompt.manageTitle') : t('variablePrompt.fillTitle')}</DialogTitle>
+          <DialogDescription className="sr-only">{mode === 'manage' ? t('variablePrompt.manageDescription') : t('variablePrompt.fillDescription')}</DialogDescription>
+        </DialogHeader>
+        <div className="vp-layout">
+          {/* Left pane: preset list */}
+          {mode === 'manage' && <div className="vp-preset-list">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.presets')}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-xs" onClick={() => handleCreatePreset('New Preset')}>
+                    <Plus />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('variablePrompt.saveAsNewPreset')}</TooltipContent>
+              </Tooltip>
             </div>
+            <ScrollArea className="flex-1">
+              <div className="vp-preset-items">
+                {presets.length === 0 ? (
+                  <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">{t('variablePrompt.noPresetsYet')}</div>
+                ) : (
+                  presets.map(p => (
+                    <div
+                      key={p.id}
+                      className={`vp-preset-item ${selectedPresetId === p.id ? 'active' : ''}`}
+                      onClick={() => handleSelectPreset(p.id)}
+                      onDoubleClick={() => handleDoubleClickName(p)}
+                    >
+                      {editingPresetNameId === p.id ? (
+                        <Input
+                          ref={nameInputRef}
+                          className="h-6 text-xs px-1"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onBlur={commitNameEdit}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitNameEdit();
+                            if (e.key === 'Escape') setEditingPresetNameId('');
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="vp-preset-item-name">{p.name}</span>
+                      )}
+                      {selectedPresetId === p.id && editingPresetNameId !== p.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="shrink-0"
+                          onClick={(e) => { e.stopPropagation(); handleDeletePreset(); }}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>}
+
+          {/* Center: variable form */}
+          <div className="vp-center">
+            {mode === 'manage' && (selectedPreset || isCreatingNew) && (
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.preset')}</span>
+                {editingToolbarName ? (
+                  <Input
+                    ref={toolbarNameInputRef}
+                    className="h-7 text-sm flex-1"
+                    value={toolbarName}
+                    onChange={(e) => setToolbarName(e.target.value)}
+                    onBlur={() => setEditingToolbarName(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setEditingToolbarName(false);
+                      if (e.key === 'Escape') setEditingToolbarName(false);
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="text-sm flex-1 truncate cursor-text px-1"
+                    onDoubleClick={() => setEditingToolbarName(true)}
+                    title={t('commandDetail.doubleClickToRename')}
+                  >
+                    {toolbarName || 'Default'}
+                  </span>
+                )}
+              </div>
+            )}
+            <ScrollArea className="vp-vars-scroll">
+              <div className="space-y-3 p-4">
+                {variables.map((v, i) => (
+                  <div key={v.name} className="space-y-1">
+                    <Label className="text-sm font-medium">{v.name}</Label>
+                    {v.description && (
+                      <p className="text-xs text-muted-foreground">{v.description}</p>
+                    )}
+                    <Input
+                      className="font-mono"
+                      placeholder={v.example ? t('variablePrompt.examplePrefix', { example: v.example }) : t('variablePrompt.enterValueFor', { name: v.name })}
+                      value={values[v.name] || ''}
+                      onChange={(e) => setValues({ ...values, [v.name]: e.target.value })}
+                      onKeyDown={handleKeyDown}
+                      autoFocus={i === 0}
+                    />
+                    {v.defaultExpr && (
+                      <p className="text-xs text-muted-foreground">
+                        {t('variablePrompt.default')} <code className="bg-muted px-1 rounded">{v.defaultExpr}</code>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+
+            <Separator />
+            <div className="px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{t('variablePrompt.preview')}</p>
+              <div className="command-text-box text-xs">
+                {renderPreview()}
+                <div className="preview-actions">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-xs" onClick={handleCopyPreview}>
+                        {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{copied ? t('commandDetail.copied') : t('variablePrompt.copyPreview')}</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="px-4 pb-4">
+              {mode === 'fill' ? (
+                <>
+                  <Button variant="ghost" onClick={onCancel}>{t('variablePrompt.cancel')}</Button>
+                  <Button variant="success" onClick={handleSubmit}>
+                    <Play className="size-4" /> {t('variablePrompt.execute')}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {!isCreatingNew && (
+                    <Button variant="outline" className="group gap-0 overflow-hidden" onClick={() => handleCreatePreset('New Preset')}>
+                      <span className="max-w-0 opacity-0 group-hover:max-w-40 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap overflow-hidden">
+                        {t('variablePrompt.saveAsNew')}
+                      </span>
+                      <Plus className="size-4 shrink-0 ml-0 group-hover:ml-1.5 transition-[margin] duration-200" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="default"
+                    onClick={handleSaveCurrentPreset}
+                    disabled={!isDirty}
+                  >
+                    <Check className="size-4" /> {t('variablePrompt.save')}
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-          <button className="btn btn-success" onClick={handleSubmit}>
-            ▶ Execute
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

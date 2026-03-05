@@ -4,7 +4,7 @@ This document describes how an AI agent can continue development on the **Commam
 
 ## Project Overview
 
-**Commamer** is a cross-platform desktop app for saving and executing CLI commands with variable placeholders (e.g., `echo {?message}`). It is built with:
+**Commamer** is a cross-platform desktop app for saving and executing CLI commands with variable placeholders (e.g., `echo ${message}`). It is built with:
 - **Go** (Backend, file I/O, subprocess execution)
 - **Wails v2** (Desktop bindings & window management)
 - **React 18 + Vite + TypeScript** (Frontend UI)
@@ -25,7 +25,7 @@ Data is stored locally in `~/.commamer/data.json`.
 
 ### 3. Command Execution (`executor.go`)
 - The app uses `os/exec` to run commands.
-- **Variables** are identified by the regex `\{\?(\w+)\}`. The app parses `{?varName}` into prompt objects, waits for user input from the React UI, substitutes the values back into the string, and executes.
+- **Variables** are identified by the regex `\$\{(\w+)\}`. The app parses `${varName}` into prompt objects, waits for user input from the React UI, substitutes the values back into the string, and executes.
 - Platform awareness: Uses `/bin/sh -c` on Mac/Linux and `cmd /C` on Windows.
 
 ### 4. Frontend State & UI (`frontend/src/`)
