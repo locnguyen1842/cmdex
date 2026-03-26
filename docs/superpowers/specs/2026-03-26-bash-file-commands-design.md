@@ -1,8 +1,8 @@
-# Bash File-Based Command Storage with SQLite
+# Bash Script Commands with SQLite Storage
 
 ## Overview
 
-Replace plain-text `commandText` storage with auto-generated bash scripts stored at `~/.commamer/scripts/{id}.sh`. Each script defines a `main()` function with named local variables derived from the UI variable panel. Users can edit the script body directly for advanced use cases. All metadata is stored in SQLite (replacing JSON files) for enterprise readiness.
+Replace plain-text `commandText` storage with auto-generated bash scripts. Each script defines a `main()` function with named local variables derived from the UI variable panel. Script content and all metadata are stored in SQLite (replacing JSON files). At execution time, the script is written to a temp file, executed, and cleaned up.
 
 ## Current State
 
@@ -36,7 +36,7 @@ CREATE TABLE commands (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    script_path TEXT NOT NULL,
+    script_content TEXT NOT NULL,
     category_id TEXT NOT NULL DEFAULT '',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -85,7 +85,7 @@ CREATE TABLE preset_values (
 CREATE TABLE executions (
     id TEXT PRIMARY KEY,
     command_id TEXT NOT NULL,
-    script_path TEXT NOT NULL,
+    script_content TEXT NOT NULL,
     final_cmd TEXT NOT NULL,
     output TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
@@ -94,17 +94,20 @@ CREATE TABLE executions (
 );
 
 CREATE VIRTUAL TABLE commands_fts USING fts5(
-    title, description, content='commands', content_rowid='rowid'
+    title, description, script_content, content='commands', content_rowid='rowid'
 );
 ```
 
 **Key schema decisions:**
+- `script_content` stored directly in `commands` table — single source of truth, no file sync issues
+- FTS5 indexes title, description, AND script_content for full search
 - Tags normalized into their own table for consistent enterprise tagging
 - `sort_order` on variable_definitions controls positional arg mapping
-- FTS5 virtual table for fast command search
 - CASCADE deletes throughout
 - Execution history uncapped (retention policies can be added later)
-- `category_id` defaults to empty string for uncategorized commands (no FK constraint on empty string)
+- `category_id` defaults to empty string for uncategorized commands
+- `executions.script_content` captures the exact script that was run (snapshot)
+- `executions.final_cmd` captures the `bash <tmp> "arg1" "arg2"` invocation string
 
 **Existing data:** Wiped on upgrade. No migration from JSON. Users start fresh. Old JSON files (`data.json`, `executions.json`) are ignored.
 
@@ -156,11 +159,12 @@ main "$@"
 
 1. User clicks Execute (or Run in Terminal)
 2. If command has variables with missing values -> prompt for values (same UX as today, with presets)
-3. Backend reads the script file content
+3. Backend reads `script_content` from DB
 4. Backend regenerates the `main()` function signature (local declarations) from current variable definitions, preserving the user's script body
-5. Writes the updated script to disk
-6. Executes: `bash <script_path> "val1" "val2"` (args in `sort_order` order)
+5. Writes the updated script to a temp file (`os.CreateTemp`)
+6. Executes: `bash <tmp_path> "val1" "val2"` (args in `sort_order` order)
 7. Streams output via Wails events (same mechanism as today)
+8. Cleans up the temp file after execution completes
 
 ### Command Editor UX
 
@@ -176,16 +180,9 @@ main "$@"
 - Order matters (drag to reorder, or arrow buttons) -- determines positional arg mapping via `sort_order`
 
 **Save behavior:**
-- Simple mode: app wraps the body text into the full script template and writes the `.sh` file
-- Advanced mode: app regenerates only the local declarations in `main()`, preserves everything else, writes the `.sh` file
+- Simple mode: app wraps the body text into the full script template and stores `script_content` in DB
+- Advanced mode: app regenerates only the local declarations in `main()`, preserves everything else, stores in DB
 - Variable panel changes always update the function signature on next save
-
-### Script File Management
-
-- **Create:** When a command is created, generate the `.sh` file at `~/.commamer/scripts/{command-id}.sh`
-- **Update:** Overwrite the `.sh` file on save
-- **Delete:** Remove the `.sh` file when the command is deleted
-- **Directory:** Store ensures `~/.commamer/scripts/` exists on startup
 
 ### Backend Changes
 
@@ -200,26 +197,27 @@ main "$@"
 - FTS5 index maintenance (triggers or manual sync on insert/update/delete)
 
 **`models.go`:**
-- `Command` struct: remove `commandText`, add `ScriptPath string`
+- `Command` struct: remove `commandText`, add `ScriptContent string`
 - Keep `VariableDefinition` — add `SortOrder int` field
 - Keep `VariablePreset`, `VariablePrompt` as-is
-- Remove `variableRegex` from executor
+- Remove `AppData` struct (no longer loading everything into memory)
 
 **`app.go`:**
 - Replace `store *Store` with `db *DB`
-- `CreateCommand`: accept title, description, scriptBody, categoryID, tags, variables, isAdvanced. Generate the `.sh` file. Insert into DB.
-- `UpdateCommand`: same params. Regenerate/update the `.sh` file. Update DB.
-- `DeleteCommand`: delete `.sh` file + DB row (cascade handles related data).
-- `GetScriptContent(commandID)`: new method. Returns the script file content for the editor.
+- `CreateCommand`: accept title, description, scriptBody, categoryID, tags, variables, isAdvanced. Generate script_content. Insert into DB.
+- `UpdateCommand`: same params. Regenerate script_content. Update DB.
+- `DeleteCommand`: DB row deletion (cascade handles related data).
+- `GetScriptContent(commandID)`: new method. Returns script_content for the editor.
+- `GetScriptBody(commandID)`: new method. Parses script_content and returns just the body (for simple mode).
 - `GetVariables`: simplify -- query variable_definitions from DB, evaluate CEL defaults, return enriched prompts.
-- `RunCommand`: read script path from DB, regenerate signature, execute with `bash <path> args...`
-- `RunInTerminal`: same approach but via terminal launcher
+- `RunCommand`: read script_content from DB, regenerate signature, write to temp file, execute with `bash <tmp> args...`, clean up temp file.
+- `RunInTerminal`: same approach but via terminal launcher.
 
 **`executor.go`:**
 - Remove: `ParseVariables`, `SubstituteVariables`, `variableRegex`
-- Add: `ExecuteScript(scriptPath string, args []string) ExecutionResult`
-- Add: `ExecuteScriptStreaming(scriptPath string, args []string, onChunk func(OutputChunk)) ExecutionResult`
-- Keep: terminal-related code (update `OpenInTerminal` to run scripts)
+- Add: `ExecuteScript(scriptContent string, args []string) ExecutionResult` — writes temp file, runs `bash <tmp> args...`, cleans up
+- Add: `ExecuteScriptStreaming(scriptContent string, args []string, onChunk func(OutputChunk)) ExecutionResult` — same with streaming
+- Update: `OpenInTerminal` to accept script content, write temp file, run via terminal
 - Keep: `EvalDefaults` (still used for variable default evaluation)
 
 **New file `script.go`:**
@@ -230,7 +228,7 @@ main "$@"
 ### Frontend Changes
 
 **`types.ts`:**
-- `Command` interface: remove `commandText`, add `scriptPath: string`
+- `Command` interface: remove `commandText`, add `scriptContent: string`
 
 **`CommandEditor.tsx`:**
 - Replace command textarea with:
@@ -241,14 +239,14 @@ main "$@"
 - On save: send body text + mode flag to backend
 
 **`CommandDetail.tsx`:**
-- Display the script body (from `GetScriptContent`) instead of `commandText`
+- Display the script body (parsed from `scriptContent`) instead of `commandText`
 - Update copy button to copy the full script or just the body
 - Preview section: show how the script will be called with resolved variable values
 - Remove `${varName}` regex-based rendering
 
 **`App.tsx`:**
 - Update all `CreateCommand`/`UpdateCommand` calls with new params
-- Add `GetScriptContent` call when selecting a command
+- Remove `GetScriptContent` call — script content is already on the `Command` object
 - Update search to use FTS5 results from backend
 
 **`en.json`:**
@@ -257,4 +255,4 @@ main "$@"
 
 ### Search
 
-Uses FTS5 virtual table for fast full-text search on command title and description. The `SearchCommands` backend method queries the FTS index. Script file content search can be added later if needed.
+Uses FTS5 virtual table for fast full-text search on command title, description, and script content. The `SearchCommands` backend method queries the FTS index and returns matching commands.
