@@ -8,12 +8,11 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { Plus, Check, X, Copy, Play } from 'lucide-react';
+import { Plus, Check, X, Play } from 'lucide-react';
 
 interface VariablePromptProps {
   mode: 'manage' | 'fill';
   variables: VariablePromptType[];
-  commandText: string;
   presets: VariablePreset[];
   defaultPresetId?: string;
   initialValues?: Record<string, string>;
@@ -28,7 +27,6 @@ interface VariablePromptProps {
 const VariablePrompt: React.FC<VariablePromptProps> = ({
   mode,
   variables,
-  commandText,
   presets,
   defaultPresetId,
   initialValues,
@@ -67,7 +65,6 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
 
   const [values, setValues] = useState<Record<string, string>>(buildDefaults);
   const [selectedPresetId, setSelectedPresetId] = useState<string>(() => initialPreset?.id ?? '');
-  const [copied, setCopied] = useState(false);
   const [editingPresetNameId, setEditingPresetNameId] = useState<string>('');
   const [editingName, setEditingName] = useState('');
   const [toolbarName, setToolbarName] = useState(() => {
@@ -144,38 +141,6 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
       handleSubmit();
     }
   };
-
-  const getPreviewText = () => {
-    let preview = commandText;
-    for (const [name, value] of Object.entries(values)) {
-      preview = preview.replaceAll(`\${${name}}`, value || `\${${name}}`);
-    }
-    return preview;
-  };
-
-  const renderPreview = (): React.ReactNode[] => {
-    const regex = /(\$\{\w+\})/g;
-    const parts = commandText.split(regex);
-    return parts.map((part, i) => {
-      const match = part.match(/^\$\{(\w+)\}$/);
-      if (match) {
-        const varName = match[1];
-        const val = values[varName];
-        if (val) {
-          return <span key={i} className="var-filled">{val}</span>;
-        }
-        return <span key={i} className="var-missing">{part}</span>;
-      }
-      return <span key={i}>{part}</span>;
-    });
-  };
-
-  const handleCopyPreview = useCallback(() => {
-    navigator.clipboard.writeText(getPreviewText()).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [commandText, values]);
 
   const handleSelectPreset = (presetId: string) => {
     setSelectedPresetId(presetId);
@@ -355,24 +320,8 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
             </ScrollArea>
 
             <Separator />
-            <div className="px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{t('variablePrompt.preview')}</p>
-              <div className="command-text-box text-xs">
-                {renderPreview()}
-                <div className="preview-actions">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" onClick={handleCopyPreview}>
-                        {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{copied ? t('commandDetail.copied') : t('variablePrompt.copyPreview')}</TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            </div>
 
-            <DialogFooter className="px-4 pb-4">
+            <DialogFooter className="px-4 py-4">
               {mode === 'fill' ? (
                 <>
                   <Button variant="ghost" onClick={onCancel}>{t('variablePrompt.cancel')}</Button>

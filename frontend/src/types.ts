@@ -14,6 +14,7 @@ export interface VariableDefinition {
   description: string;
   example: string;
   default: string;
+  sortOrder: number;
 }
 
 export interface VariablePreset {
@@ -26,7 +27,7 @@ export interface Command {
   id: string;
   title: string;
   description: string;
-  commandText: string;
+  scriptContent: string;
   tags: string[];
   variables: VariableDefinition[];
   presets: VariablePreset[];
@@ -58,7 +59,7 @@ export interface ExecutionResult {
 export interface ExecutionRecord {
   id: string;
   commandId: string;
-  commandText: string;
+  scriptContent: string;
   finalCmd: string;
   output: string;
   error: string;

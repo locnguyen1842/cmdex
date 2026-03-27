@@ -49,20 +49,12 @@ import {
 } from '../wailsjs/go/main/App';
 import i18n from './i18n';
 
-function extractVarNames(commandText: string): Set<string> {
-    const regex = /\{\?(\w+)\}/g;
-    const names = new Set<string>();
-    let m;
-    while ((m = regex.exec(commandText)) !== null) names.add(m[1]);
-    return names;
-}
-
 type ModalState =
     | { type: 'none' }
     | { type: 'commandEditor'; command?: Command; defaultCategoryId?: string }
     | { type: 'categoryEditor'; category?: Category }
-    | { type: 'managePresets'; variables: VarPromptType[]; commandText: string; commandId: string; presets: VariablePreset[] }
-    | { type: 'fillVariables'; variables: VarPromptType[]; commandText: string; commandId: string; initialValues: Record<string, string> }
+    | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
+    | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string };
 
 function App() {
@@ -83,11 +75,6 @@ function App() {
     const [streamLines, setStreamLines] = useState<string[]>([]);
     const streamBufferRef = useRef<string[]>([]);
     const streamFlushRef = useRef<number | null>(null);
-    const [pendingCommandUpdate, setPendingCommandUpdate] = useState<{
-        data: { title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[] };
-        removedVars: string[];
-        presetCount: number;
-    } | null>(null);
 
     const loadData = useCallback(async () => {
         try {
@@ -134,7 +121,7 @@ function App() {
 
     useEffect(() => {
         if (selectedCommand) {
-            GetVariables(selectedCommand.id, selectedCommand.commandText)
+            GetVariables(selectedCommand.id)
                 .then(vars => setResolvedVariables(vars || []))
                 .catch(() => setResolvedVariables([]));
         } else {
@@ -199,10 +186,10 @@ function App() {
     // ========== Command handlers ==========
 
     const handleCreateCommand = async (data: {
-        title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
+        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[]; isAdvanced: boolean;
     }) => {
         try {
-            const cmd = await CreateCommand(data.title, data.description, data.commandText, data.categoryId, data.tags, data.variables);
+            const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables, data.isAdvanced);
             await loadData();
             setSelectedCommand(cmd);
             setModal({ type: 'none' });
@@ -213,38 +200,11 @@ function App() {
     };
 
     const handleUpdateCommand = async (data: {
-        title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
-    }) => {
-        if (modal.type !== 'commandEditor' || !modal.command) return;
-        const oldVars = extractVarNames(modal.command.commandText);
-        const newVars = extractVarNames(data.commandText);
-        const removedVars = [...oldVars].filter(v => !newVars.has(v));
-        const presetCount = (modal.command.presets || []).length;
-
-        if (removedVars.length > 0 && presetCount > 0) {
-            setPendingCommandUpdate({ data, removedVars, presetCount });
-            return;
-        }
-
-        await commitCommandUpdate(data);
-    };
-
-    const commitCommandUpdate = async (data: {
-        title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
+        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[]; isAdvanced: boolean;
     }) => {
         if (modal.type !== 'commandEditor' || !modal.command) return;
         try {
-            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.commandText, data.categoryId, data.tags, data.variables);
-            const newVarNames = extractVarNames(data.commandText);
-            for (const preset of (modal.command.presets || [])) {
-                const cleaned: Record<string, string> = {};
-                for (const [k, v] of Object.entries(preset.values)) {
-                    if (newVarNames.has(k)) cleaned[k] = v;
-                }
-                if (Object.keys(cleaned).length !== Object.keys(preset.values).length) {
-                    await UpdatePreset(modal.command.id, preset.id, preset.name, cleaned);
-                }
-            }
+            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables, data.isAdvanced);
             await loadData();
             setSelectedCommand(cmd);
             setModal({ type: 'none' });
@@ -254,19 +214,13 @@ function App() {
         }
     };
 
-    const confirmPendingCommandUpdate = async () => {
-        if (!pendingCommandUpdate) return;
-        await commitCommandUpdate(pendingCommandUpdate.data);
-        setPendingCommandUpdate(null);
-    };
-
     const handleRenameCommand = async (newTitle: string) => {
         if (!selectedCommand) return;
         try {
             const cmd = await UpdateCommand(
                 selectedCommand.id, newTitle, selectedCommand.description,
-                selectedCommand.commandText, selectedCommand.categoryId,
-                selectedCommand.tags, selectedCommand.variables
+                selectedCommand.scriptContent, selectedCommand.categoryId,
+                selectedCommand.tags, selectedCommand.variables, true
             );
             await loadData();
             setSelectedCommand(cmd);
@@ -279,13 +233,13 @@ function App() {
 
     const handleExecute = async (values: Record<string, string>) => {
         if (!selectedCommand) return;
-        runCommandDirect(selectedCommand.id, selectedCommand.commandText, values);
+        runCommandDirect(selectedCommand.id, values);
     };
 
     const handleRunInTerminal = async (values: Record<string, string>) => {
         if (!selectedCommand) return;
         try {
-            await RunInTerminal(selectedCommand.id, selectedCommand.commandText, values);
+            await RunInTerminal(selectedCommand.id, values);
         } catch (err) {
             toast.error(String(err));
         }
@@ -293,12 +247,11 @@ function App() {
 
     const handleManagePresets = async () => {
         if (!selectedCommand) return;
-        const vars = await GetVariables(selectedCommand.id, selectedCommand.commandText);
+        const vars = await GetVariables(selectedCommand.id);
         const presets = await GetPresets(selectedCommand.id);
         setModal({
             type: 'managePresets',
             variables: vars || [],
-            commandText: selectedCommand.commandText,
             commandId: selectedCommand.id,
             presets: presets || [],
         });
@@ -306,11 +259,10 @@ function App() {
 
     const handleFillVariables = async (initialValues: Record<string, string>) => {
         if (!selectedCommand) return;
-        const vars = await GetVariables(selectedCommand.id, selectedCommand.commandText);
+        const vars = await GetVariables(selectedCommand.id);
         setModal({
             type: 'fillVariables',
             variables: vars || [],
-            commandText: selectedCommand.commandText,
             commandId: selectedCommand.id,
             initialValues,
         });
@@ -319,7 +271,7 @@ function App() {
     const handleVariableSubmit = async (values: Record<string, string>) => {
         if (!selectedCommand) return;
         setModal({ type: 'none' });
-        runCommandDirect(selectedCommand.id, selectedCommand.commandText, values);
+        runCommandDirect(selectedCommand.id, values);
     };
 
     const MAX_STREAM_LINES = 5000;
@@ -336,7 +288,7 @@ function App() {
         streamFlushRef.current = null;
     }, []);
 
-    const runCommandDirect = async (commandId: string, commandText: string, variables: Record<string, string>) => {
+    const runCommandDirect = async (commandId: string, variables: Record<string, string>) => {
         setIsExecuting(true);
         setSelectedRecord(null);
         setStreamLines([]);
@@ -352,7 +304,7 @@ function App() {
         });
 
         try {
-            const record = await RunCommand(commandId, commandText, variables);
+            const record = await RunCommand(commandId, variables);
             // Final flush of any remaining buffered lines
             if (streamFlushRef.current !== null) {
                 cancelAnimationFrame(streamFlushRef.current);
@@ -372,8 +324,8 @@ function App() {
             setSelectedRecord({
                 id: '',
                 commandId: commandId,
-                commandText: commandText,
-                finalCmd: commandText,
+                scriptContent: '',
+                finalCmd: '',
                 output: '',
                 error: String(err),
                 exitCode: -1,
@@ -540,7 +492,6 @@ function App() {
                     <VariablePrompt
                         mode="manage"
                         variables={modal.variables}
-                        commandText={modal.commandText}
                         presets={modal.presets}
                         defaultPresetId={lastSelectedPresetId}
                         onPresetChange={setLastSelectedPresetId}
@@ -556,7 +507,6 @@ function App() {
                     <VariablePrompt
                         mode="fill"
                         variables={modal.variables}
-                        commandText={modal.commandText}
                         presets={[]}
                         initialValues={modal.initialValues}
                         onSubmit={handleVariableSubmit}
@@ -566,26 +516,6 @@ function App() {
                         onDeletePreset={async () => {}}
                     />
                 )}
-
-                <AlertDialog open={pendingCommandUpdate !== null} onOpenChange={(open) => { if (!open) setPendingCommandUpdate(null); }}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>{t('app.confirmVariableChangeTitle')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {pendingCommandUpdate && t('app.confirmVariableChangeMessage', {
-                                    removed: pendingCommandUpdate.removedVars.map(v => `\${${v}}`).join(', '),
-                                    count: pendingCommandUpdate.presetCount,
-                                })}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmPendingCommandUpdate}>
-                                {t('app.confirmVariableChangeAction')}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
 
                 <AlertDialog open={modal.type === 'confirmDelete'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
                     <AlertDialogContent>

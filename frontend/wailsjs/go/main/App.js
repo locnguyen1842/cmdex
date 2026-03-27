@@ -10,8 +10,8 @@ export function CreateCategory(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateCategory'](arg1, arg2, arg3);
 }
 
-export function CreateCommand(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['CreateCommand'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function CreateCommand(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['CreateCommand'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function DeleteCategory(arg1) {
@@ -50,20 +50,28 @@ export function GetPresets(arg1) {
   return window['go']['main']['App']['GetPresets'](arg1);
 }
 
+export function GetScriptBody(arg1) {
+  return window['go']['main']['App']['GetScriptBody'](arg1);
+}
+
+export function GetScriptContent(arg1) {
+  return window['go']['main']['App']['GetScriptContent'](arg1);
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
-export function GetVariables(arg1, arg2) {
-  return window['go']['main']['App']['GetVariables'](arg1, arg2);
+export function GetVariables(arg1) {
+  return window['go']['main']['App']['GetVariables'](arg1);
 }
 
-export function RunCommand(arg1, arg2, arg3) {
-  return window['go']['main']['App']['RunCommand'](arg1, arg2, arg3);
+export function RunCommand(arg1, arg2) {
+  return window['go']['main']['App']['RunCommand'](arg1, arg2);
 }
 
-export function RunInTerminal(arg1, arg2, arg3) {
-  return window['go']['main']['App']['RunInTerminal'](arg1, arg2, arg3);
+export function RunInTerminal(arg1, arg2) {
+  return window['go']['main']['App']['RunInTerminal'](arg1, arg2);
 }
 
 export function SavePreset(arg1, arg2, arg3) {
@@ -82,8 +90,8 @@ export function UpdateCategory(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateCategory'](arg1, arg2, arg3, arg4);
 }
 
-export function UpdateCommand(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['UpdateCommand'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function UpdateCommand(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['UpdateCommand'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function UpdatePreset(arg1, arg2, arg3, arg4) {

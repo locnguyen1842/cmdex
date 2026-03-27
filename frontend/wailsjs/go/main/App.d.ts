@@ -6,7 +6,7 @@ export function ClearExecutionHistory():Promise<void>;
 
 export function CreateCategory(arg1:string,arg2:string,arg3:string):Promise<main.Category>;
 
-export function CreateCommand(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<string>,arg6:Array<main.VariableDefinition>):Promise<main.Command>;
+export function CreateCommand(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<string>,arg6:Array<main.VariableDefinition>,arg7:boolean):Promise<main.Command>;
 
 export function DeleteCategory(arg1:string):Promise<void>;
 
@@ -26,13 +26,17 @@ export function GetExecutionHistory():Promise<Array<main.ExecutionRecord>>;
 
 export function GetPresets(arg1:string):Promise<Array<main.VariablePreset>>;
 
+export function GetScriptBody(arg1:string):Promise<string>;
+
+export function GetScriptContent(arg1:string):Promise<string>;
+
 export function GetSettings():Promise<main.AppSettings>;
 
-export function GetVariables(arg1:string,arg2:string):Promise<Array<main.VariablePrompt>>;
+export function GetVariables(arg1:string):Promise<Array<main.VariablePrompt>>;
 
-export function RunCommand(arg1:string,arg2:string,arg3:Record<string, string>):Promise<main.ExecutionRecord>;
+export function RunCommand(arg1:string,arg2:Record<string, string>):Promise<main.ExecutionRecord>;
 
-export function RunInTerminal(arg1:string,arg2:string,arg3:Record<string, string>):Promise<void>;
+export function RunInTerminal(arg1:string,arg2:Record<string, string>):Promise<void>;
 
 export function SavePreset(arg1:string,arg2:string,arg3:Record<string, string>):Promise<main.VariablePreset>;
 
@@ -42,6 +46,6 @@ export function SetSettings(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateCategory(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.Category>;
 
-export function UpdateCommand(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:Array<string>,arg7:Array<main.VariableDefinition>):Promise<main.Command>;
+export function UpdateCommand(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:Array<string>,arg7:Array<main.VariableDefinition>,arg8:boolean):Promise<main.Command>;
 
 export function UpdatePreset(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<main.VariablePreset>;

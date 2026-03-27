@@ -38,6 +38,7 @@ import {
   ChevronDown,
   SquareTerminal,
 } from "lucide-react";
+import { GetScriptBody } from "../../wailsjs/go/main/App";
 
 interface CommandDetailProps {
   command: Command;
@@ -50,22 +51,6 @@ interface CommandDetailProps {
   onEdit: () => void;
   onDelete: () => void;
   onRename: (newTitle: string) => void;
-}
-
-function renderCommandText(text: string): React.ReactNode[] {
-  const regex = /(\$\{\w+\})/g;
-  const parts = text.split(regex);
-  return parts.map((part, i) => {
-    if (regex.test(part)) {
-      regex.lastIndex = 0;
-      return (
-        <span key={i} className="var-missing">
-          {part}
-        </span>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -86,6 +71,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [presetOpen, setPresetOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [scriptBody, setScriptBody] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -95,12 +81,18 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     }
   }, [editingTitle]);
 
+  useEffect(() => {
+    GetScriptBody(command.id)
+      .then((body) => setScriptBody(body))
+      .catch(() => setScriptBody(""));
+  }, [command.id, command.scriptContent]);
+
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(command.commandText).then(() => {
+    navigator.clipboard.writeText(scriptBody).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
-  }, [command.commandText]);
+  }, [scriptBody]);
 
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
@@ -132,38 +124,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     return vals;
   }, [selectedPresetId, command.presets, variables]);
 
-  const previewText = useMemo(() => {
-    let text = command.commandText;
-    for (const [name, value] of Object.entries(resolvedValues)) {
-      text = text.replaceAll(`\${${name}}`, value || `\${${name}}`);
-    }
-    return text;
-  }, [command.commandText, resolvedValues]);
-
-  const renderPreview = useMemo((): React.ReactNode[] => {
-    const regex = /(\$\{\w+\})/g;
-    const parts = command.commandText.split(regex);
-    return parts.map((part, i) => {
-      const match = part.match(/^\$\{(\w+)\}$/);
-      if (match) {
-        const varName = match[1];
-        const val = resolvedValues[varName];
-        if (val) {
-          return (
-            <span key={i} className="var-filled">
-              {val}
-            </span>
-          );
-        }
-        return (
-          <span key={i} className="var-missing">
-            {part}
-          </span>
-        );
-      }
-      return <span key={i}>{part}</span>;
+  const argsPreview = useMemo(() => {
+    if (variables.length === 0) return null;
+    return variables.map((v) => {
+      const val = resolvedValues[v.name];
+      return { name: v.name, value: val || "" };
     });
-  }, [command.commandText, resolvedValues]);
+  }, [variables, resolvedValues]);
 
   const selectedPresetLabel = selectedPresetId
     ? (command.presets.find((p) => p.id === selectedPresetId)?.name ??
@@ -222,7 +189,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           </Tooltip>
         </div>
         <div className="command-text-box">
-          {renderCommandText(command.commandText)}
+          <code className="whitespace-pre-wrap">{scriptBody}</code>
           <div className="preview-actions">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -289,7 +256,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       {variables.length > 0 && (
         <div className="detail-section mt-4">
           <div className="detail-section-title">
-            {t("commandDetail.preview")}
+            {t("commandDetail.arguments")}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -403,48 +370,53 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 </TooltipContent>
               </Tooltip>
             </div>
-          <div className="command-text-box text-xs preview-box-with-float">
-            {renderPreview}
-            <div className="preview-actions">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => onRunInTerminal(resolvedValues)}
-                  >
-                    <SquareTerminal className="size-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => {
-                      navigator.clipboard.writeText(previewText).then(() => {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1500);
-                      });
-                    }}
-                  >
-                    {copied ? (
-                      <Check className="size-3 text-success" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {copied
-                    ? t("commandDetail.copied")
-                    : t("commandDetail.copyCommand")}
-                </TooltipContent>
-              </Tooltip>
+            <div className="command-text-box text-xs preview-box-with-float">
+              {argsPreview && argsPreview.map((arg, i) => (
+                <span key={arg.name}>
+                  <span className="text-muted-foreground">{arg.name}=</span>
+                  {arg.value ? (
+                    <span className="var-filled">{arg.value}</span>
+                  ) : (
+                    <span className="var-missing">{"<empty>"}</span>
+                  )}
+                  {i < argsPreview.length - 1 && " "}
+                </span>
+              ))}
+              <div className="preview-actions">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => onRunInTerminal(resolvedValues)}
+                    >
+                      <SquareTerminal className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={handleCopy}
+                    >
+                      {copied ? (
+                        <Check className="size-3 text-success" />
+                      ) : (
+                        <Copy className="size-3" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {copied
+                      ? t("commandDetail.copied")
+                      : t("commandDetail.copyCommand")}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
-          </div>
           </div>
         </div>
       )}

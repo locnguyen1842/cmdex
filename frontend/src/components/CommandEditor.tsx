@@ -1,5 +1,5 @@
-import React, { useState, useMemo, KeyboardEvent } from "react";
-import { useTranslation, Trans } from "react-i18next";
+import React, { useState, KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Category, Command, VariableDefinition } from "../types";
 import {
   Dialog,
@@ -23,7 +23,9 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { X, Plus, GripVertical } from "lucide-react";
+import { GetScriptBody, GetScriptContent } from "../../wailsjs/go/main/App";
 
 interface CommandEditorProps {
   command?: Command;
@@ -32,27 +34,13 @@ interface CommandEditorProps {
   onSave: (data: {
     title: string;
     description: string;
-    commandText: string;
+    scriptBody: string;
     categoryId: string;
     tags: string[];
     variables: VariableDefinition[];
+    isAdvanced: boolean;
   }) => void;
   onCancel: () => void;
-}
-
-const PLACEHOLDER_RE = /\$\{(\w+)\}/g;
-
-function parseVarNames(text: string): string[] {
-  const names: string[] = [];
-  const seen = new Set<string>();
-  let m: RegExpExecArray | null;
-  while ((m = PLACEHOLDER_RE.exec(text)) !== null) {
-    if (!seen.has(m[1])) {
-      seen.add(m[1]);
-      names.push(m[1]);
-    }
-  }
-  return names;
 }
 
 const CommandEditor: React.FC<CommandEditorProps> = ({
@@ -65,60 +53,96 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   const { t } = useTranslation();
   const [title, setTitle] = useState(command?.title || "");
   const [description, setDescription] = useState(command?.description || "");
-  const [commandText, setCommandText] = useState(command?.commandText || "");
+  const [scriptBody, setScriptBody] = useState("");
+  const [isAdvanced, setIsAdvanced] = useState(false);
+  const [loaded, setLoaded] = useState(!command);
   const UNCATEGORIZED = "__uncategorized__";
   const [categoryId, setCategoryId] = useState(
     command?.categoryId || defaultCategoryId || UNCATEGORIZED,
   );
   const [tags, setTags] = useState<string[]>(command?.tags || []);
   const [tagInput, setTagInput] = useState("");
+  const [variables, setVariables] = useState<VariableDefinition[]>(
+    command?.variables || [],
+  );
 
-  const initVarDefs = (): Record<string, VariableDefinition> => {
-    const map: Record<string, VariableDefinition> = {};
-    (command?.variables || []).forEach((v) => {
-      map[v.name] = v;
-    });
-    return map;
+  // Load script body from backend when editing
+  React.useEffect(() => {
+    if (command) {
+      GetScriptBody(command.id)
+        .then((body) => {
+          setScriptBody(body);
+          setLoaded(true);
+        })
+        .catch(() => {
+          setScriptBody("");
+          setLoaded(true);
+        });
+    }
+  }, [command]);
+
+  const handleToggleAdvanced = async () => {
+    if (!isAdvanced && command) {
+      // Switching to advanced: load full script content
+      try {
+        const content = await GetScriptContent(command.id);
+        setScriptBody(content);
+      } catch {
+        // keep current body
+      }
+    } else if (isAdvanced && command) {
+      // Switching back to simple: load just body
+      try {
+        const body = await GetScriptBody(command.id);
+        setScriptBody(body);
+      } catch {
+        // keep current
+      }
+    }
+    setIsAdvanced(!isAdvanced);
   };
-  const [varDefs, setVarDefs] =
-    useState<Record<string, VariableDefinition>>(initVarDefs);
 
-  const detectedVars = useMemo(() => parseVarNames(commandText), [commandText]);
-  const hasVars = detectedVars.length > 0;
+  const addVariable = () => {
+    const baseName = "var";
+    let idx = variables.length + 1;
+    let name = `${baseName}${idx}`;
+    const existingNames = new Set(variables.map((v) => v.name));
+    while (existingNames.has(name)) {
+      idx++;
+      name = `${baseName}${idx}`;
+    }
+    setVariables([
+      ...variables,
+      { name, description: "", example: "", default: "", sortOrder: variables.length },
+    ]);
+  };
 
-  const updateVarDef = (
-    name: string,
-    field: keyof Omit<VariableDefinition, "name">,
+  const removeVariable = (index: number) => {
+    setVariables(variables.filter((_, i) => i !== index));
+  };
+
+  const updateVariable = (
+    index: number,
+    field: keyof VariableDefinition,
     value: string,
   ) => {
-    setVarDefs((prev) => ({
-      ...prev,
-      [name]: {
-        ...prev[name],
-        name,
-        description: prev[name]?.description || "",
-        example: prev[name]?.example || "",
-        default: prev[name]?.default || "",
-        [field]: value,
-      },
-    }));
+    setVariables(
+      variables.map((v, i) =>
+        i === index ? { ...v, [field]: value } : v,
+      ),
+    );
   };
 
   const handleSave = () => {
-    if (!title.trim() || !commandText.trim()) return;
-    const variables: VariableDefinition[] = detectedVars.map((name) => ({
-      name,
-      description: varDefs[name]?.description || "",
-      example: varDefs[name]?.example || "",
-      default: varDefs[name]?.default || "",
-    }));
+    if (!title.trim() || !scriptBody.trim()) return;
     onSave({
       title: title.trim(),
       description: description.trim(),
-      commandText: commandText.trim(),
+      scriptBody: scriptBody.trim(),
       categoryId: categoryId === UNCATEGORIZED ? "" : categoryId,
       tags,
       variables,
+      isAdvanced,
     });
   };
 
@@ -138,6 +162,10 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   const removeTag = (tag: string) => {
     setTags(tags.filter((t) => t !== tag));
   };
+
+  const hasVars = variables.length > 0;
+
+  if (!loaded) return null;
 
   return (
     <Dialog
@@ -184,31 +212,45 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cmd-text">{t("commandEditor.command")}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="cmd-text">
+                  {isAdvanced
+                    ? t("commandEditor.script")
+                    : t("commandEditor.command")}
+                </Label>
+                {command && (
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="advanced-mode"
+                      className="text-xs text-muted-foreground cursor-pointer"
+                    >
+                      {t("commandEditor.advancedMode")}
+                    </Label>
+                    <Switch
+                      id="advanced-mode"
+                      checked={isAdvanced}
+                      onCheckedChange={handleToggleAdvanced}
+                    />
+                  </div>
+                )}
+              </div>
               <Textarea
                 id="cmd-text"
                 className="font-mono"
-                placeholder={t("commandEditor.commandPlaceholder")}
-                value={commandText}
-                onChange={(e) => setCommandText(e.target.value)}
-                rows={3}
+                placeholder={
+                  isAdvanced
+                    ? t("commandEditor.scriptPlaceholder")
+                    : t("commandEditor.commandPlaceholder")
+                }
+                value={scriptBody}
+                onChange={(e) => setScriptBody(e.target.value)}
+                rows={isAdvanced ? 10 : 3}
               />
-              <p className="text-xs text-muted-foreground">
-                <Trans
-                  shouldUnescape={true}
-                  i18nKey="commandEditor.commandHint"
-                  values={{ placeholder: "${variableName}" }}
-                  components={{
-                    code: <code />,
-                  }}
-                >
-                  Use{" "}
-                  <code className="bg-muted px-1 rounded">
-                    {"${variableName}"}
-                  </code>{" "}
-                  for variable placeholders.
-                </Trans>
-              </p>
+              {!isAdvanced && (
+                <p className="text-xs text-muted-foreground">
+                  {t("commandEditor.commandHintNew")}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>{t("commandEditor.category")}</Label>
@@ -254,71 +296,94 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
             </div>
           </div>
 
-          {hasVars && (
-            <div className="w-72 px-4 py-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          <div className={`w-72 px-4 py-4 ${hasVars ? "" : "hidden"}`}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("commandEditor.variables")}
               </h3>
-              <ScrollArea className="h-[360px]">
-                <div className="space-y-4 pr-3">
-                  {detectedVars.map((name) => (
-                    <div key={name} className="space-y-2">
-                      <p className="text-sm font-medium text-foreground">
-                        {name}
-                      </p>
-                      <div className="space-y-1.5">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">
-                            {t("commandEditor.varDescription")}
-                          </Label>
-                          <Input
-                            className="h-7 text-xs"
-                            value={varDefs[name]?.description || ""}
-                            onChange={(e) =>
-                              updateVarDef(name, "description", e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">
-                            {t("commandEditor.varExample")}
-                          </Label>
-                          <Input
-                            className="h-7 text-xs"
-                            value={varDefs[name]?.example || ""}
-                            onChange={(e) =>
-                              updateVarDef(name, "example", e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">
-                            {t("commandEditor.varDefault")}
-                          </Label>
-                          <Input
-                            className="h-7 text-xs font-mono"
-                            value={varDefs[name]?.default || ""}
-                            onChange={(e) =>
-                              updateVarDef(name, "default", e.target.value)
-                            }
-                          />
-                        </div>
-                      </div>
-                      <Separator className="mt-2" />
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+              <Button variant="ghost" size="icon-xs" onClick={addVariable}>
+                <Plus className="size-3.5" />
+              </Button>
             </div>
-          )}
+            <ScrollArea className="h-[360px]">
+              <div className="space-y-4 pr-3">
+                {variables.map((v, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <GripVertical className="size-3 text-muted-foreground shrink-0" />
+                      <Input
+                        className="h-7 text-sm font-medium font-mono flex-1"
+                        value={v.name}
+                        onChange={(e) =>
+                          updateVariable(index, "name", e.target.value.replace(/\s/g, "_"))
+                        }
+                        placeholder="varName"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => removeVariable(index)}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                    <div className="space-y-1.5 pl-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          {t("commandEditor.varDescription")}
+                        </Label>
+                        <Input
+                          className="h-7 text-xs"
+                          value={v.description}
+                          onChange={(e) =>
+                            updateVariable(index, "description", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          {t("commandEditor.varExample")}
+                        </Label>
+                        <Input
+                          className="h-7 text-xs"
+                          value={v.example}
+                          onChange={(e) =>
+                            updateVariable(index, "example", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          {t("commandEditor.varDefault")}
+                        </Label>
+                        <Input
+                          className="h-7 text-xs font-mono"
+                          value={v.default}
+                          onChange={(e) =>
+                            updateVariable(index, "default", e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                    <Separator className="mt-2" />
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
         <DialogFooter className="px-6 pb-6">
+          {!hasVars && (
+            <Button variant="outline" onClick={addVariable} className="mr-auto">
+              <Plus className="size-4" /> {t("commandEditor.addVariable")}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onCancel}>
             {t("commandEditor.cancel")}
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!title.trim() || !commandText.trim()}
+            disabled={!title.trim() || !scriptBody.trim()}
           >
             {command
               ? t("commandEditor.saveChanges")
