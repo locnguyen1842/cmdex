@@ -23,8 +23,10 @@ const (
 )
 
 type Executor struct {
-	shell string
-	flag  string
+	shell    string
+	flag     string
+	tmpFiles []string // temp files created by OpenInTerminal for cleanup
+	tmpMu    sync.Mutex
 }
 
 func NewExecutor() *Executor {
@@ -62,11 +64,14 @@ func writeTempScript(content string) (string, error) {
 	return f.Name(), nil
 }
 
-// BuildScriptCommand builds the display string for an execution record.
-func BuildScriptCommand(args []string) string {
-	parts := []string{"bash", "<script>"}
-	for _, a := range args {
-		parts = append(parts, fmt.Sprintf("%q", a))
+// BuildFinalCommand builds a display string showing the variable values used.
+func BuildFinalCommand(variables map[string]string) string {
+	if len(variables) == 0 {
+		return "bash <script>"
+	}
+	parts := []string{"bash <script>"}
+	for k, v := range variables {
+		parts = append(parts, fmt.Sprintf("%s=%q", k, v))
 	}
 	return strings.Join(parts, " ")
 }
@@ -77,8 +82,8 @@ type OutputChunk struct {
 	Data   string `json:"data"`
 }
 
-// ExecuteScriptStreaming runs a script with args and streams output via callback.
-func (e *Executor) ExecuteScriptStreaming(scriptContent string, args []string, onChunk func(OutputChunk)) ExecutionResult {
+// ExecuteScript runs a resolved script (all {{var}} already replaced) and streams output via callback.
+func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)) ExecutionResult {
 	tmpPath, err := writeTempScript(scriptContent)
 	if err != nil {
 		return ExecutionResult{Error: err.Error(), ExitCode: -1}
@@ -88,8 +93,7 @@ func (e *Executor) ExecuteScriptStreaming(scriptContent string, args []string, o
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
-	cmdArgs := append([]string{tmpPath}, args...)
-	cmd := exec.CommandContext(ctx, "bash", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "bash", tmpPath)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -173,19 +177,28 @@ func (e *Executor) ExecuteScriptStreaming(scriptContent string, args []string, o
 	return result
 }
 
-// OpenInTerminal opens a terminal and runs the script with args.
-func (e *Executor) OpenInTerminal(terminalID string, scriptContent string, args []string) error {
+// CleanupTempFiles removes temp files created by OpenInTerminal.
+func (e *Executor) CleanupTempFiles() {
+	e.tmpMu.Lock()
+	defer e.tmpMu.Unlock()
+	for _, f := range e.tmpFiles {
+		os.Remove(f)
+	}
+	e.tmpFiles = nil
+}
+
+// OpenInTerminal opens a terminal and runs the resolved script.
+func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error {
 	tmpPath, err := writeTempScript(scriptContent)
 	if err != nil {
 		return err
 	}
-	// Don't remove temp file — terminal process needs it
+	// Track temp file for cleanup on shutdown
+	e.tmpMu.Lock()
+	e.tmpFiles = append(e.tmpFiles, tmpPath)
+	e.tmpMu.Unlock()
 
-	cmdParts := []string{"bash", tmpPath}
-	for _, a := range args {
-		cmdParts = append(cmdParts, fmt.Sprintf("%q", a))
-	}
-	cmdText := strings.Join(cmdParts, " ")
+	cmdText := "bash " + tmpPath
 
 	defs := e.terminalDefs()
 

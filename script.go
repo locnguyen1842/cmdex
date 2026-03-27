@@ -1,159 +1,102 @@
 package main
 
 import (
-	"strconv"
+	"regexp"
+	"sort"
 	"strings"
 )
 
+var templateVarRe = regexp.MustCompile(`\{\{(\w+)\}\}`)
+
 const scriptHeader = "#!/bin/bash"
-const mainOpen = "main() {"
-const mainClose = "}"
-const mainCall = `main "$@"`
 
-// GenerateScript builds a full bash script from a body and variable definitions.
-func GenerateScript(body string, variables []VariableDefinition) string {
-	var sb strings.Builder
-
-	sb.WriteString(scriptHeader)
-	sb.WriteString("\n\n")
-	sb.WriteString(mainOpen)
-	sb.WriteString("\n")
-
-	for i, v := range variables {
-		sb.WriteString("  local ")
-		sb.WriteString(v.Name)
-		sb.WriteString("=\"$")
-		sb.WriteString(strconv.Itoa(i + 1))
-		sb.WriteString("\"\n")
-	}
-
-	if len(variables) > 0 {
-		sb.WriteString("\n")
-	}
-
-	for _, line := range strings.Split(body, "\n") {
-		if line == "" {
-			sb.WriteString("\n")
-		} else {
-			sb.WriteString("  ")
-			sb.WriteString(line)
-			sb.WriteString("\n")
-		}
-	}
-
-	sb.WriteString(mainClose)
-	sb.WriteString("\n\n")
-	sb.WriteString(mainCall)
-	sb.WriteString("\n")
-
-	return sb.String()
+// GenerateScript wraps a body in a shebang header.
+func GenerateScript(body string) string {
+	body = strings.TrimSpace(body)
+	return scriptHeader + "\n\n" + body + "\n"
 }
 
-// ParseScriptBody extracts the user-editable body from a full script.
+// ParseScriptBody strips the shebang header and returns the user-editable body.
 func ParseScriptBody(scriptContent string) string {
-	lines := strings.Split(scriptContent, "\n")
-
-	mainStart := -1
-	for i, line := range lines {
-		if strings.TrimSpace(line) == mainOpen {
-			mainStart = i
-			break
-		}
+	s := strings.TrimSpace(scriptContent)
+	if strings.HasPrefix(s, scriptHeader) {
+		s = strings.TrimPrefix(s, scriptHeader)
+		s = strings.TrimLeft(s, "\n")
 	}
-	if mainStart == -1 {
-		return scriptContent
-	}
-
-	mainEnd := -1
-	for i := mainStart + 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == mainClose {
-			mainEnd = i
-			break
-		}
-	}
-	if mainEnd == -1 {
-		return scriptContent
-	}
-
-	bodyStart := mainStart + 1
-	for bodyStart < mainEnd {
-		trimmed := strings.TrimSpace(lines[bodyStart])
-		if strings.HasPrefix(trimmed, "local ") && strings.Contains(trimmed, "=\"$") {
-			bodyStart++
-			continue
-		}
-		break
-	}
-
-	if bodyStart < mainEnd && strings.TrimSpace(lines[bodyStart]) == "" {
-		bodyStart++
-	}
-
-	var bodyLines []string
-	for i := bodyStart; i < mainEnd; i++ {
-		line := lines[i]
-		if strings.HasPrefix(line, "  ") {
-			line = line[2:]
-		}
-		bodyLines = append(bodyLines, line)
-	}
-
-	return strings.Join(bodyLines, "\n")
+	return s
 }
 
-// RegenerateSignature replaces local declarations in an existing script.
-func RegenerateSignature(scriptContent string, variables []VariableDefinition) string {
-	lines := strings.Split(scriptContent, "\n")
-
-	mainStart := -1
-	for i, line := range lines {
-		if strings.TrimSpace(line) == mainOpen {
-			mainStart = i
-			break
+// ExtractTemplateVars returns unique variable names from {{var}} patterns, in order of first appearance.
+func ExtractTemplateVars(text string) []string {
+	matches := templateVarRe.FindAllStringSubmatch(text, -1)
+	seen := map[string]int{}
+	for _, m := range matches {
+		name := m[1]
+		if _, ok := seen[name]; !ok {
+			seen[name] = len(seen)
 		}
 	}
-	if mainStart == -1 {
-		return GenerateScript(scriptContent, variables)
+	result := make([]string, len(seen))
+	for name, idx := range seen {
+		result[idx] = name
 	}
+	return result
+}
 
-	bodyStart := mainStart + 1
-	for bodyStart < len(lines) {
-		trimmed := strings.TrimSpace(lines[bodyStart])
-		if strings.HasPrefix(trimmed, "local ") && strings.Contains(trimmed, "=\"$") {
-			bodyStart++
-			continue
+// ReplaceTemplateVars replaces all {{var}} placeholders with their values.
+func ReplaceTemplateVars(content string, values map[string]string) string {
+	return templateVarRe.ReplaceAllStringFunc(content, func(match string) string {
+		name := match[2 : len(match)-2] // strip {{ and }}
+		if val, ok := values[name]; ok {
+			return val
 		}
-		break
-	}
-	if bodyStart < len(lines) && strings.TrimSpace(lines[bodyStart]) == "" {
-		bodyStart++
-	}
+		return match // leave unreplaced if no value
+	})
+}
 
-	var sb strings.Builder
-
-	for i := 0; i <= mainStart; i++ {
-		sb.WriteString(lines[i])
-		sb.WriteString("\n")
-	}
-
-	for i, v := range variables {
-		sb.WriteString("  local ")
-		sb.WriteString(v.Name)
-		sb.WriteString("=\"$")
-		sb.WriteString(strconv.Itoa(i + 1))
-		sb.WriteString("\"\n")
+// MergeDetectedVars merges auto-detected variable names with existing variable definitions.
+// Detected vars not in existing list are added; existing vars not detected are kept (manual vars).
+// Order: detected vars first (in detection order), then manual-only vars.
+func MergeDetectedVars(detected []string, existing []VariableDefinition) []VariableDefinition {
+	existingMap := map[string]VariableDefinition{}
+	for _, v := range existing {
+		existingMap[v.Name] = v
 	}
 
-	if len(variables) > 0 {
-		sb.WriteString("\n")
+	detectedSet := map[string]bool{}
+	for _, name := range detected {
+		detectedSet[name] = true
 	}
 
-	for i := bodyStart; i < len(lines); i++ {
-		sb.WriteString(lines[i])
-		if i < len(lines)-1 {
-			sb.WriteString("\n")
+	var result []VariableDefinition
+
+	// First: detected vars in order
+	for i, name := range detected {
+		if v, ok := existingMap[name]; ok {
+			v.SortOrder = i
+			result = append(result, v)
+		} else {
+			result = append(result, VariableDefinition{
+				Name:      name,
+				SortOrder: i,
+			})
 		}
 	}
 
-	return sb.String()
+	// Then: manual vars not in detected set, preserving relative order
+	var manualVars []VariableDefinition
+	for _, v := range existing {
+		if !detectedSet[v.Name] {
+			manualVars = append(manualVars, v)
+		}
+	}
+	sort.SliceStable(manualVars, func(i, j int) bool {
+		return manualVars[i].SortOrder < manualVars[j].SortOrder
+	})
+	for _, v := range manualVars {
+		v.SortOrder = len(result)
+		result = append(result, v)
+	}
+
+	return result
 }

@@ -16,7 +16,7 @@ type DB struct {
 	dataDir string
 }
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -37,10 +37,10 @@ CREATE TABLE IF NOT EXISTS commands (
     title TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     script_content TEXT NOT NULL,
-    category_id TEXT NOT NULL DEFAULT '',
+    category_id TEXT DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -167,7 +167,64 @@ func (db *DB) migrate() error {
 		return nil
 	}
 
-	// Future migrations go here
+	// Migration v1 -> v2: make category_id nullable with ON DELETE SET NULL
+	if version < 2 {
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v2 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		// SQLite doesn't support ALTER COLUMN, so recreate the table
+		migrations := []string{
+			`CREATE TABLE IF NOT EXISTS commands_new (
+				id TEXT PRIMARY KEY,
+				title TEXT NOT NULL,
+				description TEXT NOT NULL DEFAULT '',
+				script_content TEXT NOT NULL,
+				category_id TEXT DEFAULT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+			)`,
+			`INSERT INTO commands_new SELECT * FROM commands`,
+			`DROP TABLE commands`,
+			`ALTER TABLE commands_new RENAME TO commands`,
+			// Update empty strings to NULL
+			`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
+			// Recreate FTS triggers
+			`DROP TRIGGER IF EXISTS commands_ai`,
+			`DROP TRIGGER IF EXISTS commands_ad`,
+			`DROP TRIGGER IF EXISTS commands_au`,
+			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
+				INSERT INTO commands_fts(rowid, title, description, script_content)
+				VALUES (new.rowid, new.title, new.description, new.script_content);
+			END`,
+			`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
+				INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
+				VALUES ('delete', old.rowid, old.title, old.description, old.script_content);
+			END`,
+			`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
+				INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
+				VALUES ('delete', old.rowid, old.title, old.description, old.script_content);
+				INSERT INTO commands_fts(rowid, title, description, script_content)
+				VALUES (new.rowid, new.title, new.description, new.script_content);
+			END`,
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v2: %w", err)
+			}
+		}
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", schemaVersion); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v2: %w", err)
+		}
+		return nil
+	}
+
 	_, err = db.conn.Exec("UPDATE schema_version SET version = ?", schemaVersion)
 	return err
 }
@@ -248,9 +305,11 @@ func (db *DB) GetCommands() ([]Command, error) {
 	cmds := []Command{}
 	for rows.Next() {
 		var c Command
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var catID sql.NullString
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan command: %w", err)
 		}
+		c.CategoryID = catID.String
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -278,9 +337,11 @@ func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 	cmds := []Command{}
 	for rows.Next() {
 		var c Command
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var catID sql.NullString
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan command: %w", err)
 		}
+		c.CategoryID = catID.String
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -297,12 +358,14 @@ func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 
 func (db *DB) GetCommand(id string) (Command, error) {
 	var c Command
+	var catID sql.NullString
 	err := db.conn.QueryRow(
 		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands WHERE id = ?", id,
-	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt)
+	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return c, fmt.Errorf("get command %s: %w", id, err)
 	}
+	c.CategoryID = catID.String
 	if err := db.loadCommandRelations(&c); err != nil {
 		return c, err
 	}
@@ -396,6 +459,13 @@ func (db *DB) loadCommandRelations(cmd *Command) error {
 	return presetRows.Err()
 }
 
+func nullableString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 func (db *DB) CreateCommand(cmd Command) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -405,7 +475,7 @@ func (db *DB) CreateCommand(cmd Command) error {
 
 	_, err = tx.Exec(
 		"INSERT INTO commands (id, title, description, script_content, category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		cmd.ID, cmd.Title, cmd.Description, cmd.ScriptContent, cmd.CategoryID, cmd.CreatedAt, cmd.UpdatedAt,
+		cmd.ID, cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.CreatedAt, cmd.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert command: %w", err)
@@ -430,7 +500,7 @@ func (db *DB) UpdateCommand(cmd Command) error {
 
 	res, err := tx.Exec(
 		"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
-		cmd.Title, cmd.Description, cmd.ScriptContent, cmd.CategoryID, cmd.UpdatedAt, cmd.ID,
+		cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update command: %w", err)
@@ -457,6 +527,21 @@ func (db *DB) UpdateCommand(cmd Command) error {
 	}
 
 	return tx.Commit()
+}
+
+func (db *DB) RenameCommand(id string, title string) error {
+	res, err := db.conn.Exec(
+		"UPDATE commands SET title = ?, updated_at = ? WHERE id = ?",
+		title, time.Now(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("rename command: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("command %s not found", id)
+	}
+	return nil
 }
 
 func (db *DB) DeleteCommand(id string) error {
@@ -689,9 +774,11 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 	cmds := []Command{}
 	for rows.Next() {
 		var c Command
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var catID sql.NullString
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan search result: %w", err)
 		}
+		c.CategoryID = catID.String
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -723,9 +810,11 @@ func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 	cmds := []Command{}
 	for rows.Next() {
 		var c Command
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var catID sql.NullString
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan like result: %w", err)
 		}
+		c.CategoryID = catID.String
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {

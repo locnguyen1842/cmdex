@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,7 +26,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	db, err := NewDB()
 	if err != nil {
-		fmt.Println("Error initializing database:", err)
+		wailsruntime.LogFatal(ctx, "Failed to initialize database: "+err.Error())
 		return
 	}
 	a.db = db
@@ -36,6 +35,9 @@ func (a *App) startup(ctx context.Context) {
 
 // shutdown is called when the app is closing
 func (a *App) shutdown(ctx context.Context) {
+	if a.executor != nil {
+		a.executor.CleanupTempFiles()
+	}
 	if a.db != nil {
 		a.db.Close()
 	}
@@ -111,7 +113,7 @@ func (a *App) GetCommandsByCategory(categoryID string) []Command {
 	return cmds
 }
 
-func (a *App) CreateCommand(title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition, isAdvanced bool) (Command, error) {
+func (a *App) CreateCommand(title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition) (Command, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -123,12 +125,7 @@ func (a *App) CreateCommand(title, description, scriptBody, categoryID string, t
 		variables[i].SortOrder = i
 	}
 
-	var scriptContent string
-	if isAdvanced {
-		scriptContent = RegenerateSignature(scriptBody, variables)
-	} else {
-		scriptContent = GenerateScript(scriptBody, variables)
-	}
+	scriptContent := GenerateScript(scriptBody)
 
 	cmd := Command{
 		ID:            uuid.New().String(),
@@ -149,7 +146,7 @@ func (a *App) CreateCommand(title, description, scriptBody, categoryID string, t
 	return cmd, nil
 }
 
-func (a *App) UpdateCommand(id, title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition, isAdvanced bool) (Command, error) {
+func (a *App) UpdateCommand(id, title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition) (Command, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -161,12 +158,7 @@ func (a *App) UpdateCommand(id, title, description, scriptBody, categoryID strin
 		variables[i].SortOrder = i
 	}
 
-	var scriptContent string
-	if isAdvanced {
-		scriptContent = RegenerateSignature(scriptBody, variables)
-	} else {
-		scriptContent = GenerateScript(scriptBody, variables)
-	}
+	scriptContent := GenerateScript(scriptBody)
 
 	cmd := Command{
 		ID:            id,
@@ -183,6 +175,13 @@ func (a *App) UpdateCommand(id, title, description, scriptBody, categoryID strin
 		return Command{}, err
 	}
 
+	return a.db.GetCommand(id)
+}
+
+func (a *App) RenameCommand(id string, newTitle string) (Command, error) {
+	if err := a.db.RenameCommand(id, newTitle); err != nil {
+		return Command{}, err
+	}
 	return a.db.GetCommand(id)
 }
 
@@ -251,23 +250,17 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 		}
 	}
 
-	scriptContent := RegenerateSignature(cmd.ScriptContent, cmd.Variables)
+	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
+	finalCmd := BuildFinalCommand(variables)
 
-	args := make([]string, len(cmd.Variables))
-	for i, v := range cmd.Variables {
-		args[i] = variables[v.Name]
-	}
-
-	finalCmd := BuildScriptCommand(args)
-
-	result := a.executor.ExecuteScriptStreaming(scriptContent, args, func(chunk OutputChunk) {
+	result := a.executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
 		wailsruntime.EventsEmit(a.ctx, "cmd-output", chunk)
 	})
 
 	record := ExecutionRecord{
 		ID:            uuid.New().String(),
 		CommandID:     commandID,
-		ScriptContent: scriptContent,
+		ScriptContent: cmd.ScriptContent,
 		FinalCmd:      finalCmd,
 		Output:        result.Output,
 		Error:         result.Error,
@@ -286,15 +279,10 @@ func (a *App) RunInTerminal(commandID string, variables map[string]string) error
 		return err
 	}
 
-	scriptContent := RegenerateSignature(cmd.ScriptContent, cmd.Variables)
-
-	args := make([]string, len(cmd.Variables))
-	for i, v := range cmd.Variables {
-		args[i] = variables[v.Name]
-	}
+	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
 
 	settings, _ := a.db.GetSettings()
-	return a.executor.OpenInTerminal(settings.Terminal, scriptContent, args)
+	return a.executor.OpenInTerminal(settings.Terminal, resolvedScript)
 }
 
 // ========== Execution History ==========
@@ -375,7 +363,7 @@ func (a *App) SearchCommands(query string) []Command {
 		return a.GetCommands()
 	}
 
-	cmds, err := a.db.SearchCommands(strings.ToLower(query))
+	cmds, err := a.db.SearchCommands(query)
 	if err != nil {
 		fmt.Println("Error searching commands:", err)
 		return []Command{}

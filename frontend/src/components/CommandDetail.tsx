@@ -124,6 +124,23 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     return vals;
   }, [selectedPresetId, command.presets, variables]);
 
+  const renderScriptWithVars = useMemo(() => {
+    if (!scriptBody) return null;
+    const parts = scriptBody.split(/(\{\{\w+\}\})/g);
+    return parts.map((part, i) => {
+      if (/^\{\{\w+\}\}$/.test(part)) {
+        const varName = part.slice(2, -2);
+        const val = resolvedValues[varName];
+        return (
+          <span key={i} className={val ? "var-filled" : "var-missing"} title={val || varName}>
+            {part}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }, [scriptBody, resolvedValues]);
+
   const argsPreview = useMemo(() => {
     if (variables.length === 0) return null;
     return variables.map((v) => {
@@ -189,7 +206,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           </Tooltip>
         </div>
         <div className="command-text-box">
-          <code className="whitespace-pre-wrap">{scriptBody}</code>
+          <code className="whitespace-pre-wrap">{renderScriptWithVars}</code>
           <div className="preview-actions">
             <Tooltip>
               <TooltipTrigger asChild>

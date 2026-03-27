@@ -35,6 +35,7 @@ import {
     CreateCommand,
     UpdateCommand,
     DeleteCommand,
+    RenameCommand,
     SearchCommands,
     GetVariables,
     RunCommand,
@@ -186,10 +187,10 @@ function App() {
     // ========== Command handlers ==========
 
     const handleCreateCommand = async (data: {
-        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[]; isAdvanced: boolean;
+        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
     }) => {
         try {
-            const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables, data.isAdvanced);
+            const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
             setSelectedCommand(cmd);
             setModal({ type: 'none' });
@@ -200,11 +201,11 @@ function App() {
     };
 
     const handleUpdateCommand = async (data: {
-        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[]; isAdvanced: boolean;
+        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
     }) => {
         if (modal.type !== 'commandEditor' || !modal.command) return;
         try {
-            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables, data.isAdvanced);
+            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
             setSelectedCommand(cmd);
             setModal({ type: 'none' });
@@ -217,11 +218,7 @@ function App() {
     const handleRenameCommand = async (newTitle: string) => {
         if (!selectedCommand) return;
         try {
-            const cmd = await UpdateCommand(
-                selectedCommand.id, newTitle, selectedCommand.description,
-                selectedCommand.scriptContent, selectedCommand.categoryId,
-                selectedCommand.tags, selectedCommand.variables, true
-            );
+            const cmd = await RenameCommand(selectedCommand.id, newTitle);
             await loadData();
             setSelectedCommand(cmd);
         } catch (err) {

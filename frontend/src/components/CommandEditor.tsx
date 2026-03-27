@@ -1,4 +1,4 @@
-import React, { useState, KeyboardEvent } from "react";
+import React, { useState, useEffect, useMemo, KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Category, Command, VariableDefinition } from "../types";
 import {
@@ -23,9 +23,29 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { X, Plus, GripVertical } from "lucide-react";
-import { GetScriptBody, GetScriptContent } from "../../wailsjs/go/main/App";
+import { X, Plus, GripVertical, Sparkles } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import { GetScriptBody } from "../../wailsjs/go/main/App";
+
+const TEMPLATE_VAR_RE = /\{\{(\w+)\}\}/g;
+
+function extractTemplateVars(text: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  let match;
+  TEMPLATE_VAR_RE.lastIndex = 0;
+  while ((match = TEMPLATE_VAR_RE.exec(text)) !== null) {
+    if (!seen.has(match[1])) {
+      seen.add(match[1]);
+      result.push(match[1]);
+    }
+  }
+  return result;
+}
 
 interface CommandEditorProps {
   command?: Command;
@@ -38,7 +58,6 @@ interface CommandEditorProps {
     categoryId: string;
     tags: string[];
     variables: VariableDefinition[];
-    isAdvanced: boolean;
   }) => void;
   onCancel: () => void;
 }
@@ -54,7 +73,6 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   const [title, setTitle] = useState(command?.title || "");
   const [description, setDescription] = useState(command?.description || "");
   const [scriptBody, setScriptBody] = useState("");
-  const [isAdvanced, setIsAdvanced] = useState(false);
   const [loaded, setLoaded] = useState(!command);
   const UNCATEGORIZED = "__uncategorized__";
   const [categoryId, setCategoryId] = useState(
@@ -67,7 +85,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   );
 
   // Load script body from backend when editing
-  React.useEffect(() => {
+  useEffect(() => {
     if (command) {
       GetScriptBody(command.id)
         .then((body) => {
@@ -81,26 +99,45 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
     }
   }, [command]);
 
-  const handleToggleAdvanced = async () => {
-    if (!isAdvanced && command) {
-      // Switching to advanced: load full script content
-      try {
-        const content = await GetScriptContent(command.id);
-        setScriptBody(content);
-      } catch {
-        // keep current body
-      }
-    } else if (isAdvanced && command) {
-      // Switching back to simple: load just body
-      try {
-        const body = await GetScriptBody(command.id);
-        setScriptBody(body);
-      } catch {
-        // keep current
+  // Sync detected {{var}} from script body — triggered on blur, not every keystroke
+  const syncVariablesFromScript = () => {
+    const detected = extractTemplateVars(scriptBody);
+    const existingMap = new Map(variables.map((v) => [v.name, v]));
+
+    const merged: VariableDefinition[] = [];
+    const usedNames = new Set<string>();
+
+    for (let i = 0; i < detected.length; i++) {
+      const name = detected[i];
+      usedNames.add(name);
+      const existing = existingMap.get(name);
+      if (existing) {
+        merged.push({ ...existing, sortOrder: i });
+      } else {
+        merged.push({ name, description: "", example: "", default: "", sortOrder: i });
       }
     }
-    setIsAdvanced(!isAdvanced);
+
+    // Keep manual vars that aren't detected
+    for (const v of variables) {
+      if (!usedNames.has(v.name)) {
+        merged.push({ ...v, sortOrder: merged.length });
+      }
+    }
+
+    setVariables(merged);
   };
+
+  // Also sync on initial load
+  const hasInitialSynced = React.useRef(false);
+  useEffect(() => {
+    if (loaded && !hasInitialSynced.current) {
+      hasInitialSynced.current = true;
+      syncVariablesFromScript();
+    }
+  }, [loaded]);
+
+  const detectedSet = useMemo(() => new Set(extractTemplateVars(scriptBody)), [scriptBody]);
 
   const addVariable = () => {
     const baseName = "var";
@@ -142,7 +179,6 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
       categoryId: categoryId === UNCATEGORIZED ? "" : categoryId,
       tags,
       variables,
-      isAdvanced,
     });
   };
 
@@ -212,45 +248,21 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="cmd-text">
-                  {isAdvanced
-                    ? t("commandEditor.script")
-                    : t("commandEditor.command")}
-                </Label>
-                {command && (
-                  <div className="flex items-center gap-2">
-                    <Label
-                      htmlFor="advanced-mode"
-                      className="text-xs text-muted-foreground cursor-pointer"
-                    >
-                      {t("commandEditor.advancedMode")}
-                    </Label>
-                    <Switch
-                      id="advanced-mode"
-                      checked={isAdvanced}
-                      onCheckedChange={handleToggleAdvanced}
-                    />
-                  </div>
-                )}
-              </div>
+              <Label htmlFor="cmd-text">
+                {t("commandEditor.command")}
+              </Label>
               <Textarea
                 id="cmd-text"
                 className="font-mono"
-                placeholder={
-                  isAdvanced
-                    ? t("commandEditor.scriptPlaceholder")
-                    : t("commandEditor.commandPlaceholder")
-                }
+                placeholder={t("commandEditor.commandPlaceholder")}
                 value={scriptBody}
                 onChange={(e) => setScriptBody(e.target.value)}
-                rows={isAdvanced ? 10 : 3}
+                onBlur={syncVariablesFromScript}
+                rows={5}
               />
-              {!isAdvanced && (
-                <p className="text-xs text-muted-foreground">
-                  {t("commandEditor.commandHintNew")}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                {t("commandEditor.commandHintNew")}
+              </p>
             </div>
             <div className="space-y-2">
               <Label>{t("commandEditor.category")}</Label>
@@ -319,6 +331,14 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                         }
                         placeholder="varName"
                       />
+                      {detectedSet.has(v.name) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Sparkles className="size-3 text-yellow-500 shrink-0" />
+                          </TooltipTrigger>
+                          <TooltipContent>{t("commandEditor.autoDetected")}</TooltipContent>
+                        </Tooltip>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon-xs"
