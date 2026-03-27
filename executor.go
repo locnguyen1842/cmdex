@@ -2,13 +2,11 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -23,8 +21,6 @@ const (
 	maxStoredOutputBytes = 8 * 1024 // 8KB cap for persisted output
 	defaultExecTimeout   = 60 * time.Second
 )
-
-var variableRegex = regexp.MustCompile(`\$\{(\w+)\}`)
 
 type Executor struct {
 	shell string
@@ -42,86 +38,37 @@ func NewExecutor() *Executor {
 		if shell == "" {
 			shell = "/bin/sh"
 		}
-
-		fmt.Println("shell", shell)
 		flag = "-lc"
 	}
 
 	return &Executor{shell: shell, flag: flag}
 }
 
-// ParseVariables extracts variable placeholders from command text
-// Placeholders use the format ${variableName}
-func (e *Executor) ParseVariables(cmdText string) []VariablePrompt {
-	matches := variableRegex.FindAllStringSubmatch(cmdText, -1)
-	seen := make(map[string]bool)
-	var prompts []VariablePrompt
-
-	for _, match := range matches {
-		name := match[1]
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		prompts = append(prompts, VariablePrompt{
-			Name:        name,
-			Placeholder: match[0],
-		})
-	}
-
-	if prompts == nil {
-		prompts = []VariablePrompt{}
-	}
-	return prompts
-}
-
-// SubstituteVariables replaces ${var} placeholders with provided values
-func (e *Executor) SubstituteVariables(cmdText string, variables map[string]string) string {
-	result := cmdText
-	for name, value := range variables {
-		result = strings.ReplaceAll(result, "${"+name+"}", value)
-	}
-	return result
-}
-
-// Execute runs a shell command and returns the result (non-streaming, kept for backward compatibility)
-func (e *Executor) Execute(cmdText string) ExecutionResult {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, e.shell, e.flag, cmdText)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-
-	result := ExecutionResult{
-		Output:   stdout.String(),
-		ExitCode: 0,
-	}
-
-	if stderr.Len() > 0 {
-		result.Error = stderr.String()
-	}
-
-	if ctx.Err() == context.DeadlineExceeded {
-		result.Error = fmt.Sprintf("command timed out after %s", defaultExecTimeout)
-		result.ExitCode = -1
-		return result
-	}
-
+// writeTempScript writes script content to a temp file and returns its path.
+func writeTempScript(content string) (string, error) {
+	f, err := os.CreateTemp("", "commamer-*.sh")
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-		} else {
-			result.Error = err.Error()
-			result.ExitCode = -1
-		}
+		return "", err
 	}
+	if _, err := f.WriteString(content); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
+}
 
-	return result
+// BuildScriptCommand builds the display string for an execution record.
+func BuildScriptCommand(args []string) string {
+	parts := []string{"bash", "<script>"}
+	for _, a := range args {
+		parts = append(parts, fmt.Sprintf("%q", a))
+	}
+	return strings.Join(parts, " ")
 }
 
 // OutputChunk represents a single chunk of streaming output
@@ -130,14 +77,19 @@ type OutputChunk struct {
 	Data   string `json:"data"`
 }
 
-// ExecuteStreaming runs a shell command and streams output line-by-line via the callback.
-// The returned ExecutionResult contains truncated output (capped at maxStoredOutputBytes).
-// The command is killed if it exceeds defaultExecTimeout.
-func (e *Executor) ExecuteStreaming(cmdText string, onChunk func(OutputChunk)) ExecutionResult {
+// ExecuteScriptStreaming runs a script with args and streams output via callback.
+func (e *Executor) ExecuteScriptStreaming(scriptContent string, args []string, onChunk func(OutputChunk)) ExecutionResult {
+	tmpPath, err := writeTempScript(scriptContent)
+	if err != nil {
+		return ExecutionResult{Error: err.Error(), ExitCode: -1}
+	}
+	defer os.Remove(tmpPath)
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, e.shell, e.flag, cmdText)
+	cmdArgs := append([]string{tmpPath}, args...)
+	cmd := exec.CommandContext(ctx, "bash", cmdArgs...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -219,6 +171,38 @@ func (e *Executor) ExecuteStreaming(cmdText string, onChunk func(OutputChunk)) E
 	}
 
 	return result
+}
+
+// OpenInTerminal opens a terminal and runs the script with args.
+func (e *Executor) OpenInTerminal(terminalID string, scriptContent string, args []string) error {
+	tmpPath, err := writeTempScript(scriptContent)
+	if err != nil {
+		return err
+	}
+	// Don't remove temp file — terminal process needs it
+
+	cmdParts := []string{"bash", tmpPath}
+	for _, a := range args {
+		cmdParts = append(cmdParts, fmt.Sprintf("%q", a))
+	}
+	cmdText := strings.Join(cmdParts, " ")
+
+	defs := e.terminalDefs()
+
+	if terminalID != "" {
+		for _, d := range defs {
+			if d.ID == terminalID && e.terminalExists(d) && d.LaunchFn != nil {
+				return d.LaunchFn(e, cmdText)
+			}
+		}
+	}
+
+	for _, d := range defs {
+		if e.terminalExists(d) && d.LaunchFn != nil {
+			return d.LaunchFn(e, cmdText)
+		}
+	}
+	return fmt.Errorf("no terminal emulator found")
 }
 
 // terminalDef defines how to detect and launch a terminal emulator
@@ -346,10 +330,6 @@ func (e *Executor) linuxTerminals() []terminalDef {
 			return exec.Command(bin, args...).Start()
 		}
 	}
-	hold := func(ex *Executor, cmdText string) string {
-		return cmdText + "; exec " + ex.shell
-	}
-	_ = hold
 
 	return []terminalDef{
 		{ID: "gnome-terminal", Name: "GNOME Terminal", Paths: []string{"gnome-terminal"},
@@ -368,18 +348,6 @@ func (e *Executor) linuxTerminals() []terminalDef {
 			LaunchFn: shellExec("xfce4-terminal", func(sh, cmd string) []string {
 				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
 			})},
-		{ID: "mate-terminal", Name: "MATE Terminal", Paths: []string{"mate-terminal"},
-			LaunchFn: shellExec("mate-terminal", func(sh, cmd string) []string {
-				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
-			})},
-		{ID: "tilix", Name: "Tilix", Paths: []string{"tilix"},
-			LaunchFn: shellExec("tilix", func(sh, cmd string) []string {
-				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
-			})},
-		{ID: "terminator", Name: "Terminator", Paths: []string{"terminator"},
-			LaunchFn: shellExec("terminator", func(sh, cmd string) []string {
-				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
-			})},
 		{ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty"},
 			LaunchFn: shellExec("alacritty", func(sh, cmd string) []string {
 				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
@@ -388,31 +356,13 @@ func (e *Executor) linuxTerminals() []terminalDef {
 			LaunchFn: shellExec("kitty", func(sh, cmd string) []string {
 				return []string{sh, "-c", cmd + "; exec " + sh}
 			})},
-		{ID: "warp", Name: "Warp", Paths: []string{"warp-terminal"},
-			LaunchFn: shellExec("warp-terminal", func(_, _ string) []string { return nil })},
 		{ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty"},
 			LaunchFn: shellExec("ghostty", func(sh, cmd string) []string {
-				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
-			})},
-		{ID: "urxvt", Name: "URxvt", Paths: []string{"urxvt"},
-			LaunchFn: shellExec("urxvt", func(sh, cmd string) []string {
 				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
 			})},
 		{ID: "xterm", Name: "XTerm", Paths: []string{"xterm"},
 			LaunchFn: shellExec("xterm", func(sh, cmd string) []string {
 				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
-			})},
-		{ID: "deepin-terminal", Name: "Deepin Terminal", Paths: []string{"deepin-terminal"},
-			LaunchFn: shellExec("deepin-terminal", func(sh, cmd string) []string {
-				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
-			})},
-		{ID: "elementary-terminal", Name: "Elementary Terminal", Paths: []string{"io.elementary.terminal"},
-			LaunchFn: shellExec("io.elementary.terminal", func(sh, cmd string) []string {
-				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
-			})},
-		{ID: "lxterminal", Name: "LXDE Terminal", Paths: []string{"lxterminal"},
-			LaunchFn: shellExec("lxterminal", func(sh, cmd string) []string {
-				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
 			})},
 	}
 }
@@ -438,30 +388,7 @@ func (e *Executor) windowsTerminals() []terminalDef {
 	}
 }
 
-// OpenInTerminal opens a specific terminal (by ID) or auto-detects one and runs the command.
-func (e *Executor) OpenInTerminal(terminalID string, cmdText string) error {
-	defs := e.terminalDefs()
-
-	if terminalID != "" {
-		for _, d := range defs {
-			if d.ID == terminalID && e.terminalExists(d) && d.LaunchFn != nil {
-				return d.LaunchFn(e, cmdText)
-			}
-		}
-		// Preferred terminal not found, fall through to auto-detect
-	}
-
-	// Auto-detect: use first available
-	for _, d := range defs {
-		if e.terminalExists(d) && d.LaunchFn != nil {
-			return d.LaunchFn(e, cmdText)
-		}
-	}
-	return fmt.Errorf("no terminal emulator found")
-}
-
 // EvalDefaults evaluates CEL expressions in variable definitions and returns resolved defaults.
-// If evaluation fails, the raw Default string is returned as a literal fallback.
 func (e *Executor) EvalDefaults(defs []VariableDefinition) map[string]string {
 	results := make(map[string]string, len(defs))
 	if len(defs) == 0 {
