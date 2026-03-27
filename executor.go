@@ -76,6 +76,16 @@ func BuildFinalCommand(variables map[string]string) string {
 	return strings.Join(parts, " ")
 }
 
+func BuildDisplayCommand(scriptContent string, variables map[string]string) string {
+	resolved := ReplaceTemplateVars(scriptContent, variables)
+	if idx := strings.Index(resolved, "\n"); strings.HasPrefix(resolved, "#!") && idx != -1 {
+		resolved = resolved[idx+1:]
+		resolved = strings.TrimPrefix(resolved, "\n")
+	}
+	resolved = strings.TrimSpace(resolved)
+	return resolved
+}
+
 // OutputChunk represents a single chunk of streaming output
 type OutputChunk struct {
 	Stream string `json:"stream"` // "stdout" or "stderr"
