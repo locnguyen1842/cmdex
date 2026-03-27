@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/mac/Documents/Projects/Others/commamer -name *test* -o -name *spec* -o -name jest.config.* -o -name vitest.config.*)",
+      "Bash(git config:*)"
+    ]
+  }
+}
