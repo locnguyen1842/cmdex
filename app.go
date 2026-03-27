@@ -251,7 +251,7 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 	}
 
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
-	finalCmd := BuildFinalCommand(variables)
+	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
 
 	result := a.executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
 		wailsruntime.EventsEmit(a.ctx, "cmd-output", chunk)
