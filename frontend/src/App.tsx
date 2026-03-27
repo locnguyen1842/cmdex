@@ -1,13 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import './style.css';
 import Sidebar from './components/Sidebar';
 import CommandDetail from './components/CommandDetail';
 import CommandEditor from './components/CommandEditor';
 import CategoryEditor from './components/CategoryEditor';
 import VariablePrompt from './components/VariablePrompt';
-import { Category, Command, VariablePrompt as VarPromptType, ExecutionResult } from './types';
+import HistoryPane from './components/HistoryPane';
+import OutputPane from './components/OutputPane';
+import SettingsDialog from './components/SettingsDialog';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogCancel,
+    AlertDialogAction,
+} from '@/components/ui/alert-dialog';
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+import { Category, Command, VariableDefinition, VariablePrompt as VarPromptType, VariablePreset, ExecutionRecord } from './types';
 
-// Wails bindings — these are auto-generated at build/dev time
 import {
     GetCategories,
     CreateCategory,
@@ -20,23 +38,56 @@ import {
     SearchCommands,
     GetVariables,
     RunCommand,
+    GetExecutionHistory,
+    ClearExecutionHistory,
+    GetPresets,
+    SavePreset,
+    UpdatePreset,
+    DeletePreset,
+    GetSettings,
+    RunInTerminal,
 } from '../wailsjs/go/main/App';
+import i18n from './i18n';
+
+function extractVarNames(commandText: string): Set<string> {
+    const regex = /\{\?(\w+)\}/g;
+    const names = new Set<string>();
+    let m;
+    while ((m = regex.exec(commandText)) !== null) names.add(m[1]);
+    return names;
+}
 
 type ModalState =
     | { type: 'none' }
     | { type: 'commandEditor'; command?: Command; defaultCategoryId?: string }
     | { type: 'categoryEditor'; category?: Category }
-    | { type: 'variablePrompt'; variables: VarPromptType[]; commandText: string }
+    | { type: 'managePresets'; variables: VarPromptType[]; commandText: string; commandId: string; presets: VariablePreset[] }
+    | { type: 'fillVariables'; variables: VarPromptType[]; commandText: string; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string };
 
 function App() {
+    const { t } = useTranslation();
     const [categories, setCategories] = useState<Category[]>([]);
     const [commands, setCommands] = useState<Command[]>([]);
     const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [modal, setModal] = useState<ModalState>({ type: 'none' });
-    const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
+
+    const [executionHistory, setExecutionHistory] = useState<ExecutionRecord[]>([]);
+    const [selectedRecord, setSelectedRecord] = useState<ExecutionRecord | null>(null);
+    const [outputPaneOpen, setOutputPaneOpen] = useState(true);
+    const [resolvedVariables, setResolvedVariables] = useState<VarPromptType[]>([]);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [lastSelectedPresetId, setLastSelectedPresetId] = useState<string>('');
+    const [streamLines, setStreamLines] = useState<string[]>([]);
+    const streamBufferRef = useRef<string[]>([]);
+    const streamFlushRef = useRef<number | null>(null);
+    const [pendingCommandUpdate, setPendingCommandUpdate] = useState<{
+        data: { title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[] };
+        removedVars: string[];
+        presetCount: number;
+    } | null>(null);
 
     const loadData = useCallback(async () => {
         try {
@@ -49,11 +100,30 @@ function App() {
         }
     }, []);
 
+    const loadHistory = useCallback(async () => {
+        try {
+            const records = await GetExecutionHistory();
+            setExecutionHistory(records || []);
+        } catch (err) {
+            console.error('Failed to load history:', err);
+        }
+    }, []);
+
     useEffect(() => {
         loadData();
-    }, [loadData]);
+        loadHistory();
+        GetSettings().then(s => {
+            if (s?.locale && s.locale !== i18n.language) {
+                i18n.changeLanguage(s.locale);
+            }
+        }).catch(() => {});
+    }, [loadData, loadHistory]);
 
-    // Filter commands when search changes
+    useEffect(() => {
+        const cleanup = EventsOn('open-settings', () => setSettingsOpen(true));
+        return cleanup;
+    }, []);
+
     useEffect(() => {
         if (!searchQuery.trim()) {
             GetCommands().then(cmds => setCommands(cmds || []));
@@ -62,6 +132,16 @@ function App() {
         }
     }, [searchQuery]);
 
+    useEffect(() => {
+        if (selectedCommand) {
+            GetVariables(selectedCommand.id, selectedCommand.commandText)
+                .then(vars => setResolvedVariables(vars || []))
+                .catch(() => setResolvedVariables([]));
+        } else {
+            setResolvedVariables([]);
+        }
+    }, [selectedCommand]);
+
     // ========== Category handlers ==========
 
     const handleCreateCategory = async (data: { name: string; color: string }) => {
@@ -69,6 +149,7 @@ function App() {
             await CreateCategory(data.name, '', data.color);
             await loadData();
             setModal({ type: 'none' });
+            toast.success(t('toast.categoryCreated'));
         } catch (err) {
             console.error('Failed to create category:', err);
         }
@@ -80,6 +161,7 @@ function App() {
             await UpdateCategory(modal.category.id, data.name, '', data.color);
             await loadData();
             setModal({ type: 'none' });
+            toast.success(t('toast.categorySaved'));
         } catch (err) {
             console.error('Failed to update category:', err);
         }
@@ -93,8 +175,9 @@ function App() {
 
     const confirmDelete = async () => {
         if (modal.type !== 'confirmDelete') return;
+        const { itemType } = modal;
         try {
-            if (modal.itemType === 'category') {
+            if (itemType === 'category') {
                 await DeleteCategory(modal.id);
                 if (selectedCommand?.categoryId === modal.id) {
                     setSelectedCommand(null);
@@ -107,7 +190,7 @@ function App() {
             }
             await loadData();
             setModal({ type: 'none' });
-            setExecutionResult(null);
+            toast.success(itemType === 'category' ? t('toast.categoryDeleted') : t('toast.commandDeleted'));
         } catch (err) {
             console.error('Failed to delete:', err);
         }
@@ -116,189 +199,421 @@ function App() {
     // ========== Command handlers ==========
 
     const handleCreateCommand = async (data: {
-        title: string; description: string; commandText: string; categoryId: string; tags: string[];
+        title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
     }) => {
         try {
-            const cmd = await CreateCommand(data.title, data.description, data.commandText, data.categoryId, data.tags);
+            const cmd = await CreateCommand(data.title, data.description, data.commandText, data.categoryId, data.tags, data.variables);
             await loadData();
             setSelectedCommand(cmd);
             setModal({ type: 'none' });
-            setExecutionResult(null);
+            toast.success(t('toast.commandCreated'));
         } catch (err) {
             console.error('Failed to create command:', err);
         }
     };
 
     const handleUpdateCommand = async (data: {
-        title: string; description: string; commandText: string; categoryId: string; tags: string[];
+        title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
+    }) => {
+        if (modal.type !== 'commandEditor' || !modal.command) return;
+        const oldVars = extractVarNames(modal.command.commandText);
+        const newVars = extractVarNames(data.commandText);
+        const removedVars = [...oldVars].filter(v => !newVars.has(v));
+        const presetCount = (modal.command.presets || []).length;
+
+        if (removedVars.length > 0 && presetCount > 0) {
+            setPendingCommandUpdate({ data, removedVars, presetCount });
+            return;
+        }
+
+        await commitCommandUpdate(data);
+    };
+
+    const commitCommandUpdate = async (data: {
+        title: string; description: string; commandText: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
     }) => {
         if (modal.type !== 'commandEditor' || !modal.command) return;
         try {
-            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.commandText, data.categoryId, data.tags);
+            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.commandText, data.categoryId, data.tags, data.variables);
+            const newVarNames = extractVarNames(data.commandText);
+            for (const preset of (modal.command.presets || [])) {
+                const cleaned: Record<string, string> = {};
+                for (const [k, v] of Object.entries(preset.values)) {
+                    if (newVarNames.has(k)) cleaned[k] = v;
+                }
+                if (Object.keys(cleaned).length !== Object.keys(preset.values).length) {
+                    await UpdatePreset(modal.command.id, preset.id, preset.name, cleaned);
+                }
+            }
             await loadData();
             setSelectedCommand(cmd);
             setModal({ type: 'none' });
+            toast.success(t('toast.commandSaved'));
         } catch (err) {
             console.error('Failed to update command:', err);
         }
     };
 
+    const confirmPendingCommandUpdate = async () => {
+        if (!pendingCommandUpdate) return;
+        await commitCommandUpdate(pendingCommandUpdate.data);
+        setPendingCommandUpdate(null);
+    };
+
+    const handleRenameCommand = async (newTitle: string) => {
+        if (!selectedCommand) return;
+        try {
+            const cmd = await UpdateCommand(
+                selectedCommand.id, newTitle, selectedCommand.description,
+                selectedCommand.commandText, selectedCommand.categoryId,
+                selectedCommand.tags, selectedCommand.variables
+            );
+            await loadData();
+            setSelectedCommand(cmd);
+        } catch (err) {
+            console.error('Failed to rename command:', err);
+        }
+    };
+
     // ========== Execution handlers ==========
 
-    const handleExecute = async () => {
+    const handleExecute = async (values: Record<string, string>) => {
         if (!selectedCommand) return;
+        runCommandDirect(selectedCommand.id, selectedCommand.commandText, values);
+    };
 
-        // Check for variables
-        const vars = await GetVariables(selectedCommand.commandText);
-        if (vars && vars.length > 0) {
-            setModal({
-                type: 'variablePrompt',
-                variables: vars,
-                commandText: selectedCommand.commandText,
-            });
-            return;
+    const handleRunInTerminal = async (values: Record<string, string>) => {
+        if (!selectedCommand) return;
+        try {
+            await RunInTerminal(selectedCommand.id, selectedCommand.commandText, values);
+        } catch (err) {
+            toast.error(String(err));
         }
+    };
 
-        // No variables — execute directly
-        runCommandDirect(selectedCommand.commandText, {});
+    const handleManagePresets = async () => {
+        if (!selectedCommand) return;
+        const vars = await GetVariables(selectedCommand.id, selectedCommand.commandText);
+        const presets = await GetPresets(selectedCommand.id);
+        setModal({
+            type: 'managePresets',
+            variables: vars || [],
+            commandText: selectedCommand.commandText,
+            commandId: selectedCommand.id,
+            presets: presets || [],
+        });
+    };
+
+    const handleFillVariables = async (initialValues: Record<string, string>) => {
+        if (!selectedCommand) return;
+        const vars = await GetVariables(selectedCommand.id, selectedCommand.commandText);
+        setModal({
+            type: 'fillVariables',
+            variables: vars || [],
+            commandText: selectedCommand.commandText,
+            commandId: selectedCommand.id,
+            initialValues,
+        });
     };
 
     const handleVariableSubmit = async (values: Record<string, string>) => {
         if (!selectedCommand) return;
         setModal({ type: 'none' });
-        runCommandDirect(selectedCommand.commandText, values);
+        runCommandDirect(selectedCommand.id, selectedCommand.commandText, values);
     };
 
-    const runCommandDirect = async (commandText: string, variables: Record<string, string>) => {
+    const MAX_STREAM_LINES = 5000;
+
+    const flushStreamBuffer = useCallback(() => {
+        setStreamLines(prev => {
+            const combined = [...prev, ...streamBufferRef.current];
+            streamBufferRef.current = [];
+            if (combined.length > MAX_STREAM_LINES) {
+                return combined.slice(combined.length - MAX_STREAM_LINES);
+            }
+            return combined;
+        });
+        streamFlushRef.current = null;
+    }, []);
+
+    const runCommandDirect = async (commandId: string, commandText: string, variables: Record<string, string>) => {
         setIsExecuting(true);
-        setExecutionResult(null);
+        setSelectedRecord(null);
+        setStreamLines([]);
+        streamBufferRef.current = [];
+        setOutputPaneOpen(true);
+
+        const cleanup = EventsOn('cmd-output', (chunk: { stream: string; data: string }) => {
+            const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
+            streamBufferRef.current.push(prefix + chunk.data);
+            if (streamFlushRef.current === null) {
+                streamFlushRef.current = requestAnimationFrame(flushStreamBuffer);
+            }
+        });
+
         try {
-            const result = await RunCommand(commandText, variables);
-            setExecutionResult(result);
+            const record = await RunCommand(commandId, commandText, variables);
+            // Final flush of any remaining buffered lines
+            if (streamFlushRef.current !== null) {
+                cancelAnimationFrame(streamFlushRef.current);
+                streamFlushRef.current = null;
+            }
+            if (streamBufferRef.current.length > 0) {
+                flushStreamBuffer();
+            }
+            setSelectedRecord(record);
+            await loadHistory();
+            if (record.exitCode === 0) {
+                toast.success(t('toast.commandSuccess'));
+            } else {
+                toast.error(t('toast.commandFailed', { code: record.exitCode }));
+            }
         } catch (err) {
-            setExecutionResult({
+            setSelectedRecord({
+                id: '',
+                commandId: commandId,
+                commandText: commandText,
+                finalCmd: commandText,
                 output: '',
                 error: String(err),
                 exitCode: -1,
+                executedAt: new Date().toISOString(),
             });
+            toast.error(t('toast.commandFailed', { code: -1 }));
         } finally {
+            cleanup();
             setIsExecuting(false);
+        }
+    };
+
+    const handleSavePreset = async (name: string, values: Record<string, string>) => {
+        if (modal.type !== 'managePresets') return;
+        await SavePreset(modal.commandId, name, values);
+        const presets = await GetPresets(modal.commandId);
+        setModal({ ...modal, presets: presets || [] });
+        toast.success(t('toast.presetCreated'));
+    };
+
+    const handleUpdatePreset = async (presetId: string, name: string, values: Record<string, string>) => {
+        if (modal.type !== 'managePresets') return;
+        await UpdatePreset(modal.commandId, presetId, name, values);
+        const presets = await GetPresets(modal.commandId);
+        setModal({ ...modal, presets: presets || [] });
+        toast.success(t('toast.presetSaved'));
+    };
+
+    const handleDeletePreset = async (presetId: string) => {
+        if (modal.type !== 'managePresets') return;
+        await DeletePreset(modal.commandId, presetId);
+        const presets = await GetPresets(modal.commandId);
+        setModal({ ...modal, presets: presets || [] });
+    };
+
+    const handleCloseManagePresets = async () => {
+        setModal({ type: 'none' });
+        await loadData();
+        if (selectedCommand) {
+            const cmds = await GetCommands();
+            const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand.id);
+            if (refreshed) setSelectedCommand(refreshed);
         }
     };
 
     const handleSelectCommand = (cmd: Command) => {
         setSelectedCommand(cmd);
-        setExecutionResult(null);
+        setSelectedRecord(null);
+    };
+
+    const handleSelectRecord = (record: ExecutionRecord) => {
+        setSelectedRecord(record);
+        setStreamLines([]);
+        setOutputPaneOpen(true);
+    };
+
+    const handleClearHistory = async () => {
+        try {
+            await ClearExecutionHistory();
+            setExecutionHistory([]);
+            setSelectedRecord(null);
+        } catch (err) {
+            console.error('Failed to clear history:', err);
+        }
     };
 
     return (
-        <div className="app-layout">
-            <Sidebar
-                categories={categories}
-                commands={commands}
-                selectedCommandId={selectedCommand?.id || null}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                onSelectCommand={handleSelectCommand}
-                onAddCategory={() => setModal({ type: 'categoryEditor' })}
-                onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
-                onDeleteCategory={handleDeleteCategory}
-                onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
-            />
-
-            <div className="main-content">
-                {selectedCommand ? (
-                    <>
-                        <div className="main-header">
-                            <div />
-                            <div className="header-actions">
-                                {/* Header actions can be added here */}
-                            </div>
-                        </div>
-                        <div className="main-body">
-                            <CommandDetail
-                                command={selectedCommand}
-                                executionResult={executionResult}
-                                isExecuting={isExecuting}
-                                onExecute={handleExecute}
-                                onEdit={() => setModal({ type: 'commandEditor', command: selectedCommand })}
-                                onDelete={() =>
-                                    setModal({
-                                        type: 'confirmDelete',
-                                        itemType: 'command',
-                                        id: selectedCommand.id,
-                                        name: selectedCommand.title,
-                                    })
-                                }
-                            />
-                        </div>
-                    </>
-                ) : (
-                    <div className="empty-state">
-                        <div className="empty-icon">⌘</div>
-                        <h2>Welcome to Commamer</h2>
-                        <p>Select a command from the sidebar or create a new one to get started.</p>
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => setModal({ type: 'commandEditor' })}
-                        >
-                            + New Command
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Modals */}
-            {modal.type === 'commandEditor' && (
-                <CommandEditor
-                    command={modal.command}
+        <TooltipProvider>
+            <div className="app-layout">
+                <Sidebar
                     categories={categories}
-                    defaultCategoryId={modal.defaultCategoryId}
-                    onSave={modal.command ? handleUpdateCommand : handleCreateCommand}
-                    onCancel={() => setModal({ type: 'none' })}
+                    commands={commands}
+                    selectedCommandId={selectedCommand?.id || null}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    onSelectCommand={handleSelectCommand}
+                    onAddCategory={() => setModal({ type: 'categoryEditor' })}
+                    onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
+                    onDeleteCategory={handleDeleteCategory}
+                    onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
+                    onOpenSettings={() => setSettingsOpen(true)}
                 />
-            )}
 
-            {modal.type === 'categoryEditor' && (
-                <CategoryEditor
-                    category={modal.category}
-                    onSave={modal.category ? handleUpdateCategory : handleCreateCategory}
-                    onCancel={() => setModal({ type: 'none' })}
-                />
-            )}
+                <div className="center-area">
+                    <div className="top-area">
+                        <div className="main-content">
+                            {selectedCommand ? (
+                                <>
+                                    <div className="main-header">
+                                        <div />
+                                        <div className="header-actions" />
+                                    </div>
+                                    <div className="main-body">
+                                        <CommandDetail
+                                            command={selectedCommand}
+                                            isExecuting={isExecuting}
+                                            variables={resolvedVariables}
+                                            onExecute={handleExecute}
+                                            onRunInTerminal={handleRunInTerminal}
+                                            onManagePresets={handleManagePresets}
+                                            onFillVariables={handleFillVariables}
+                                            onEdit={() => setModal({ type: 'commandEditor', command: selectedCommand })}
+                                            onDelete={() =>
+                                                setModal({
+                                                    type: 'confirmDelete',
+                                                    itemType: 'command',
+                                                    id: selectedCommand.id,
+                                                    name: selectedCommand.title,
+                                                })
+                                            }
+                                            onRename={handleRenameCommand}
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="empty-state">
+                                    <div className="empty-icon">⌘</div>
+                                    <h2>{t('app.welcomeTitle')}</h2>
+                                    <p>{t('app.welcomeDescription')}</p>
+                                    <Button onClick={() => setModal({ type: 'commandEditor' })}>
+                                        {t('app.newCommand')}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
 
-            {modal.type === 'variablePrompt' && (
-                <VariablePrompt
-                    variables={modal.variables}
-                    commandText={modal.commandText}
-                    onSubmit={handleVariableSubmit}
-                    onCancel={() => setModal({ type: 'none' })}
-                />
-            )}
-
-            {modal.type === 'confirmDelete' && (
-                <div className="modal-overlay" onClick={() => setModal({ type: 'none' })}>
-                    <div className="modal" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>Confirm Delete</h2>
-                            <button className="btn-icon" onClick={() => setModal({ type: 'none' })}>✕</button>
-                        </div>
-                        <div className="modal-body">
-                            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                Are you sure you want to delete {modal.itemType} "<strong>{modal.name}</strong>"?
-                                {modal.itemType === 'category' && ' All commands in this category will also be deleted.'}
-                                <br /><br />
-                                This action cannot be undone.
-                            </p>
-                        </div>
-                        <div className="modal-footer">
-                            <button className="btn btn-ghost" onClick={() => setModal({ type: 'none' })}>Cancel</button>
-                            <button className="btn btn-danger" onClick={confirmDelete}>Delete</button>
-                        </div>
+                        <HistoryPane
+                            records={executionHistory}
+                            selectedRecordId={selectedRecord?.id || null}
+                            onSelectRecord={handleSelectRecord}
+                            onClearHistory={handleClearHistory}
+                        />
                     </div>
+
+                    <OutputPane
+                        record={selectedRecord}
+                        streamLines={streamLines}
+                        isExecuting={isExecuting}
+                        isOpen={outputPaneOpen}
+                        onToggle={() => setOutputPaneOpen(prev => !prev)}
+                    />
                 </div>
-            )}
-        </div>
+
+                {/* Modals */}
+                {modal.type === 'commandEditor' && (
+                    <CommandEditor
+                        command={modal.command}
+                        categories={categories}
+                        defaultCategoryId={modal.defaultCategoryId}
+                        onSave={modal.command ? handleUpdateCommand : handleCreateCommand}
+                        onCancel={() => setModal({ type: 'none' })}
+                    />
+                )}
+
+                {modal.type === 'categoryEditor' && (
+                    <CategoryEditor
+                        category={modal.category}
+                        onSave={modal.category ? handleUpdateCategory : handleCreateCategory}
+                        onCancel={() => setModal({ type: 'none' })}
+                    />
+                )}
+
+                {modal.type === 'managePresets' && (
+                    <VariablePrompt
+                        mode="manage"
+                        variables={modal.variables}
+                        commandText={modal.commandText}
+                        presets={modal.presets}
+                        defaultPresetId={lastSelectedPresetId}
+                        onPresetChange={setLastSelectedPresetId}
+                        onSubmit={handleVariableSubmit}
+                        onCancel={handleCloseManagePresets}
+                        onSavePreset={handleSavePreset}
+                        onUpdatePreset={handleUpdatePreset}
+                        onDeletePreset={handleDeletePreset}
+                    />
+                )}
+
+                {modal.type === 'fillVariables' && (
+                    <VariablePrompt
+                        mode="fill"
+                        variables={modal.variables}
+                        commandText={modal.commandText}
+                        presets={[]}
+                        initialValues={modal.initialValues}
+                        onSubmit={handleVariableSubmit}
+                        onCancel={() => setModal({ type: 'none' })}
+                        onSavePreset={async () => {}}
+                        onUpdatePreset={async () => {}}
+                        onDeletePreset={async () => {}}
+                    />
+                )}
+
+                <AlertDialog open={pendingCommandUpdate !== null} onOpenChange={(open) => { if (!open) setPendingCommandUpdate(null); }}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{t('app.confirmVariableChangeTitle')}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {pendingCommandUpdate && t('app.confirmVariableChangeMessage', {
+                                    removed: pendingCommandUpdate.removedVars.map(v => `\${${v}}`).join(', '),
+                                    count: pendingCommandUpdate.presetCount,
+                                })}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
+                            <AlertDialogAction onClick={confirmPendingCommandUpdate}>
+                                {t('app.confirmVariableChangeAction')}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                <AlertDialog open={modal.type === 'confirmDelete'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{t('app.confirmDeleteTitle')}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {modal.type === 'confirmDelete' && (
+                                    <>
+                                        {t('app.confirmDeleteMessage', { itemType: modal.itemType, name: modal.name })}
+                                        {modal.itemType === 'category' && ` ${t('app.confirmDeleteCategoryWarning')}`}
+                                        <br /><br />
+                                        {t('app.confirmDeleteUndone')}
+                                    </>
+                                )}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
+                            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-white hover:bg-destructive/90">
+                                {t('app.delete')}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+                <Toaster position="bottom-right" richColors closeButton duration={3000} />
+            </div>
+        </TooltipProvider>
     );
 }
 

@@ -5,7 +5,7 @@ Commamer is a cross-platform desktop application designed to help users save, or
 ## Features
 
 - **Categorized Storage**: Organize your commands into custom categories with unique colors.
-- **Variable Placeholders**: Store commands like `redis-cli --scan --pattern {?pattern}`. When you execute the command, Commamer will automatically prompt you for the `{?pattern}` value.
+- **Variable Placeholders**: Store commands like `redis-cli --scan --pattern ${pattern}`. When you execute the command, Commamer will automatically prompt you for the `${pattern}` value.
 - **In-App Execution**: Run commands directly within the app and view standard output/error in an integrated terminal panel.
 - **Quick Search**: Instantly filter your commands by title, description, tags, or the command text itself.
 - **Local JSON Storage**: All data is securely stored locally in `~/.commamer/data.json`. No external databases or cloud synchronization required.
@@ -71,10 +71,10 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 ## Variable Syntax
 
-To create a command with a promptable variable, enclose the variable name in `{?...}`.
+To create a command with a promptable variable, use `${...}` syntax (compatible with JavaScript template literals).
 
 **Example:**
-`docker logs -f --tail {?lines} {?container_name}`
+`docker logs -f --tail ${lines} ${container_name}`
 
 When executed, Commamer will pop up a modal asking for `lines` and `container_name`, then substitute them into the command before running it.
 
