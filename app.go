@@ -13,7 +13,7 @@ import (
 // App struct holds application state
 type App struct {
 	ctx      context.Context
-	store    *Store
+	db       *DB
 	executor *Executor
 }
 
@@ -25,27 +25,34 @@ func NewApp() *App {
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	store, err := NewStore()
+	db, err := NewDB()
 	if err != nil {
-		fmt.Println("Error initializing store:", err)
+		fmt.Println("Error initializing database:", err)
 		return
 	}
-	a.store = store
+	a.db = db
 	a.executor = NewExecutor()
+}
+
+// shutdown is called when the app is closing
+func (a *App) shutdown(ctx context.Context) {
+	if a.db != nil {
+		a.db.Close()
+	}
 }
 
 // ========== Category Operations ==========
 
-// GetCategories returns all categories
 func (a *App) GetCategories() []Category {
-	data := a.store.GetData()
-	return data.Categories
+	cats, err := a.db.GetCategories()
+	if err != nil {
+		fmt.Println("Error getting categories:", err)
+		return []Category{}
+	}
+	return cats
 }
 
-// CreateCategory creates a new category
 func (a *App) CreateCategory(name string, icon string, color string) (Category, error) {
-	data := a.store.GetData()
-
 	cat := Category{
 		ID:        uuid.New().String(),
 		Name:      name,
@@ -54,89 +61,57 @@ func (a *App) CreateCategory(name string, icon string, color string) (Category, 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-
-	data.Categories = append(data.Categories, cat)
-	if err := a.store.SetData(data); err != nil {
+	if err := a.db.CreateCategory(cat); err != nil {
 		return Category{}, err
 	}
 	return cat, nil
 }
 
-// UpdateCategory updates an existing category
 func (a *App) UpdateCategory(id string, name string, icon string, color string) (Category, error) {
-	data := a.store.GetData()
-
-	for i, cat := range data.Categories {
-		if cat.ID == id {
-			data.Categories[i].Name = name
-			data.Categories[i].Icon = icon
-			data.Categories[i].Color = color
-			data.Categories[i].UpdatedAt = time.Now()
-
-			if err := a.store.SetData(data); err != nil {
-				return Category{}, err
-			}
-			return data.Categories[i], nil
+	cat := Category{
+		ID:        id,
+		Name:      name,
+		Icon:      icon,
+		Color:     color,
+		UpdatedAt: time.Now(),
+	}
+	if err := a.db.UpdateCategory(cat); err != nil {
+		return Category{}, err
+	}
+	cats, _ := a.db.GetCategories()
+	for _, c := range cats {
+		if c.ID == id {
+			return c, nil
 		}
 	}
-	return Category{}, fmt.Errorf("category not found: %s", id)
+	return cat, nil
 }
 
-// DeleteCategory removes a category and its commands
 func (a *App) DeleteCategory(id string) error {
-	data := a.store.GetData()
-
-	found := false
-	newCats := []Category{}
-	for _, cat := range data.Categories {
-		if cat.ID == id {
-			found = true
-			continue
-		}
-		newCats = append(newCats, cat)
-	}
-
-	if !found {
-		return fmt.Errorf("category not found: %s", id)
-	}
-
-	// Also remove commands belonging to this category
-	newCmds := []Command{}
-	for _, cmd := range data.Commands {
-		if cmd.CategoryID != id {
-			newCmds = append(newCmds, cmd)
-		}
-	}
-
-	data.Categories = newCats
-	data.Commands = newCmds
-	return a.store.SetData(data)
+	return a.db.DeleteCategory(id)
 }
 
 // ========== Command Operations ==========
 
-// GetCommands returns all commands
 func (a *App) GetCommands() []Command {
-	data := a.store.GetData()
-	return data.Commands
-}
-
-// GetCommandsByCategory returns commands for a specific category
-func (a *App) GetCommandsByCategory(categoryID string) []Command {
-	data := a.store.GetData()
-	result := []Command{}
-	for _, cmd := range data.Commands {
-		if cmd.CategoryID == categoryID {
-			result = append(result, cmd)
-		}
+	cmds, err := a.db.GetCommands()
+	if err != nil {
+		fmt.Println("Error getting commands:", err)
+		return []Command{}
 	}
-	return result
+	return cmds
 }
 
-// CreateCommand creates a new command
-func (a *App) CreateCommand(title, description, commandText, categoryID string, tags []string, variables []VariableDefinition) (Command, error) {
-	data := a.store.GetData()
+func (a *App) GetCommandsByCategory(categoryID string) []Command {
+	cmds, err := a.db.GetCommandsByCategory(categoryID)
+	if err != nil {
+		fmt.Println("Error getting commands:", err)
+		return []Command{}
+	}
+	return cmds
+}
 
+func (a *App) CreateCommand(title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition, isAdvanced bool) (Command, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -144,30 +119,37 @@ func (a *App) CreateCommand(title, description, commandText, categoryID string, 
 		variables = []VariableDefinition{}
 	}
 
-	cmd := Command{
-		ID:          uuid.New().String(),
-		Title:       title,
-		Description: description,
-		CommandText: commandText,
-		CategoryID:  categoryID,
-		Tags:        tags,
-		Variables:   variables,
-		Presets:     []VariablePreset{},
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+	for i := range variables {
+		variables[i].SortOrder = i
 	}
 
-	data.Commands = append(data.Commands, cmd)
-	if err := a.store.SetData(data); err != nil {
+	var scriptContent string
+	if isAdvanced {
+		scriptContent = RegenerateSignature(scriptBody, variables)
+	} else {
+		scriptContent = GenerateScript(scriptBody, variables)
+	}
+
+	cmd := Command{
+		ID:            uuid.New().String(),
+		Title:         title,
+		Description:   description,
+		ScriptContent: scriptContent,
+		CategoryID:    categoryID,
+		Tags:          tags,
+		Variables:     variables,
+		Presets:       []VariablePreset{},
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := a.db.CreateCommand(cmd); err != nil {
 		return Command{}, err
 	}
 	return cmd, nil
 }
 
-// UpdateCommand updates an existing command
-func (a *App) UpdateCommand(id, title, description, commandText, categoryID string, tags []string, variables []VariableDefinition) (Command, error) {
-	data := a.store.GetData()
-
+func (a *App) UpdateCommand(id, title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition, isAdvanced bool) (Command, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -175,254 +157,228 @@ func (a *App) UpdateCommand(id, title, description, commandText, categoryID stri
 		variables = []VariableDefinition{}
 	}
 
-	for i, cmd := range data.Commands {
-		if cmd.ID == id {
-			data.Commands[i].Title = title
-			data.Commands[i].Description = description
-			data.Commands[i].CommandText = commandText
-			data.Commands[i].CategoryID = categoryID
-			data.Commands[i].Tags = tags
-			data.Commands[i].Variables = variables
-			data.Commands[i].UpdatedAt = time.Now()
-
-			if err := a.store.SetData(data); err != nil {
-				return Command{}, err
-			}
-			return data.Commands[i], nil
-		}
+	for i := range variables {
+		variables[i].SortOrder = i
 	}
-	return Command{}, fmt.Errorf("command not found: %s", id)
+
+	var scriptContent string
+	if isAdvanced {
+		scriptContent = RegenerateSignature(scriptBody, variables)
+	} else {
+		scriptContent = GenerateScript(scriptBody, variables)
+	}
+
+	cmd := Command{
+		ID:            id,
+		Title:         title,
+		Description:   description,
+		ScriptContent: scriptContent,
+		CategoryID:    categoryID,
+		Tags:          tags,
+		Variables:     variables,
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := a.db.UpdateCommand(cmd); err != nil {
+		return Command{}, err
+	}
+
+	return a.db.GetCommand(id)
 }
 
-// DeleteCommand removes a command
 func (a *App) DeleteCommand(id string) error {
-	data := a.store.GetData()
+	return a.db.DeleteCommand(id)
+}
 
-	newCmds := []Command{}
-	found := false
-	for _, cmd := range data.Commands {
-		if cmd.ID == id {
-			found = true
-			continue
-		}
-		newCmds = append(newCmds, cmd)
+// GetScriptContent returns the full script content for the editor
+func (a *App) GetScriptContent(commandID string) (string, error) {
+	cmd, err := a.db.GetCommand(commandID)
+	if err != nil {
+		return "", err
 	}
+	return cmd.ScriptContent, nil
+}
 
-	if !found {
-		return fmt.Errorf("command not found: %s", id)
+// GetScriptBody returns just the body (for simple mode editing)
+func (a *App) GetScriptBody(commandID string) (string, error) {
+	cmd, err := a.db.GetCommand(commandID)
+	if err != nil {
+		return "", err
 	}
-
-	data.Commands = newCmds
-	return a.store.SetData(data)
+	return ParseScriptBody(cmd.ScriptContent), nil
 }
 
 // ========== Execution Operations ==========
 
-// GetVariables parses placeholders from command text, merges with stored variable
-// definitions and CEL-evaluated defaults, and returns enriched prompts.
-func (a *App) GetVariables(commandID string, commandText string) []VariablePrompt {
-	parsed := a.executor.ParseVariables(commandText)
-	if len(parsed) == 0 {
-		return parsed
+func (a *App) GetVariables(commandID string) []VariablePrompt {
+	cmd, err := a.db.GetCommand(commandID)
+	if err != nil {
+		return []VariablePrompt{}
 	}
 
-	// Look up stored definitions for this command
-	defMap := make(map[string]VariableDefinition)
-	data := a.store.GetData()
-	for _, cmd := range data.Commands {
-		if cmd.ID == commandID {
-			for _, v := range cmd.Variables {
-				defMap[v.Name] = v
-			}
-			break
+	if len(cmd.Variables) == 0 {
+		return []VariablePrompt{}
+	}
+
+	evaluated := a.executor.EvalDefaults(cmd.Variables)
+
+	var prompts []VariablePrompt
+	for _, v := range cmd.Variables {
+		p := VariablePrompt{
+			Name:        v.Name,
+			Description: v.Description,
+			Example:     v.Example,
+			DefaultExpr: v.Default,
 		}
-	}
-
-	// Collect definitions that have defaults for CEL evaluation
-	var defsWithDefaults []VariableDefinition
-	for _, p := range parsed {
-		if d, ok := defMap[p.Name]; ok && d.Default != "" {
-			defsWithDefaults = append(defsWithDefaults, d)
+		if val, exists := evaluated[v.Name]; exists {
+			p.DefaultValue = val
 		}
+		prompts = append(prompts, p)
 	}
-	evaluated := a.executor.EvalDefaults(defsWithDefaults)
-
-	// Merge into prompts
-	for i, p := range parsed {
-		if d, ok := defMap[p.Name]; ok {
-			parsed[i].Description = d.Description
-			parsed[i].Example = d.Example
-			parsed[i].DefaultExpr = d.Default
-			if val, exists := evaluated[p.Name]; exists {
-				parsed[i].DefaultValue = val
-			}
-		}
+	if prompts == nil {
+		prompts = []VariablePrompt{}
 	}
-
-	return parsed
+	return prompts
 }
 
-// RunCommand executes a command with streaming output via Wails events.
-// Emits "cmd-output" events with OutputChunk payloads during execution.
-func (a *App) RunCommand(commandID string, commandText string, variables map[string]string) ExecutionRecord {
-	finalCmd := a.executor.SubstituteVariables(commandText, variables)
+func (a *App) RunCommand(commandID string, variables map[string]string) ExecutionRecord {
+	cmd, err := a.db.GetCommand(commandID)
+	if err != nil {
+		return ExecutionRecord{
+			ID:       uuid.New().String(),
+			Error:    err.Error(),
+			ExitCode: -1,
+		}
+	}
 
-	result := a.executor.ExecuteStreaming(finalCmd, func(chunk OutputChunk) {
+	scriptContent := RegenerateSignature(cmd.ScriptContent, cmd.Variables)
+
+	args := make([]string, len(cmd.Variables))
+	for i, v := range cmd.Variables {
+		args[i] = variables[v.Name]
+	}
+
+	finalCmd := BuildScriptCommand(args)
+
+	result := a.executor.ExecuteScriptStreaming(scriptContent, args, func(chunk OutputChunk) {
 		wailsruntime.EventsEmit(a.ctx, "cmd-output", chunk)
 	})
 
 	record := ExecutionRecord{
-		ID:          uuid.New().String(),
-		CommandID:   commandID,
-		CommandText: commandText,
-		FinalCmd:    finalCmd,
-		Output:      result.Output,
-		Error:       result.Error,
-		ExitCode:    result.ExitCode,
-		ExecutedAt:  time.Now(),
+		ID:            uuid.New().String(),
+		CommandID:     commandID,
+		ScriptContent: scriptContent,
+		FinalCmd:      finalCmd,
+		Output:        result.Output,
+		Error:         result.Error,
+		ExitCode:      result.ExitCode,
+		ExecutedAt:    time.Now(),
 	}
 
-	_ = a.store.AddExecution(record)
+	_ = a.db.AddExecution(record)
 
 	return record
 }
 
-// RunInTerminal opens the user's preferred terminal and runs the command there
-func (a *App) RunInTerminal(commandID string, commandText string, variables map[string]string) error {
-	finalCmd := a.executor.SubstituteVariables(commandText, variables)
-	terminalID := a.store.GetData().Settings.Terminal
-	return a.executor.OpenInTerminal(terminalID, finalCmd)
+func (a *App) RunInTerminal(commandID string, variables map[string]string) error {
+	cmd, err := a.db.GetCommand(commandID)
+	if err != nil {
+		return err
+	}
+
+	scriptContent := RegenerateSignature(cmd.ScriptContent, cmd.Variables)
+
+	args := make([]string, len(cmd.Variables))
+	for i, v := range cmd.Variables {
+		args[i] = variables[v.Name]
+	}
+
+	settings, _ := a.db.GetSettings()
+	return a.executor.OpenInTerminal(settings.Terminal, scriptContent, args)
 }
 
 // ========== Execution History ==========
 
-// GetExecutionHistory returns all execution records, newest first
 func (a *App) GetExecutionHistory() []ExecutionRecord {
-	return a.store.GetExecutions()
+	records, err := a.db.GetExecutions()
+	if err != nil {
+		fmt.Println("Error getting executions:", err)
+		return []ExecutionRecord{}
+	}
+	return records
 }
 
-// ClearExecutionHistory removes all execution records
 func (a *App) ClearExecutionHistory() error {
-	return a.store.ClearExecutions()
+	return a.db.ClearExecutions()
 }
 
 // ========== Variable Presets ==========
 
-// GetPresets returns all presets for a command
 func (a *App) GetPresets(commandID string) []VariablePreset {
-	data := a.store.GetData()
-	for _, cmd := range data.Commands {
-		if cmd.ID == commandID {
-			return cmd.Presets
-		}
+	presets, err := a.db.GetPresets(commandID)
+	if err != nil {
+		return []VariablePreset{}
 	}
-	return []VariablePreset{}
+	return presets
 }
 
-// SavePreset creates a new preset for a command
 func (a *App) SavePreset(commandID string, name string, values map[string]string) (VariablePreset, error) {
-	data := a.store.GetData()
-	for i, cmd := range data.Commands {
-		if cmd.ID == commandID {
-			preset := VariablePreset{
-				ID:     uuid.New().String(),
-				Name:   name,
-				Values: values,
-			}
-			data.Commands[i].Presets = append(data.Commands[i].Presets, preset)
-			if err := a.store.SetData(data); err != nil {
-				return VariablePreset{}, err
-			}
-			return preset, nil
-		}
+	preset := VariablePreset{
+		ID:     uuid.New().String(),
+		Name:   name,
+		Values: values,
 	}
-	return VariablePreset{}, fmt.Errorf("command not found: %s", commandID)
+	if err := a.db.SavePreset(commandID, preset); err != nil {
+		return VariablePreset{}, err
+	}
+	return preset, nil
 }
 
-// UpdatePreset updates an existing preset's name and values
 func (a *App) UpdatePreset(commandID string, presetID string, name string, values map[string]string) (VariablePreset, error) {
-	data := a.store.GetData()
-	for i, cmd := range data.Commands {
-		if cmd.ID == commandID {
-			for j, p := range cmd.Presets {
-				if p.ID == presetID {
-					data.Commands[i].Presets[j].Name = name
-					data.Commands[i].Presets[j].Values = values
-					if err := a.store.SetData(data); err != nil {
-						return VariablePreset{}, err
-					}
-					return data.Commands[i].Presets[j], nil
-				}
-			}
-			return VariablePreset{}, fmt.Errorf("preset not found: %s", presetID)
-		}
+	preset := VariablePreset{
+		ID:     presetID,
+		Name:   name,
+		Values: values,
 	}
-	return VariablePreset{}, fmt.Errorf("command not found: %s", commandID)
+	if err := a.db.UpdatePreset(preset); err != nil {
+		return VariablePreset{}, err
+	}
+	return preset, nil
 }
 
-// DeletePreset removes a preset from a command
 func (a *App) DeletePreset(commandID string, presetID string) error {
-	data := a.store.GetData()
-	for i, cmd := range data.Commands {
-		if cmd.ID == commandID {
-			newPresets := []VariablePreset{}
-			for _, p := range cmd.Presets {
-				if p.ID != presetID {
-					newPresets = append(newPresets, p)
-				}
-			}
-			data.Commands[i].Presets = newPresets
-			return a.store.SetData(data)
-		}
-	}
-	return fmt.Errorf("command not found: %s", commandID)
+	return a.db.DeletePreset(presetID)
 }
 
 // ========== Settings ==========
 
-// GetSettings returns the current app settings
 func (a *App) GetSettings() AppSettings {
-	data := a.store.GetData()
-	return data.Settings
+	settings, err := a.db.GetSettings()
+	if err != nil {
+		return AppSettings{Locale: "en"}
+	}
+	return settings
 }
 
-// GetAvailableTerminals returns all detected terminal emulators on the system
 func (a *App) GetAvailableTerminals() []TerminalInfo {
 	return a.executor.GetAvailableTerminals()
 }
 
-// SetSettings updates the app settings
 func (a *App) SetSettings(locale string, terminal string) error {
-	data := a.store.GetData()
-	data.Settings.Locale = locale
-	data.Settings.Terminal = terminal
-	return a.store.SetData(data)
+	return a.db.SetSettings(AppSettings{Locale: locale, Terminal: terminal})
 }
 
 // ========== Search ==========
 
-// SearchCommands searches commands by title, description, tags, or command text
 func (a *App) SearchCommands(query string) []Command {
-	data := a.store.GetData()
 	if query == "" {
-		return data.Commands
+		return a.GetCommands()
 	}
 
-	query = strings.ToLower(query)
-	result := []Command{}
-	for _, cmd := range data.Commands {
-		if strings.Contains(strings.ToLower(cmd.Title), query) ||
-			strings.Contains(strings.ToLower(cmd.Description), query) ||
-			strings.Contains(strings.ToLower(cmd.CommandText), query) {
-			result = append(result, cmd)
-			continue
-		}
-		for _, tag := range cmd.Tags {
-			if strings.Contains(strings.ToLower(tag), query) {
-				result = append(result, cmd)
-				break
-			}
-		}
+	cmds, err := a.db.SearchCommands(strings.ToLower(query))
+	if err != nil {
+		fmt.Println("Error searching commands:", err)
+		return []Command{}
 	}
-	return result
+	return cmds
 }
