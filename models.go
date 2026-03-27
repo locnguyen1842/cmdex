@@ -18,6 +18,7 @@ type VariableDefinition struct {
 	Description string `json:"description"`
 	Example     string `json:"example"`
 	Default     string `json:"default"` // plain value or CEL expression
+	SortOrder   int    `json:"sortOrder"`
 }
 
 // VariablePreset stores a named set of variable values for a command
@@ -32,7 +33,7 @@ type Command struct {
 	ID          string               `json:"id"`
 	Title       string               `json:"title"`
 	Description string               `json:"description"`
-	CommandText string               `json:"commandText"`
+	ScriptContent string               `json:"scriptContent"`
 	Tags        []string             `json:"tags"`
 	Variables   []VariableDefinition `json:"variables"`
 	Presets     []VariablePreset     `json:"presets"`
@@ -55,8 +56,8 @@ type VariablePrompt struct {
 type ExecutionRecord struct {
 	ID          string    `json:"id"`
 	CommandID   string    `json:"commandId"`
-	CommandText string    `json:"commandText"`
-	FinalCmd    string    `json:"finalCmd"`
+	ScriptContent string    `json:"scriptContent"`
+	FinalCmd      string    `json:"finalCmd"`
 	Output      string    `json:"output"`
 	Error       string    `json:"error"`
 	ExitCode    int       `json:"exitCode"`
@@ -73,13 +74,6 @@ type TerminalInfo struct {
 type AppSettings struct {
 	Locale   string `json:"locale"`
 	Terminal string `json:"terminal"` // terminal ID; empty = auto-detect
-}
-
-// AppData is the root data structure persisted to disk
-type AppData struct {
-	Categories []Category  `json:"categories"`
-	Commands   []Command   `json:"commands"`
-	Settings   AppSettings `json:"settings"`
 }
 
 // ExecutionResult holds the output of a command execution

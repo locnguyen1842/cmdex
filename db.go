@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -169,3 +171,604 @@ func (db *DB) migrate() error {
 	_, err = db.conn.Exec("UPDATE schema_version SET version = ?", schemaVersion)
 	return err
 }
+
+// ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+
+func (db *DB) GetCategories() ([]Category, error) {
+	rows, err := db.conn.Query("SELECT id, name, icon, color, created_at, updated_at FROM categories ORDER BY created_at")
+	if err != nil {
+		return nil, fmt.Errorf("query categories: %w", err)
+	}
+	defer rows.Close()
+
+	cats := []Category{}
+	for rows.Next() {
+		var c Category
+		if err := rows.Scan(&c.ID, &c.Name, &c.Icon, &c.Color, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan category: %w", err)
+		}
+		cats = append(cats, c)
+	}
+	return cats, rows.Err()
+}
+
+func (db *DB) CreateCategory(cat Category) error {
+	_, err := db.conn.Exec(
+		"INSERT INTO categories (id, name, icon, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		cat.ID, cat.Name, cat.Icon, cat.Color, cat.CreatedAt, cat.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert category: %w", err)
+	}
+	return nil
+}
+
+func (db *DB) UpdateCategory(cat Category) error {
+	res, err := db.conn.Exec(
+		"UPDATE categories SET name = ?, icon = ?, color = ?, updated_at = ? WHERE id = ?",
+		cat.Name, cat.Icon, cat.Color, cat.UpdatedAt, cat.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update category: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("category %s not found", cat.ID)
+	}
+	return nil
+}
+
+func (db *DB) DeleteCategory(id string) error {
+	res, err := db.conn.Exec("DELETE FROM categories WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("delete category: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("category %s not found", id)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
+
+func (db *DB) GetCommands() ([]Command, error) {
+	rows, err := db.conn.Query(
+		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands ORDER BY created_at",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query commands: %w", err)
+	}
+	defer rows.Close()
+
+	cmds := []Command{}
+	for rows.Next() {
+		var c Command
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan command: %w", err)
+		}
+		cmds = append(cmds, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i := range cmds {
+		if err := db.loadCommandRelations(&cmds[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cmds, nil
+}
+
+func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
+	rows, err := db.conn.Query(
+		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands WHERE category_id = ? ORDER BY created_at",
+		categoryID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query commands by category: %w", err)
+	}
+	defer rows.Close()
+
+	cmds := []Command{}
+	for rows.Next() {
+		var c Command
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan command: %w", err)
+		}
+		cmds = append(cmds, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i := range cmds {
+		if err := db.loadCommandRelations(&cmds[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cmds, nil
+}
+
+func (db *DB) GetCommand(id string) (Command, error) {
+	var c Command
+	err := db.conn.QueryRow(
+		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands WHERE id = ?", id,
+	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt)
+	if err != nil {
+		return c, fmt.Errorf("get command %s: %w", id, err)
+	}
+	if err := db.loadCommandRelations(&c); err != nil {
+		return c, err
+	}
+	return c, nil
+}
+
+func (db *DB) loadCommandRelations(cmd *Command) error {
+	// Tags
+	tagRows, err := db.conn.Query(
+		"SELECT t.name FROM tags t JOIN command_tags ct ON ct.tag_id = t.id WHERE ct.command_id = ? ORDER BY t.name",
+		cmd.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("query tags: %w", err)
+	}
+	defer tagRows.Close()
+
+	cmd.Tags = []string{}
+	for tagRows.Next() {
+		var name string
+		if err := tagRows.Scan(&name); err != nil {
+			return fmt.Errorf("scan tag: %w", err)
+		}
+		cmd.Tags = append(cmd.Tags, name)
+	}
+	if err := tagRows.Err(); err != nil {
+		return err
+	}
+
+	// Variables
+	varRows, err := db.conn.Query(
+		"SELECT name, description, example, default_expr, sort_order FROM variable_definitions WHERE command_id = ? ORDER BY sort_order",
+		cmd.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("query variables: %w", err)
+	}
+	defer varRows.Close()
+
+	cmd.Variables = []VariableDefinition{}
+	for varRows.Next() {
+		var v VariableDefinition
+		if err := varRows.Scan(&v.Name, &v.Description, &v.Example, &v.Default, &v.SortOrder); err != nil {
+			return fmt.Errorf("scan variable: %w", err)
+		}
+		cmd.Variables = append(cmd.Variables, v)
+	}
+	if err := varRows.Err(); err != nil {
+		return err
+	}
+
+	// Presets
+	presetRows, err := db.conn.Query(
+		"SELECT id, name FROM variable_presets WHERE command_id = ? ORDER BY name",
+		cmd.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("query presets: %w", err)
+	}
+	defer presetRows.Close()
+
+	cmd.Presets = []VariablePreset{}
+	for presetRows.Next() {
+		var p VariablePreset
+		if err := presetRows.Scan(&p.ID, &p.Name); err != nil {
+			return fmt.Errorf("scan preset: %w", err)
+		}
+		p.Values = map[string]string{}
+
+		valRows, err := db.conn.Query(
+			"SELECT variable_name, value FROM preset_values WHERE preset_id = ?", p.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("query preset values: %w", err)
+		}
+		for valRows.Next() {
+			var k, v string
+			if err := valRows.Scan(&k, &v); err != nil {
+				valRows.Close()
+				return fmt.Errorf("scan preset value: %w", err)
+			}
+			p.Values[k] = v
+		}
+		valRows.Close()
+		if err := valRows.Err(); err != nil {
+			return err
+		}
+
+		cmd.Presets = append(cmd.Presets, p)
+	}
+	return presetRows.Err()
+}
+
+func (db *DB) CreateCommand(cmd Command) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT INTO commands (id, title, description, script_content, category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		cmd.ID, cmd.Title, cmd.Description, cmd.ScriptContent, cmd.CategoryID, cmd.CreatedAt, cmd.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert command: %w", err)
+	}
+
+	if err := db.saveTags(tx, cmd.ID, cmd.Tags); err != nil {
+		return err
+	}
+	if err := db.saveVariables(tx, cmd.ID, cmd.Variables); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (db *DB) UpdateCommand(cmd Command) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(
+		"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
+		cmd.Title, cmd.Description, cmd.ScriptContent, cmd.CategoryID, cmd.UpdatedAt, cmd.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update command: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("command %s not found", cmd.ID)
+	}
+
+	// Replace tags
+	if _, err := tx.Exec("DELETE FROM command_tags WHERE command_id = ?", cmd.ID); err != nil {
+		return fmt.Errorf("delete old tags: %w", err)
+	}
+	if err := db.saveTags(tx, cmd.ID, cmd.Tags); err != nil {
+		return err
+	}
+
+	// Replace variables
+	if _, err := tx.Exec("DELETE FROM variable_definitions WHERE command_id = ?", cmd.ID); err != nil {
+		return fmt.Errorf("delete old variables: %w", err)
+	}
+	if err := db.saveVariables(tx, cmd.ID, cmd.Variables); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (db *DB) DeleteCommand(id string) error {
+	res, err := db.conn.Exec("DELETE FROM commands WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("delete command: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("command %s not found", id)
+	}
+	return nil
+}
+
+func (db *DB) saveTags(tx *sql.Tx, commandID string, tags []string) error {
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		// Upsert tag
+		_, err := tx.Exec("INSERT OR IGNORE INTO tags (name) VALUES (?)", tag)
+		if err != nil {
+			return fmt.Errorf("upsert tag: %w", err)
+		}
+		// Link
+		_, err = tx.Exec(
+			"INSERT OR IGNORE INTO command_tags (command_id, tag_id) SELECT ?, id FROM tags WHERE name = ?",
+			commandID, tag,
+		)
+		if err != nil {
+			return fmt.Errorf("link tag: %w", err)
+		}
+	}
+	return nil
+}
+
+func (db *DB) saveVariables(tx *sql.Tx, commandID string, vars []VariableDefinition) error {
+	for i, v := range vars {
+		_, err := tx.Exec(
+			"INSERT INTO variable_definitions (command_id, name, description, example, default_expr, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+			commandID, v.Name, v.Description, v.Example, v.Default, i,
+		)
+		if err != nil {
+			return fmt.Errorf("insert variable %s: %w", v.Name, err)
+		}
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Presets
+// ---------------------------------------------------------------------------
+
+func (db *DB) GetPresets(commandID string) ([]VariablePreset, error) {
+	rows, err := db.conn.Query("SELECT id, name FROM variable_presets WHERE command_id = ? ORDER BY name", commandID)
+	if err != nil {
+		return nil, fmt.Errorf("query presets: %w", err)
+	}
+	defer rows.Close()
+
+	presets := []VariablePreset{}
+	for rows.Next() {
+		var p VariablePreset
+		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+			return nil, fmt.Errorf("scan preset: %w", err)
+		}
+		p.Values = map[string]string{}
+
+		valRows, err := db.conn.Query("SELECT variable_name, value FROM preset_values WHERE preset_id = ?", p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("query preset values: %w", err)
+		}
+		for valRows.Next() {
+			var k, v string
+			if err := valRows.Scan(&k, &v); err != nil {
+				valRows.Close()
+				return nil, fmt.Errorf("scan preset value: %w", err)
+			}
+			p.Values[k] = v
+		}
+		valRows.Close()
+		if err := valRows.Err(); err != nil {
+			return nil, err
+		}
+
+		presets = append(presets, p)
+	}
+	return presets, rows.Err()
+}
+
+func (db *DB) SavePreset(commandID string, preset VariablePreset) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("INSERT INTO variable_presets (id, command_id, name) VALUES (?, ?, ?)",
+		preset.ID, commandID, preset.Name,
+	)
+	if err != nil {
+		return fmt.Errorf("insert preset: %w", err)
+	}
+
+	for k, v := range preset.Values {
+		_, err = tx.Exec("INSERT INTO preset_values (preset_id, variable_name, value) VALUES (?, ?, ?)",
+			preset.ID, k, v,
+		)
+		if err != nil {
+			return fmt.Errorf("insert preset value: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (db *DB) UpdatePreset(preset VariablePreset) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec("UPDATE variable_presets SET name = ? WHERE id = ?", preset.Name, preset.ID)
+	if err != nil {
+		return fmt.Errorf("update preset: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("preset %s not found", preset.ID)
+	}
+
+	// Replace values
+	if _, err := tx.Exec("DELETE FROM preset_values WHERE preset_id = ?", preset.ID); err != nil {
+		return fmt.Errorf("delete old preset values: %w", err)
+	}
+	for k, v := range preset.Values {
+		_, err = tx.Exec("INSERT INTO preset_values (preset_id, variable_name, value) VALUES (?, ?, ?)",
+			preset.ID, k, v,
+		)
+		if err != nil {
+			return fmt.Errorf("insert preset value: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (db *DB) DeletePreset(presetID string) error {
+	res, err := db.conn.Exec("DELETE FROM variable_presets WHERE id = ?", presetID)
+	if err != nil {
+		return fmt.Errorf("delete preset: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("preset %s not found", presetID)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Executions
+// ---------------------------------------------------------------------------
+
+func (db *DB) GetExecutions() ([]ExecutionRecord, error) {
+	rows, err := db.conn.Query(
+		"SELECT id, command_id, script_content, final_cmd, output, error, exit_code, executed_at FROM executions ORDER BY executed_at DESC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query executions: %w", err)
+	}
+	defer rows.Close()
+
+	records := []ExecutionRecord{}
+	for rows.Next() {
+		var r ExecutionRecord
+		if err := rows.Scan(&r.ID, &r.CommandID, &r.ScriptContent, &r.FinalCmd, &r.Output, &r.Error, &r.ExitCode, &r.ExecutedAt); err != nil {
+			return nil, fmt.Errorf("scan execution: %w", err)
+		}
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+func (db *DB) AddExecution(record ExecutionRecord) error {
+	_, err := db.conn.Exec(
+		"INSERT INTO executions (id, command_id, script_content, final_cmd, output, error, exit_code, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		record.ID, record.CommandID, record.ScriptContent, record.FinalCmd, record.Output, record.Error, record.ExitCode, record.ExecutedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert execution: %w", err)
+	}
+	return nil
+}
+
+func (db *DB) ClearExecutions() error {
+	_, err := db.conn.Exec("DELETE FROM executions")
+	if err != nil {
+		return fmt.Errorf("clear executions: %w", err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+
+func (db *DB) SearchCommands(query string) ([]Command, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []Command{}, nil
+	}
+
+	// Try FTS5 first
+	rows, err := db.conn.Query(
+		`SELECT c.id, c.title, c.description, c.script_content, c.category_id, c.created_at, c.updated_at
+		 FROM commands_fts fts
+		 JOIN commands c ON c.rowid = fts.rowid
+		 WHERE commands_fts MATCH ?
+		 ORDER BY rank`,
+		query+"*",
+	)
+	if err != nil {
+		// Fallback to LIKE search on FTS error
+		return db.searchCommandsLike(query)
+	}
+	defer rows.Close()
+
+	cmds := []Command{}
+	for rows.Next() {
+		var c Command
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan search result: %w", err)
+		}
+		cmds = append(cmds, c)
+	}
+	if err := rows.Err(); err != nil {
+		return db.searchCommandsLike(query)
+	}
+
+	for i := range cmds {
+		if err := db.loadCommandRelations(&cmds[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cmds, nil
+}
+
+func (db *DB) searchCommandsLike(query string) ([]Command, error) {
+	like := "%" + query + "%"
+	rows, err := db.conn.Query(
+		`SELECT id, title, description, script_content, category_id, created_at, updated_at
+		 FROM commands
+		 WHERE title LIKE ? OR description LIKE ? OR script_content LIKE ?
+		 ORDER BY created_at`,
+		like, like, like,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("like search: %w", err)
+	}
+	defer rows.Close()
+
+	cmds := []Command{}
+	for rows.Next() {
+		var c Command
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &c.CategoryID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan like result: %w", err)
+		}
+		cmds = append(cmds, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i := range cmds {
+		if err := db.loadCommandRelations(&cmds[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cmds, nil
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+func (db *DB) GetSettings() (AppSettings, error) {
+	var s AppSettings
+	err := db.conn.QueryRow("SELECT locale, terminal FROM app_settings LIMIT 1").Scan(&s.Locale, &s.Terminal)
+	if err == sql.ErrNoRows {
+		// Auto-insert defaults
+		s = AppSettings{Locale: "en", Terminal: ""}
+		_, err = db.conn.Exec("INSERT INTO app_settings (locale, terminal) VALUES (?, ?)", s.Locale, s.Terminal)
+		if err != nil {
+			return s, fmt.Errorf("insert default settings: %w", err)
+		}
+		return s, nil
+	}
+	if err != nil {
+		return s, fmt.Errorf("get settings: %w", err)
+	}
+	return s, nil
+}
+
+func (db *DB) SetSettings(s AppSettings) error {
+	_, err := db.conn.Exec("UPDATE app_settings SET locale = ?, terminal = ?", s.Locale, s.Terminal)
+	if err != nil {
+		return fmt.Errorf("update settings: %w", err)
+	}
+	return nil
+}
+
+// ensure time import is used
+var _ = time.Now
