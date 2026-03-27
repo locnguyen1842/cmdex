@@ -78,8 +78,10 @@ func BuildFinalCommand(variables map[string]string) string {
 
 func BuildDisplayCommand(scriptContent string, variables map[string]string) string {
 	resolved := ReplaceTemplateVars(scriptContent, variables)
-	resolved = strings.TrimPrefix(resolved, "#!/bin/bash\n")
-	resolved = strings.TrimPrefix(resolved, "#!/bin/bash\n\n")
+	if idx := strings.Index(resolved, "\n"); strings.HasPrefix(resolved, "#!") && idx != -1 {
+		resolved = resolved[idx+1:]
+		resolved = strings.TrimPrefix(resolved, "\n")
+	}
 	resolved = strings.TrimSpace(resolved)
 	return resolved
 }

@@ -146,6 +146,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    }).catch((err) => {
+      console.error("Failed to copy to clipboard:", err);
+      setCopied(false);
     });
   }, [getResolvedScript, scriptBody]);
 
