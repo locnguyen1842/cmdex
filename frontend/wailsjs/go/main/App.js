@@ -10,8 +10,8 @@ export function CreateCategory(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateCategory'](arg1, arg2, arg3);
 }
 
-export function CreateCommand(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['CreateCommand'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function CreateCommand(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['CreateCommand'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function DeleteCategory(arg1) {
@@ -66,6 +66,10 @@ export function GetVariables(arg1) {
   return window['go']['main']['App']['GetVariables'](arg1);
 }
 
+export function RenameCommand(arg1, arg2) {
+  return window['go']['main']['App']['RenameCommand'](arg1, arg2);
+}
+
 export function RunCommand(arg1, arg2) {
   return window['go']['main']['App']['RunCommand'](arg1, arg2);
 }
@@ -90,8 +94,8 @@ export function UpdateCategory(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateCategory'](arg1, arg2, arg3, arg4);
 }
 
-export function UpdateCommand(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
-  return window['go']['main']['App']['UpdateCommand'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+export function UpdateCommand(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['UpdateCommand'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function UpdatePreset(arg1, arg2, arg3, arg4) {

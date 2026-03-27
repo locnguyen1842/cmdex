@@ -51,10 +51,10 @@ The `App` struct in `app.go` exposes methods to the frontend. Wails auto-generat
 - **`app.go`** - `App` struct with all bound methods (CRUD for categories/commands/presets, execution, search, settings)
 - **`models.go`** - Data types: `Category`, `Command`, `VariableDefinition`, `VariablePreset`, `ExecutionRecord`, `AppSettings`
 - **`db.go`** - SQLite database layer with schema migrations, FTS5 full-text search, normalized tables (categories, commands, tags, variable_definitions, variable_presets, executions, app_settings)
-- **`script.go`** - Script generation (`GenerateScript`), body extraction (`ParseScriptBody`), and signature regeneration (`RegenerateSignature`) for bash scripts with `main()` function wrapper
+- **`script.go`** - Script generation (`GenerateScript`), body extraction (`ParseScriptBody`), `{{var}}` template extraction (`ExtractTemplateVars`), replacement (`ReplaceTemplateVars`), and variable merging (`MergeDetectedVars`)
 - **`executor.go`** - Script execution via temp files (`os/exec`), streaming output via Wails events (`cmd-output`), terminal emulator detection/launch, CEL expression evaluation for variable defaults (supports `now()`, `env()`, `date()`)
 
-Scripts are stored as full bash scripts in SQLite with a `main()` function. Variables are passed as positional arguments (`local varName="$1"`). At execution time, scripts are written to temp files and executed with `bash <tmpfile> args...`.
+Scripts are stored with `{{variableName}}` template placeholders. At execution time, `{{var}}` placeholders are replaced with user-provided values, written to a temp file, and executed with `bash <tmpfile>`. Variables are auto-detected from `{{var}}` patterns in the script body and can also be added manually.
 
 Platform-aware shell: uses `$SHELL -lc` on Unix (falls back to `/bin/sh`), `cmd /C` on Windows.
 
@@ -81,13 +81,25 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 
 ## Key Design Decisions
 
-- Commands are stored as bash scripts with a `main()` function wrapper
-- Variables are explicit (user adds/removes them in the editor) — not auto-detected from text
-- Variables are passed to scripts as positional arguments (`local varName="$N"`)
+- Commands use `{{variableName}}` template syntax for variables (e.g., `echo "Hello {{name}}"`)
+- Variables are auto-detected from `{{var}}` patterns in the script body, and can also be added manually
+- At execution time, `{{var}}` placeholders are replaced with user values via simple string substitution
 - Variable defaults support CEL expressions (Google Common Expression Language) with custom functions: `now()`, `env("KEY")`, `date("2006-01-02")`
-- Editor supports simple mode (body only) and advanced mode (full script editing)
+- Scripts are stored with a `#!/bin/bash` shebang; the editor shows/edits the body without the shebang
 - Commands can have named presets (saved sets of variable values)
 - SQLite with FTS5 for full-text search on title, description, and script content
 - Foreign keys with ON DELETE CASCADE for referential integrity
+- Exception: `commands.category_id` uses `ON DELETE SET NULL` (deleting a category uncategorizes its commands rather than deleting them)
 - Theme colors use CSS variables - modify those rather than hardcoding colors
 - The output panel does not support interactive shells or full ANSI color rendering
+- `wails generate module` warnings about `Not found: time.Time` are normal and expected — Wails serializes `time.Time` as strings
+
+## Gotchas
+
+- `category_id` in `commands` table is nullable (`NULL` = uncategorized). Use `nullableString()` helper when inserting/updating, and `sql.NullString` when scanning.
+- After changing Go structs or method signatures, delete `~/.commamer/commamer.db` if schema changed, or bump `schemaVersion` and add migration in `db.go`
+- Schema migrations must recreate tables (SQLite doesn't support `ALTER COLUMN`) — see v1->v2 migration pattern in `db.go`
+- Schema migrations must be wrapped in transactions to prevent partial failures leaving DB inconsistent
+- `wails build` requires `frontend/dist` to exist — run `cd frontend && pnpm build` first, or use `wails dev` which handles it
+- When changing script storage format, delete `~/.commamer/commamer.db` to reset
+- `RenameCommand` is a separate metadata-only DB method — don't re-process scripts through `UpdateCommand` just to change the title
