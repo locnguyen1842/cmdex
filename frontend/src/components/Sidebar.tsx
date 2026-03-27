@@ -80,7 +80,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>
+      <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
         <div
           ref={setNodeRef}
           style={style}
@@ -145,7 +145,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) return new Set(JSON.parse(stored) as string[]);
     } catch { /* ignore */ }
-    return new Set(categories.map(c => c.id));
+    const initial = new Set(categories.map(c => c.id));
+    initial.add('__uncategorized__');
+    return initial;
   });
 
   useEffect(() => {
@@ -191,29 +193,23 @@ const Sidebar: React.FC<SidebarProps> = ({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const findCommandById = (id: string) => commands.find(c => c.id === id) ?? null;
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveCommand(commands.find(c => c.id === String(event.active.id)) ?? null);
+  }, [commands]);
 
-  const getCategoryIdForItem = (itemId: string): string => {
-    const cmd = commands.find(c => c.id === itemId);
-    return cmd?.categoryId ?? '';
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveCommand(findCommandById(String(event.active.id)));
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const overId = event.over?.id;
     if (!overId) { setOverCategoryId(null); return; }
     const isCat = categories.some(c => c.id === overId);
     if (isCat) {
       setOverCategoryId(String(overId));
     } else {
-      setOverCategoryId(getCategoryIdForItem(String(overId)));
+      const cmd = commands.find(c => c.id === overId);
+      setOverCategoryId(cmd?.categoryId ?? '');
     }
-  };
+  }, [categories, commands]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveCommand(null);
     setOverCategoryId(null);
@@ -239,11 +235,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       targetCategoryId = overCmd?.categoryId ?? '';
 
       if (targetCategoryId !== activeCmd.categoryId) {
-        // Cross-category: always append to end
         const catCmds = commands.filter(c => c.categoryId === targetCategoryId);
         targetIndex = catCmds.length;
       } else {
-        // Same category: insert before the hovered item
         const catCmds = commands
           .filter(c => c.categoryId === targetCategoryId)
           .sort((a, b) => a.position - b.position);
@@ -253,7 +247,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
 
     onReorderCommand(activeId, targetIndex, targetCategoryId);
-  };
+  }, [commands, categories, onReorderCommand]);
+
+  const isUncatDropTarget = overCategoryId === '';
+  const isUncatOpen = openCategories.has('__uncategorized__');
 
   return (
     <ContextMenu>
@@ -313,7 +310,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <Collapsible key={cat.id} open={isOpen} onOpenChange={() => toggleCategory(cat.id)}>
                     <div className={`sidebar-section ${isDropTarget ? 'drop-target' : ''}`}>
                       <ContextMenu>
-                        <ContextMenuTrigger asChild>
+                        <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
                           <CollapsibleTrigger asChild>
                             <div className="sidebar-section-header" data-category-id={cat.id}>
                               <div className="section-left">
@@ -387,47 +384,44 @@ const Sidebar: React.FC<SidebarProps> = ({
               })}
 
               {/* Uncategorized */}
-              {uncategorizedCommands.length > 0 && (() => {
-                const isDropTarget = overCategoryId === '';
-                return (
-                  <Collapsible defaultOpen>
-                    <div className={`sidebar-section ${isDropTarget ? 'drop-target' : ''}`}>
-                      <CollapsibleTrigger asChild>
-                        <div className="sidebar-section-header">
-                          <div className="section-left">
-                            <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-                            <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
-                            <span>{t('sidebar.uncategorized')}</span>
-                          </div>
-                          <div className="section-right">
-                            <span className="cmd-count">{uncategorizedCommands.length}</span>
-                          </div>
+              {uncategorizedCommands.length > 0 && (
+                <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
+                  <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
+                    <CollapsibleTrigger asChild>
+                      <div className="sidebar-section-header">
+                        <div className="section-left">
+                          <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
+                          <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
+                          <span>{t('sidebar.uncategorized')}</span>
                         </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SortableContext
-                          items={uncategorizedCommands.map(c => c.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div className="sidebar-commands">
-                            {uncategorizedCommands.map(cmd => (
-                              <SortableCommandItem
-                                key={cmd.id}
-                                cmd={cmd}
-                                isSelected={selectedCommandId === cmd.id}
-                                onSelect={() => onSelectCommand(cmd)}
-                                onEdit={() => onEditCommand(cmd)}
-                                onDelete={() => onDeleteCommand(cmd)}
-                                onManagePresets={() => onManagePresets(cmd)}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                );
-              })()}
+                        <div className="section-right">
+                          <span className="cmd-count">{uncategorizedCommands.length}</span>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SortableContext
+                        items={uncategorizedCommands.map(c => c.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="sidebar-commands">
+                          {uncategorizedCommands.map(cmd => (
+                            <SortableCommandItem
+                              key={cmd.id}
+                              cmd={cmd}
+                              isSelected={selectedCommandId === cmd.id}
+                              onSelect={() => onSelectCommand(cmd)}
+                              onEdit={() => onEditCommand(cmd)}
+                              onDelete={() => onDeleteCommand(cmd)}
+                              onManagePresets={() => onManagePresets(cmd)}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              )}
             </ScrollArea>
 
             {/* Drag overlay ghost */}
