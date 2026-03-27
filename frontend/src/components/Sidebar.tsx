@@ -387,18 +387,30 @@ const Sidebar: React.FC<SidebarProps> = ({
               {uncategorizedCommands.length > 0 && (
                 <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
                   <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
-                    <CollapsibleTrigger asChild>
-                      <div className="sidebar-section-header">
-                        <div className="section-left">
-                          <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
-                          <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
-                          <span>{t('sidebar.uncategorized')}</span>
-                        </div>
-                        <div className="section-right">
-                          <span className="cmd-count">{uncategorizedCommands.length}</span>
-                        </div>
-                      </div>
-                    </CollapsibleTrigger>
+                    <ContextMenu>
+                      <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
+                        <CollapsibleTrigger asChild>
+                          <div className="sidebar-section-header">
+                            <div className="section-left">
+                              <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
+                              <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
+                              <span>{t('sidebar.uncategorized')}</span>
+                            </div>
+                            <div className="section-right">
+                              <span className="cmd-count">{uncategorizedCommands.length}</span>
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => onAddCommand()}>
+                          <Plus className="size-3.5" /> New Command
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={onAddCategory}>
+                          <ChevronRight className="size-3.5" /> New Group
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                     <CollapsibleContent>
                       <SortableContext
                         items={uncategorizedCommands.map(c => c.id)}
