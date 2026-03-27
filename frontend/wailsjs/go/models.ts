@@ -77,6 +77,7 @@ export namespace main {
 	    description: string;
 	    example: string;
 	    default: string;
+	    sortOrder: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new VariableDefinition(source);
@@ -88,13 +89,14 @@ export namespace main {
 	        this.description = source["description"];
 	        this.example = source["example"];
 	        this.default = source["default"];
+	        this.sortOrder = source["sortOrder"];
 	    }
 	}
 	export class Command {
 	    id: string;
 	    title: string;
 	    description: string;
-	    commandText: string;
+	    scriptContent: string;
 	    tags: string[];
 	    variables: VariableDefinition[];
 	    presets: VariablePreset[];
@@ -113,7 +115,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.title = source["title"];
 	        this.description = source["description"];
-	        this.commandText = source["commandText"];
+	        this.scriptContent = source["scriptContent"];
 	        this.tags = source["tags"];
 	        this.variables = this.convertValues(source["variables"], VariableDefinition);
 	        this.presets = this.convertValues(source["presets"], VariablePreset);
@@ -143,7 +145,7 @@ export namespace main {
 	export class ExecutionRecord {
 	    id: string;
 	    commandId: string;
-	    commandText: string;
+	    scriptContent: string;
 	    finalCmd: string;
 	    output: string;
 	    error: string;
@@ -159,7 +161,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.commandId = source["commandId"];
-	        this.commandText = source["commandText"];
+	        this.scriptContent = source["scriptContent"];
 	        this.finalCmd = source["finalCmd"];
 	        this.output = source["output"];
 	        this.error = source["error"];
