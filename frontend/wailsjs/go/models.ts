@@ -101,6 +101,7 @@ export namespace main {
 	    variables: VariableDefinition[];
 	    presets: VariablePreset[];
 	    categoryId: string;
+	    position: number;
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -120,6 +121,7 @@ export namespace main {
 	        this.variables = this.convertValues(source["variables"], VariableDefinition);
 	        this.presets = this.convertValues(source["presets"], VariablePreset);
 	        this.categoryId = source["categoryId"];
+	        this.position = source["position"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
