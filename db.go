@@ -217,7 +217,7 @@ func (db *DB) migrate() error {
 				return fmt.Errorf("migration v2: %w", err)
 			}
 		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", schemaVersion); err != nil {
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 2); err != nil {
 			return fmt.Errorf("update schema version: %w", err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -633,7 +633,9 @@ func (db *DB) UpdateCommandPosition(id string, newCategoryID string, newIndex in
 	if newIndex > len(ordered) {
 		newIndex = len(ordered)
 	}
-	ordered = append(ordered[:newIndex], append([]string{id}, ordered[newIndex:]...)...)
+	tail := make([]string, len(ordered)-newIndex)
+	copy(tail, ordered[newIndex:])
+	ordered = append(ordered[:newIndex], append([]string{id}, tail...)...)
 
 	// Write positions 0, 1, 2, … and update category
 	for i, cmdID := range ordered {
