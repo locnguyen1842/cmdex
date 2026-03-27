@@ -87,13 +87,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       .catch(() => setScriptBody(""));
   }, [command.id, command.scriptContent]);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(scriptBody).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [scriptBody]);
-
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
     setEditingTitle(true);
@@ -140,6 +133,21 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       return <span key={i}>{part}</span>;
     });
   }, [scriptBody, resolvedValues]);
+
+  const getResolvedScript = useMemo(() => {
+    if (!scriptBody) return "";
+    return scriptBody.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+      return resolvedValues[varName] || match;
+    });
+  }, [scriptBody, resolvedValues]);
+
+  const handleCopy = useCallback(() => {
+    const textToCopy = getResolvedScript || scriptBody;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [getResolvedScript, scriptBody]);
 
   const argsPreview = useMemo(() => {
     if (variables.length === 0) return null;
@@ -388,6 +396,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </Tooltip>
             </div>
             <div className="command-text-box text-xs preview-box-with-float">
+              <div className="mb-2 pb-2 border-b border-border/50">
+                <code className="text-xs whitespace-pre-wrap break-all">
+                  {getResolvedScript}
+                </code>
+              </div>
               {argsPreview && argsPreview.map((arg, i) => (
                 <span key={arg.name}>
                   <span className="text-muted-foreground">{arg.name}=</span>
