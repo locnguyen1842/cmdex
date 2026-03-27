@@ -744,3 +744,46 @@ body {
 .rail-expand-btn:hover {
   background: var(--accent);
 }
+
+/* ========== Sidebar search row ========== */
+
+.sidebar-search-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ========== Drag handle on command items ========== */
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  color: transparent;
+  flex-shrink: 0;
+  padding: 0 2px;
+  transition: color var(--transition-fast);
+}
+
+.command-item:hover .drag-handle {
+  color: var(--muted-foreground);
+}
+
+.command-item.dragging {
+  opacity: 0.4;
+}
+
+.dragging-ghost {
+  background: var(--accent);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0.9;
+}
+
+/* Drop target highlight on category */
+
+.sidebar-section.drop-target > .sidebar-section-header {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border-radius: 6px;
+}

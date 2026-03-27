@@ -47,6 +47,7 @@ import {
     DeletePreset,
     GetSettings,
     RunInTerminal,
+    ReorderCommand,
 } from '../wailsjs/go/main/App';
 import i18n from './i18n';
 
@@ -254,6 +255,35 @@ function App() {
         });
     };
 
+    const handleManagePresetsForCommand = async (cmd: Command) => {
+        const vars = await GetVariables(cmd.id);
+        const presets = await GetPresets(cmd.id);
+        setModal({
+            type: 'managePresets',
+            variables: vars || [],
+            commandId: cmd.id,
+            presets: presets || [],
+        });
+    };
+
+    const handleDeleteCommand = (cmd: Command) => {
+        setModal({
+            type: 'confirmDelete',
+            itemType: 'command',
+            id: cmd.id,
+            name: cmd.title,
+        });
+    };
+
+    const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
+        try {
+            const updated = await ReorderCommand(id, newPosition, newCategoryId);
+            setCommands(updated || []);
+        } catch (err) {
+            console.error('Failed to reorder command:', err);
+        }
+    };
+
     const handleFillVariables = async (initialValues: Record<string, string>) => {
         if (!selectedCommand) return;
         const vars = await GetVariables(selectedCommand.id);
@@ -403,6 +433,10 @@ function App() {
                     onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
                     onDeleteCategory={handleDeleteCategory}
                     onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
+                    onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
+                    onDeleteCommand={handleDeleteCommand}
+                    onManagePresets={handleManagePresetsForCommand}
+                    onReorderCommand={handleReorderCommand}
                     onOpenSettings={() => setSettingsOpen(true)}
                 />
 
