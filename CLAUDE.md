@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-Commamer is a cross-platform desktop app for saving, organizing, and executing CLI commands with dynamic variable placeholders (`${varName}`). Built with Go + Wails v2 (backend/desktop) and React + TypeScript + Vite (frontend).
+Commamer is a cross-platform desktop app for saving, organizing, and executing CLI commands as bash scripts with dynamic variable arguments. Built with Go + Wails v2 (backend/desktop) and React + TypeScript + Vite (frontend).
 
-Data is stored locally in `~/.commamer/data.json` (categories/commands/settings) and `~/.commamer/executions.json` (execution history, capped at 100 records).
+Data is stored locally in a SQLite database at `~/.commamer/commamer.db` using `modernc.org/sqlite` (pure Go, no CGo).
 
 ## Prerequisites
 
@@ -49,9 +49,12 @@ The `App` struct in `app.go` exposes methods to the frontend. Wails auto-generat
 
 - **`main.go`** - Entry point, Wails window config, native menu setup
 - **`app.go`** - `App` struct with all bound methods (CRUD for categories/commands/presets, execution, search, settings)
-- **`models.go`** - Data types: `Category`, `Command`, `VariableDefinition`, `VariablePreset`, `ExecutionRecord`, `AppSettings`, `AppData`
-- **`store.go`** - JSON file persistence with `sync.Mutex` thread safety
-- **`executor.go`** - Command execution (`os/exec`), variable parsing (`${var}` regex), streaming output via Wails events (`cmd-output`), terminal emulator detection/launch, CEL expression evaluation for variable defaults (supports `now()`, `env()`, `date()`)
+- **`models.go`** - Data types: `Category`, `Command`, `VariableDefinition`, `VariablePreset`, `ExecutionRecord`, `AppSettings`
+- **`db.go`** - SQLite database layer with schema migrations, FTS5 full-text search, normalized tables (categories, commands, tags, variable_definitions, variable_presets, executions, app_settings)
+- **`script.go`** - Script generation (`GenerateScript`), body extraction (`ParseScriptBody`), and signature regeneration (`RegenerateSignature`) for bash scripts with `main()` function wrapper
+- **`executor.go`** - Script execution via temp files (`os/exec`), streaming output via Wails events (`cmd-output`), terminal emulator detection/launch, CEL expression evaluation for variable defaults (supports `now()`, `env()`, `date()`)
+
+Scripts are stored as full bash scripts in SQLite with a `main()` function. Variables are passed as positional arguments (`local varName="$1"`). At execution time, scripts are written to temp files and executed with `bash <tmpfile> args...`.
 
 Platform-aware shell: uses `$SHELL -lc` on Unix (falls back to `/bin/sh`), `cmd /C` on Windows.
 
@@ -69,15 +72,22 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 ### Adding a New Field to Command or Category
 
 1. Update struct in `models.go`
-2. Update method signatures in `app.go`
-3. Update TypeScript interfaces in `frontend/src/types.ts`
-4. Update the relevant editor component (`CommandEditor.tsx` or `CategoryEditor.tsx`)
-5. Update calls in `App.tsx`
+2. Update schema and queries in `db.go`
+3. Update method signatures in `app.go`
+4. Run `wails generate module` to regenerate bindings
+5. Update TypeScript interfaces in `frontend/src/types.ts`
+6. Update the relevant editor component (`CommandEditor.tsx` or `CategoryEditor.tsx`)
+7. Update calls in `App.tsx`
 
 ## Key Design Decisions
 
-- Variable placeholders use `${varName}` syntax (regex: `\$\{(\w+)\}`)
+- Commands are stored as bash scripts with a `main()` function wrapper
+- Variables are explicit (user adds/removes them in the editor) — not auto-detected from text
+- Variables are passed to scripts as positional arguments (`local varName="$N"`)
 - Variable defaults support CEL expressions (Google Common Expression Language) with custom functions: `now()`, `env("KEY")`, `date("2006-01-02")`
+- Editor supports simple mode (body only) and advanced mode (full script editing)
 - Commands can have named presets (saved sets of variable values)
+- SQLite with FTS5 for full-text search on title, description, and script content
+- Foreign keys with ON DELETE CASCADE for referential integrity
 - Theme colors use CSS variables - modify those rather than hardcoding colors
 - The output panel does not support interactive shells or full ANSI color rendering
