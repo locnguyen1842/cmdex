@@ -1,6 +1,6 @@
-# Commamer
+# Cmdex
 
-Commamer is a cross-platform desktop application for saving, organizing, and executing CLI commands with dynamic template variables. Built with Go + Wails v2 and React + TypeScript, it offers a fast, native-like experience with a modern dark-themed interface.
+Cmdex is a cross-platform desktop application for saving, organizing, and executing CLI commands with dynamic template variables. Built with Go + Wails v2 and React + TypeScript, it offers a fast, native-like experience with a modern dark-themed interface.
 
 ## Features
 
@@ -14,7 +14,7 @@ Commamer is a cross-platform desktop application for saving, organizing, and exe
 - **In-App Execution**: Run commands directly within the app with streaming output in an integrated terminal panel.
 - **Run in Terminal**: Open commands in your preferred terminal emulator (auto-detects Terminal, iTerm2, Warp, Alacritty, Kitty, Ghostty, and more).
 - **Full-Text Search**: Instantly filter commands by title, description, tags, or script content (powered by SQLite FTS5).
-- **Local Storage**: All data is stored locally in `~/.commamer/commamer.db` (SQLite). No cloud sync, no external dependencies.
+- **Local Storage**: All data is stored locally in `~/.cmdex/cmdex.db` (SQLite). No cloud sync, no external dependencies.
 - **Dark Theme**: A premium dark UI with glassmorphism effects, smooth animations, and responsive layout.
 
 ## Tech Stack
@@ -38,7 +38,7 @@ Commamer is a cross-platform desktop application for saving, organizing, and exe
 1. **Clone the repository**:
    ```bash
    git clone <repo-url>
-   cd commamer
+   cd cmdex
    ```
 
 2. **Install frontend dependencies**:
@@ -66,7 +66,7 @@ Use `{{variableName}}` anywhere in your script body. Variables are auto-detected
 redis-cli --scan --pattern "{{pattern}}" | head -n {{limit}}
 ```
 
-When executed, Commamer replaces `{{pattern}}` and `{{limit}}` with the values you provide (or their defaults), then runs the script.
+When executed, Cmdex replaces `{{pattern}}` and `{{limit}}` with the values you provide (or their defaults), then runs the script.
 
 **CEL defaults** let you compute values dynamically:
 - `now()` — current timestamp (RFC3339)

@@ -1,10 +1,10 @@
 # Agents documentation
 
-This document describes how an AI agent can continue development on the **Commamer** application.
+This document describes how an AI agent can continue development on the **Cmdex** application.
 
 ## Project Overview
 
-**Commamer** is a cross-platform desktop app for saving and executing CLI commands with variable placeholders (e.g., `echo ${message}`). It is built with:
+**Cmdex** is a cross-platform desktop app for saving and executing CLI commands with variable placeholders (e.g., `echo ${message}`). It is built with:
 - **Go** (Backend, file I/O, subprocess execution)
 - **Wails v2** (Desktop bindings & window management)
 - **React 18 + Vite + TypeScript** (Frontend UI)
@@ -19,7 +19,7 @@ The Go backend exposes methods via the `App` struct in `app.go`. During build/de
   3. Import the generated function in your React component: `import { ExportData } from '../wailsjs/go/main/App'`.
 
 ### 2. Local Storage (`store.go`)
-Data is stored locally in `~/.commamer/data.json`.
+Data is stored locally in `~/.cmdex/cmdex.db`.
 - The `Store` struct uses a `sync.Mutex` to ensure thread-safe read/write operations.
 - Data structures are defined in `models.go`.
 

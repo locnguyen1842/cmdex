@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-Commamer is a cross-platform desktop app for saving, organizing, and executing CLI commands as bash scripts with dynamic variable arguments. Built with Go + Wails v2 (backend/desktop) and React + TypeScript + Vite (frontend).
+Cmdex is a cross-platform desktop app for saving, organizing, and executing CLI commands as bash scripts with dynamic variable arguments. Built with Go + Wails v2 (backend/desktop) and React + TypeScript + Vite (frontend).
 
-Data is stored locally in a SQLite database at `~/.commamer/commamer.db` using `modernc.org/sqlite` (pure Go, no CGo).
+Data is stored locally in a SQLite database at `~/.cmdex/cmdex.db` using `modernc.org/sqlite` (pure Go, no CGo).
 
 ## Prerequisites
 
@@ -97,9 +97,9 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 ## Gotchas
 
 - `category_id` in `commands` table is nullable (`NULL` = uncategorized). Use `nullableString()` helper when inserting/updating, and `sql.NullString` when scanning.
-- After changing Go structs or method signatures, delete `~/.commamer/commamer.db` if schema changed, or bump `schemaVersion` and add migration in `db.go`
+- After changing Go structs or method signatures, delete `~/.cmdex/cmdex.db` if schema changed, or bump `schemaVersion` and add migration in `db.go`
 - Schema migrations must recreate tables (SQLite doesn't support `ALTER COLUMN`) — see v1->v2 migration pattern in `db.go`
 - Schema migrations must be wrapped in transactions to prevent partial failures leaving DB inconsistent
 - `wails build` requires `frontend/dist` to exist — run `cd frontend && pnpm build` first, or use `wails dev` which handles it
-- When changing script storage format, delete `~/.commamer/commamer.db` to reset
+- When changing script storage format, delete `~/.cmdex/cmdex.db` to reset
 - `RenameCommand` is a separate metadata-only DB method — don't re-process scripts through `UpdateCommand` just to change the title
