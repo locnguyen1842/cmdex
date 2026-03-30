@@ -4,6 +4,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   closestCenter,
@@ -15,6 +16,7 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -35,6 +37,9 @@ import {
 import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical } from 'lucide-react';
 
 const STORAGE_KEY = 'commamer-expanded-categories';
+
+/** Normalize null/undefined/'' to '' for uncategorized bucket */
+const normCatId = (id: string | null | undefined): string => id || '';
 
 interface SidebarProps {
   categories: Category[];
@@ -206,7 +211,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [overCategoryId, setOverCategoryId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -230,7 +236,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       setOverCategoryId(overStr);
     } else {
       const cmd = commands.find(c => c.id === overId);
-      setOverCategoryId(cmd?.categoryId ?? '');
+      setOverCategoryId(normCatId(cmd?.categoryId));
     }
   }, [categories, commands]);
 
@@ -254,18 +260,18 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     if (isCatDrop) {
       targetCategoryId = catDropId !== null ? catDropId : overId;
-      const catCmds = commands.filter(c => c.categoryId === targetCategoryId);
+      const catCmds = commands.filter(c => normCatId(c.categoryId) === normCatId(targetCategoryId));
       targetIndex = catCmds.length;
     } else {
       const overCmd = commands.find(c => c.id === overId);
-      targetCategoryId = overCmd?.categoryId ?? '';
+      targetCategoryId = normCatId(overCmd?.categoryId);
 
-      if (targetCategoryId !== activeCmd.categoryId) {
-        const catCmds = commands.filter(c => c.categoryId === targetCategoryId);
+      if (normCatId(targetCategoryId) !== normCatId(activeCmd.categoryId)) {
+        const catCmds = commands.filter(c => normCatId(c.categoryId) === normCatId(targetCategoryId));
         targetIndex = catCmds.length;
       } else {
         const catCmds = commands
-          .filter(c => c.categoryId === targetCategoryId)
+          .filter(c => normCatId(c.categoryId) === normCatId(targetCategoryId))
           .sort((a, b) => a.position - b.position);
         targetIndex = catCmds.findIndex(c => c.id === overId);
         if (targetIndex === -1) targetIndex = catCmds.length;
@@ -279,57 +285,57 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isUncatOpen = openCategories.has('__uncategorized__');
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div className="sidebar">
-          {/* Header */}
-          <div className="sidebar-header">
-            <div className="sidebar-logo">
-              <div className="logo-icon">⌘</div>
-              <h1>Commamer</h1>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto">
-                    <Settings className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('sidebar.settings')}</TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="sidebar-search-row">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder={t('sidebar.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  className="pl-8 h-8 bg-secondary border-border"
-                />
-              </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-sm"
-                    onClick={() => onAddCommand()}
-                    className="shrink-0 size-8"
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('sidebar.newCommand')}</TooltipContent>
-              </Tooltip>
-            </div>
+    <div className="sidebar">
+      {/* Header — outside context menu trigger so right-click doesn't fire */}
+      <div className="sidebar-header">
+        <div className="sidebar-logo">
+          <div className="logo-icon">⌘</div>
+          <h1>Commamer</h1>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto">
+                <Settings className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('sidebar.settings')}</TooltipContent>
+          </Tooltip>
+        </div>
+        <div className="sidebar-search-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={t('sidebar.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-8 h-8 bg-secondary border-border"
+            />
           </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                onClick={() => onAddCommand()}
+                className="shrink-0 size-8"
+              >
+                <Plus className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('sidebar.newCommand')}</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
 
-          {/* Command list with DnD */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
+      {/* Command list with DnD — context menu scoped to scroll area only */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
             <ScrollArea className="sidebar-content">
               {categories.map(cat => {
                 const catCommands = getCommandsForCategory(cat.id);
@@ -417,78 +423,80 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Uncategorized — always rendered so it's a valid drop target */}
               <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
+                <DroppableCategoryHeader categoryId="">
                 <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
-                    <ContextMenu>
-                      <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
-                        <CollapsibleTrigger asChild>
-                          <div className="sidebar-section-header">
-                            <div className="section-left">
-                              <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
-                              <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
-                              <span>{t('sidebar.uncategorized')}</span>
-                            </div>
-                            <div className="section-right">
-                              <span className="cmd-count">{uncategorizedCommands.length}</span>
-                            </div>
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
+                      <CollapsibleTrigger asChild>
+                        <div className="sidebar-section-header">
+                          <div className="section-left">
+                            <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
+                            <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
+                            <span>{t('sidebar.uncategorized')}</span>
                           </div>
-                        </CollapsibleTrigger>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent>
-                        <ContextMenuItem onSelect={() => onAddCommand()}>
-                          <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
-                        </ContextMenuItem>
-                        <ContextMenuItem onSelect={onAddCategory}>
-                          <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
-                    <CollapsibleContent>
-                      <SortableContext
-                        items={uncategorizedCommands.map(c => c.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <DroppableCategoryZone categoryId="">
-                          {uncategorizedCommands.map(cmd => (
-                            <SortableCommandItem
-                              key={cmd.id}
-                              cmd={cmd}
-                              isSelected={selectedCommandId === cmd.id}
-                              onSelect={() => onSelectCommand(cmd)}
-                              onEdit={() => onEditCommand(cmd)}
-                              onDelete={() => onDeleteCommand(cmd)}
-                              onManagePresets={() => onManagePresets(cmd)}
-                            />
-                          ))}
-                        </DroppableCategoryZone>
-                      </SortableContext>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
-            </ScrollArea>
-
-            {/* Drag overlay ghost */}
-            <DragOverlay>
-              {activeCommand && (
-                <div className="command-item dragging-ghost">
-                  <GripVertical className="size-3.5 text-muted-foreground" />
-                  <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="cmd-title">{activeCommand.title}</span>
+                          <div className="section-right">
+                            <span className="cmd-count">{uncategorizedCommands.length}</span>
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onSelect={() => onAddCommand()}>
+                        <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={onAddCategory}>
+                        <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                  <CollapsibleContent>
+                    <SortableContext
+                      items={uncategorizedCommands.map(c => c.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <DroppableCategoryZone categoryId="">
+                        {uncategorizedCommands.map(cmd => (
+                          <SortableCommandItem
+                            key={cmd.id}
+                            cmd={cmd}
+                            isSelected={selectedCommandId === cmd.id}
+                            onSelect={() => onSelectCommand(cmd)}
+                            onEdit={() => onEditCommand(cmd)}
+                            onDelete={() => onDeleteCommand(cmd)}
+                            onManagePresets={() => onManagePresets(cmd)}
+                          />
+                        ))}
+                      </DroppableCategoryZone>
+                    </SortableContext>
+                  </CollapsibleContent>
                 </div>
-              )}
-            </DragOverlay>
-          </DndContext>
-        </div>
-      </ContextMenuTrigger>
-      {/* Sidebar-level context menu (empty area) */}
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onAddCommand()}>
-          <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onAddCategory}>
-          <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+                </DroppableCategoryHeader>
+              </Collapsible>
+            </ScrollArea>
+          </ContextMenuTrigger>
+          {/* Empty-space context menu (scoped to scroll area) */}
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => onAddCommand()}>
+              <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={onAddCategory}>
+              <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+
+        {/* Drag overlay ghost */}
+        <DragOverlay>
+          {activeCommand && (
+            <div className="command-item dragging-ghost">
+              <GripVertical className="size-3.5 text-muted-foreground" />
+              <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="cmd-title">{activeCommand.title}</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 };
 
