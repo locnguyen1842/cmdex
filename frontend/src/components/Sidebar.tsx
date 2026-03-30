@@ -131,6 +131,11 @@ const DroppableCategoryZone: React.FC<{ categoryId: string; children: React.Reac
   );
 };
 
+const DroppableCategoryHeader: React.FC<{ categoryId: string; children: React.ReactNode }> = ({ categoryId, children }) => {
+  const { setNodeRef } = useDroppable({ id: `category-header-${categoryId}` });
+  return <div ref={setNodeRef}>{children}</div>;
+};
+
 const Sidebar: React.FC<SidebarProps> = ({
   categories,
   commands,
@@ -208,12 +213,19 @@ const Sidebar: React.FC<SidebarProps> = ({
     setActiveCommand(commands.find(c => c.id === String(event.active.id)) ?? null);
   }, [commands]);
 
+  const parseCategoryDropId = (id: string): string | null => {
+    if (id.startsWith('category-drop-')) return id.slice('category-drop-'.length);
+    if (id.startsWith('category-header-')) return id.slice('category-header-'.length);
+    return null;
+  };
+
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const overId = event.over?.id;
     if (!overId) { setOverCategoryId(null); return; }
     const overStr = String(overId);
-    if (overStr.startsWith('category-drop-')) {
-      setOverCategoryId(overStr.replace('category-drop-', ''));
+    const catId = parseCategoryDropId(overStr);
+    if (catId !== null) {
+      setOverCategoryId(catId);
     } else if (categories.some(c => c.id === overId)) {
       setOverCategoryId(overStr);
     } else {
@@ -235,13 +247,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     const activeCmd = commands.find(c => c.id === activeId);
     if (!activeCmd) return;
 
-    const isDropZone = overId.startsWith('category-drop-');
-    const isCatDrop = isDropZone || categories.some(c => c.id === overId);
+    const catDropId = parseCategoryDropId(overId);
+    const isCatDrop = catDropId !== null || categories.some(c => c.id === overId);
     let targetCategoryId: string;
     let targetIndex: number;
 
     if (isCatDrop) {
-      targetCategoryId = isDropZone ? overId.replace('category-drop-', '') : overId;
+      targetCategoryId = catDropId !== null ? catDropId : overId;
       const catCmds = commands.filter(c => c.categoryId === targetCategoryId);
       targetIndex = catCmds.length;
     } else {
@@ -326,6 +338,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                 return (
                   <Collapsible key={cat.id} open={isOpen} onOpenChange={() => toggleCategory(cat.id)}>
+                    <DroppableCategoryHeader categoryId={cat.id}>
                     <div className={`sidebar-section ${isDropTarget ? 'drop-target' : ''}`}>
                       <ContextMenu>
                         <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
@@ -397,14 +410,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </SortableContext>
                       </CollapsibleContent>
                     </div>
+                    </DroppableCategoryHeader>
                   </Collapsible>
                 );
               })}
 
-              {/* Uncategorized */}
-              {uncategorizedCommands.length > 0 && (
-                <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
-                  <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
+              {/* Uncategorized — always rendered so it's a valid drop target */}
+              <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
+                <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
                     <ContextMenu>
                       <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
                         <CollapsibleTrigger asChild>
@@ -451,7 +464,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </CollapsibleContent>
                   </div>
                 </Collapsible>
-              )}
             </ScrollArea>
 
             {/* Drag overlay ghost */}
