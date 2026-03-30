@@ -290,7 +290,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <div className="logo-icon">⌘</div>
-          <h1>Commamer</h1>
+          <h1>Cmdex</h1>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto">
