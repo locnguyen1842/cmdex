@@ -434,7 +434,7 @@ function App() {
                     defaultWidth={300}
                     minWidth={200}
                     maxWidth={480}
-                    storageKey="commamer-sidebar"
+                    storageKey="cmdex-sidebar"
                     collapsedIcon={
                         <div className="logo-icon" style={{ width: 24, height: 24, fontSize: 12 }}>⌘</div>
                     }

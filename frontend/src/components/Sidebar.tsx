@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/context-menu';
 import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical } from 'lucide-react';
 
-const STORAGE_KEY = 'commamer-expanded-categories';
+const STORAGE_KEY = 'cmdex-expanded-categories';
 
 /** Normalize null/undefined/'' to '' for uncategorized bucket */
 const normCatId = (id: string | null | undefined): string => id || '';
