@@ -32,10 +32,12 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
   const didDragRef = useRef(false);
+  const lastClientXRef = useRef(0);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     startXRef.current = e.clientX;
+    lastClientXRef.current = e.clientX;
     startWidthRef.current = width;
     didDragRef.current = false;
     setDragging(true);
@@ -44,6 +46,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   useEffect(() => {
     if (!dragging) return;
     const onMouseMove = (e: MouseEvent) => {
+      lastClientXRef.current = e.clientX;
       if (Math.abs(e.clientX - startXRef.current) > 3) {
         didDragRef.current = true;
       }
@@ -55,6 +58,19 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     };
     const onMouseUp = () => {
       setDragging(false);
+      // Check if user dragged well past min — collapse if width would be < minWidth - 40
+      const finalDelta = side === 'left'
+        ? (lastClientXRef.current - startXRef.current)
+        : (startXRef.current - lastClientXRef.current);
+      const rawWidth = startWidthRef.current + finalDelta;
+      if (rawWidth < minWidth - 40) {
+        setCollapsed(true);
+        localStorage.setItem(`${storageKey}-collapsed`, 'true');
+        // Restore width to previous so expanding goes back to a usable size
+        setWidth(startWidthRef.current);
+        localStorage.setItem(`${storageKey}-width`, String(startWidthRef.current));
+        return;
+      }
       setWidth(prev => {
         localStorage.setItem(`${storageKey}-width`, String(prev));
         return prev;

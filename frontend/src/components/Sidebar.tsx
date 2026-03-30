@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   closestCenter,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
@@ -120,6 +121,15 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
   );
 };
 
+const DroppableCategoryZone: React.FC<{ categoryId: string; children: React.ReactNode }> = ({ categoryId, children }) => {
+  const { setNodeRef } = useDroppable({ id: `category-drop-${categoryId}` });
+  return (
+    <div ref={setNodeRef} className="sidebar-commands" style={{ minHeight: 8 }}>
+      {children}
+    </div>
+  );
+};
+
 const Sidebar: React.FC<SidebarProps> = ({
   categories,
   commands,
@@ -200,9 +210,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const overId = event.over?.id;
     if (!overId) { setOverCategoryId(null); return; }
-    const isCat = categories.some(c => c.id === overId);
-    if (isCat) {
-      setOverCategoryId(String(overId));
+    const overStr = String(overId);
+    if (overStr.startsWith('category-drop-')) {
+      setOverCategoryId(overStr.replace('category-drop-', ''));
+    } else if (categories.some(c => c.id === overId)) {
+      setOverCategoryId(overStr);
     } else {
       const cmd = commands.find(c => c.id === overId);
       setOverCategoryId(cmd?.categoryId ?? '');
@@ -222,12 +234,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     const activeCmd = commands.find(c => c.id === activeId);
     if (!activeCmd) return;
 
-    const isCatDrop = categories.some(c => c.id === overId);
+    const isDropZone = overId.startsWith('category-drop-');
+    const isCatDrop = isDropZone || categories.some(c => c.id === overId);
     let targetCategoryId: string;
     let targetIndex: number;
 
     if (isCatDrop) {
-      targetCategoryId = overId;
+      targetCategoryId = isDropZone ? overId.replace('category-drop-', '') : overId;
       const catCmds = commands.filter(c => c.categoryId === targetCategoryId);
       targetIndex = catCmds.length;
     } else {
@@ -355,7 +368,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           items={catCommands.map(c => c.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          <div className="sidebar-commands">
+                          <DroppableCategoryZone categoryId={cat.id}>
                             {catCommands.map(cmd => (
                               <SortableCommandItem
                                 key={cmd.id}
@@ -375,7 +388,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 </span>
                               </div>
                             )}
-                          </div>
+                          </DroppableCategoryZone>
                         </SortableContext>
                       </CollapsibleContent>
                     </div>
@@ -416,7 +429,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         items={uncategorizedCommands.map(c => c.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        <div className="sidebar-commands">
+                        <DroppableCategoryZone categoryId="">
                           {uncategorizedCommands.map(cmd => (
                             <SortableCommandItem
                               key={cmd.id}
@@ -428,7 +441,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                               onManagePresets={() => onManagePresets(cmd)}
                             />
                           ))}
-                        </div>
+                        </DroppableCategoryZone>
                       </SortableContext>
                     </CollapsibleContent>
                   </div>

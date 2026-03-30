@@ -693,6 +693,11 @@ body {
   flex-shrink: 0;
 }
 
+.resizable-panel > *:not(.resize-handle) {
+  height: 100%;
+  overflow: hidden;
+}
+
 .resize-handle {
   width: 4px;
   flex-shrink: 0;
