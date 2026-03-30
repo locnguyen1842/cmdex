@@ -9,6 +9,7 @@ import VariablePrompt from './components/VariablePrompt';
 import HistoryPane from './components/HistoryPane';
 import OutputPane from './components/OutputPane';
 import SettingsDialog from './components/SettingsDialog';
+import ResizablePanel from './components/ResizablePanel';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -422,23 +423,34 @@ function App() {
     return (
         <TooltipProvider>
             <div className="app-layout">
-                <Sidebar
-                    categories={categories}
-                    commands={commands}
-                    selectedCommandId={selectedCommand?.id || null}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    onSelectCommand={handleSelectCommand}
-                    onAddCategory={() => setModal({ type: 'categoryEditor' })}
-                    onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
-                    onDeleteCategory={handleDeleteCategory}
-                    onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
-                    onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
-                    onDeleteCommand={handleDeleteCommand}
-                    onManagePresets={handleManagePresetsForCommand}
-                    onReorderCommand={handleReorderCommand}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                />
+                <ResizablePanel
+                    side="left"
+                    defaultWidth={300}
+                    minWidth={200}
+                    maxWidth={480}
+                    storageKey="commamer-sidebar"
+                    collapsedIcon={
+                        <div className="logo-icon" style={{ width: 24, height: 24, fontSize: 12 }}>⌘</div>
+                    }
+                >
+                    <Sidebar
+                        categories={categories}
+                        commands={commands}
+                        selectedCommandId={selectedCommand?.id || null}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        onSelectCommand={handleSelectCommand}
+                        onAddCategory={() => setModal({ type: 'categoryEditor' })}
+                        onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
+                        onDeleteCategory={handleDeleteCategory}
+                        onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
+                        onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
+                        onDeleteCommand={handleDeleteCommand}
+                        onManagePresets={handleManagePresetsForCommand}
+                        onReorderCommand={handleReorderCommand}
+                        onOpenSettings={() => setSettingsOpen(true)}
+                    />
+                </ResizablePanel>
 
                 <div className="center-area">
                     <div className="top-area">
