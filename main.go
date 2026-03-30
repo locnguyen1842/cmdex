@@ -21,17 +21,17 @@ func main() {
 	appMenu := menu.NewMenu()
 
 	if goruntime.GOOS == "darwin" {
-		firstMenu := appMenu.AddSubmenu("Commamer")
-		firstMenu.AddText("About Commamer", nil, nil)
+		firstMenu := appMenu.AddSubmenu("Cmdex")
+		firstMenu.AddText("About Cmdex", nil, nil)
 		firstMenu.AddSeparator()
 		firstMenu.AddText("Preferences…", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
 			wailsruntime.EventsEmit(app.ctx, "open-settings")
 		})
 		firstMenu.AddSeparator()
-		firstMenu.AddText("Hide Commamer", keys.CmdOrCtrl("h"), nil)
+		firstMenu.AddText("Hide Cmdex", keys.CmdOrCtrl("h"), nil)
 		firstMenu.AddText("Hide Others", keys.OptionOrAlt("h"), nil)
 		firstMenu.AddSeparator()
-		firstMenu.AddText("Quit Commamer", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		firstMenu.AddText("Quit Cmdex", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 			wailsruntime.Quit(app.ctx)
 		})
 		appMenu.Append(menu.EditMenu())
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	err := wails.Run(&options.App{
-		Title:     "Commamer",
+		Title:     "Cmdex",
 		Width:     1200,
 		Height:    800,
 		MinWidth:  900,
