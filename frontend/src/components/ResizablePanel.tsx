@@ -31,17 +31,22 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   const [dragging, setDragging] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  const didDragRef = useRef(false);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     startXRef.current = e.clientX;
     startWidthRef.current = width;
+    didDragRef.current = false;
     setDragging(true);
   }, [width]);
 
   useEffect(() => {
     if (!dragging) return;
     const onMouseMove = (e: MouseEvent) => {
+      if (Math.abs(e.clientX - startXRef.current) > 3) {
+        didDragRef.current = true;
+      }
       const delta = side === 'left'
         ? e.clientX - startXRef.current
         : startXRef.current - e.clientX;
@@ -90,7 +95,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     <div
       className={`resize-handle ${side} ${dragging ? 'dragging' : ''}`}
       onMouseDown={onMouseDown}
-      onClick={toggleCollapse}
+      onClick={() => { if (!didDragRef.current) toggleCollapse(); }}
       title="Drag to resize · Click to collapse"
     />
   );
