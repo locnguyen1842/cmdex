@@ -436,7 +436,13 @@ function App() {
                     maxWidth={480}
                     storageKey="cmdex-sidebar"
                     collapsedIcon={
-                        <div className="logo-icon" style={{ width: 24, height: 24, fontSize: 12 }}>⌘</div>
+                        <div className="logo-icon" style={{ width: 24, height: 24 }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="24" height="24">
+                              <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+                              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
+                              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
+                            </svg>
+                        </div>
                     }
                 >
                     <Sidebar
@@ -491,7 +497,13 @@ function App() {
                                 </>
                             ) : (
                                 <div className="empty-state">
-                                    <div className="empty-icon">⌘</div>
+                                    <div className="empty-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="64" height="64">
+                                          <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+                                          <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
+                                          <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
+                                        </svg>
+                                    </div>
                                     <h2>{t('app.welcomeTitle')}</h2>
                                     <p>{t('app.welcomeDescription')}</p>
                                     <Button onClick={() => setModal({ type: 'commandEditor' })}>

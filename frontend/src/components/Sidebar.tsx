@@ -289,7 +289,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Header — outside context menu trigger so right-click doesn't fire */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <div className="logo-icon">⌘</div>
+          <div className="logo-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="32" height="32">
+              <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
+              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
+            </svg>
+          </div>
           <h1>Cmdex</h1>
           <Tooltip>
             <TooltipTrigger asChild>

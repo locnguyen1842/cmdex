@@ -139,14 +139,11 @@ body {
 .sidebar-logo .logo-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, var(--primary), #a78bfa);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  color: white;
-  font-weight: 700;
+  overflow: hidden;
 }
 
 .sidebar-logo h1 {
@@ -302,7 +299,7 @@ body {
   color: var(--muted-foreground);
 }
 
-.empty-state .empty-icon { font-size: 56px; opacity: 0.3; }
+.empty-state .empty-icon { opacity: 0.3; }
 .empty-state h2 { font-size: 20px; font-weight: 600; color: var(--foreground); }
 .empty-state p { font-size: 14px; max-width: 300px; text-align: center; line-height: 1.5; }
 
