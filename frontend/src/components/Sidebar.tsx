@@ -34,7 +34,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical } from 'lucide-react';
+import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group } from 'lucide-react';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 
@@ -483,10 +483,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           {/* Empty-space context menu (scoped to scroll area) */}
           <ContextMenuContent>
             <ContextMenuItem onSelect={() => onAddCommand()}>
-              <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
+              <Terminal className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
             </ContextMenuItem>
             <ContextMenuItem onSelect={onAddCategory}>
-              <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+              <Group className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
