@@ -30,16 +30,17 @@ type VariablePreset struct {
 
 // Command represents a saved CLI command
 type Command struct {
-	ID          string               `json:"id"`
-	Title       string               `json:"title"`
-	Description string               `json:"description"`
+	ID            string               `json:"id"`
+	Title         string               `json:"title"`
+	Description   string               `json:"description"`
 	ScriptContent string               `json:"scriptContent"`
-	Tags        []string             `json:"tags"`
-	Variables   []VariableDefinition `json:"variables"`
-	Presets     []VariablePreset     `json:"presets"`
-	CategoryID  string               `json:"categoryId"`
-	CreatedAt   time.Time            `json:"createdAt"`
-	UpdatedAt   time.Time            `json:"updatedAt"`
+	Tags          []string             `json:"tags"`
+	Variables     []VariableDefinition `json:"variables"`
+	Presets       []VariablePreset     `json:"presets"`
+	CategoryID    string               `json:"categoryId"`
+	Position      int                  `json:"position"`
+	CreatedAt     time.Time            `json:"createdAt"`
+	UpdatedAt     time.Time            `json:"updatedAt"`
 }
 
 // VariablePrompt is returned to the frontend when prompting for variable values

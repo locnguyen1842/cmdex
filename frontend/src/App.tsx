@@ -9,6 +9,7 @@ import VariablePrompt from './components/VariablePrompt';
 import HistoryPane from './components/HistoryPane';
 import OutputPane from './components/OutputPane';
 import SettingsDialog from './components/SettingsDialog';
+import ResizablePanel from './components/ResizablePanel';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -47,6 +48,7 @@ import {
     DeletePreset,
     GetSettings,
     RunInTerminal,
+    ReorderCommand,
 } from '../wailsjs/go/main/App';
 import i18n from './i18n';
 
@@ -56,7 +58,8 @@ type ModalState =
     | { type: 'categoryEditor'; category?: Category }
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
-    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string };
+    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
+    | { type: 'settings' };
 
 function App() {
     const { t } = useTranslation();
@@ -71,7 +74,6 @@ function App() {
     const [selectedRecord, setSelectedRecord] = useState<ExecutionRecord | null>(null);
     const [outputPaneOpen, setOutputPaneOpen] = useState(true);
     const [resolvedVariables, setResolvedVariables] = useState<VarPromptType[]>([]);
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [lastSelectedPresetId, setLastSelectedPresetId] = useState<string>('');
     const [streamLines, setStreamLines] = useState<string[]>([]);
     const streamBufferRef = useRef<string[]>([]);
@@ -108,7 +110,7 @@ function App() {
     }, [loadData, loadHistory]);
 
     useEffect(() => {
-        const cleanup = EventsOn('open-settings', () => setSettingsOpen(true));
+        const cleanup = EventsOn('open-settings', () => setModal({ type: 'settings' }));
         return cleanup;
     }, []);
 
@@ -254,6 +256,41 @@ function App() {
         });
     };
 
+    const handleManagePresetsForCommand = async (cmd: Command) => {
+        const vars = await GetVariables(cmd.id);
+        const presets = await GetPresets(cmd.id);
+        setModal({
+            type: 'managePresets',
+            variables: vars || [],
+            commandId: cmd.id,
+            presets: presets || [],
+        });
+    };
+
+    const handleDeleteCommand = (cmd: Command) => {
+        setModal({
+            type: 'confirmDelete',
+            itemType: 'command',
+            id: cmd.id,
+            name: cmd.title,
+        });
+    };
+
+    const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
+        try {
+            const updated = await ReorderCommand(id, newPosition, newCategoryId);
+            // Reapply search filter if active to preserve search results
+            if (searchQuery.trim()) {
+                const filtered = await SearchCommands(searchQuery);
+                setCommands(filtered || []);
+            } else {
+                setCommands(updated || []);
+            }
+        } catch (err) {
+            console.error('Failed to reorder command:', err);
+        }
+    };
+
     const handleFillVariables = async (initialValues: Record<string, string>) => {
         if (!selectedCommand) return;
         const vars = await GetVariables(selectedCommand.id);
@@ -392,19 +429,34 @@ function App() {
     return (
         <TooltipProvider>
             <div className="app-layout">
-                <Sidebar
-                    categories={categories}
-                    commands={commands}
-                    selectedCommandId={selectedCommand?.id || null}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    onSelectCommand={handleSelectCommand}
-                    onAddCategory={() => setModal({ type: 'categoryEditor' })}
-                    onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
-                    onDeleteCategory={handleDeleteCategory}
-                    onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                />
+                <ResizablePanel
+                    side="left"
+                    defaultWidth={300}
+                    minWidth={200}
+                    maxWidth={480}
+                    storageKey="commamer-sidebar"
+                    collapsedIcon={
+                        <div className="logo-icon" style={{ width: 24, height: 24, fontSize: 12 }}>⌘</div>
+                    }
+                >
+                    <Sidebar
+                        categories={categories}
+                        commands={commands}
+                        selectedCommandId={selectedCommand?.id || null}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        onSelectCommand={handleSelectCommand}
+                        onAddCategory={() => setModal({ type: 'categoryEditor' })}
+                        onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
+                        onDeleteCategory={handleDeleteCategory}
+                        onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
+                        onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
+                        onDeleteCommand={handleDeleteCommand}
+                        onManagePresets={handleManagePresetsForCommand}
+                        onReorderCommand={handleReorderCommand}
+                        onOpenSettings={() => setModal({ type: 'settings' })}
+                    />
+                </ResizablePanel>
 
                 <div className="center-area">
                     <div className="top-area">
@@ -537,7 +589,7 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+                <SettingsDialog open={modal.type === 'settings'} onClose={() => setModal({ type: 'none' })} />
                 <Toaster position="bottom-right" richColors closeButton duration={3000} />
             </div>
         </TooltipProvider>

@@ -32,6 +32,7 @@ export interface Command {
   variables: VariableDefinition[];
   presets: VariablePreset[];
   categoryId: string;
+  position: number;
   createdAt: string;
   updatedAt: string;
 }

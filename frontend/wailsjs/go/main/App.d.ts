@@ -36,6 +36,8 @@ export function GetVariables(arg1:string):Promise<Array<main.VariablePrompt>>;
 
 export function RenameCommand(arg1:string,arg2:string):Promise<main.Command>;
 
+export function ReorderCommand(arg1:string,arg2:number,arg3:string):Promise<Array<main.Command>>;
+
 export function RunCommand(arg1:string,arg2:Record<string, string>):Promise<main.ExecutionRecord>;
 
 export function RunInTerminal(arg1:string,arg2:Record<string, string>):Promise<void>;

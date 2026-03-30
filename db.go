@@ -16,7 +16,7 @@ type DB struct {
 	dataDir string
 }
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS commands (
     description TEXT NOT NULL DEFAULT '',
     script_content TEXT NOT NULL,
     category_id TEXT DEFAULT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
@@ -216,13 +217,37 @@ func (db *DB) migrate() error {
 				return fmt.Errorf("migration v2: %w", err)
 			}
 		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", schemaVersion); err != nil {
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 2); err != nil {
 			return fmt.Errorf("update schema version: %w", err)
 		}
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration v2: %w", err)
 		}
-		return nil
+	}
+
+	// Migration v2 -> v3: add position column to commands
+	if version < 3 {
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v3 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		migrations := []string{
+			`ALTER TABLE commands ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
+			`UPDATE commands SET position = rowid`,
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v3: %w", err)
+			}
+		}
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 3); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v3: %w", err)
+		}
 	}
 
 	_, err = db.conn.Exec("UPDATE schema_version SET version = ?", schemaVersion)
@@ -295,7 +320,7 @@ func (db *DB) DeleteCategory(id string) error {
 
 func (db *DB) GetCommands() ([]Command, error) {
 	rows, err := db.conn.Query(
-		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands ORDER BY created_at",
+		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at FROM commands ORDER BY position ASC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query commands: %w", err)
@@ -306,7 +331,7 @@ func (db *DB) GetCommands() ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan command: %w", err)
 		}
 		c.CategoryID = catID.String
@@ -326,7 +351,7 @@ func (db *DB) GetCommands() ([]Command, error) {
 
 func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 	rows, err := db.conn.Query(
-		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands WHERE category_id = ? ORDER BY created_at",
+		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at FROM commands WHERE category_id = ? ORDER BY position ASC",
 		categoryID,
 	)
 	if err != nil {
@@ -338,7 +363,7 @@ func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan command: %w", err)
 		}
 		c.CategoryID = catID.String
@@ -360,8 +385,8 @@ func (db *DB) GetCommand(id string) (Command, error) {
 	var c Command
 	var catID sql.NullString
 	err := db.conn.QueryRow(
-		"SELECT id, title, description, script_content, category_id, created_at, updated_at FROM commands WHERE id = ?", id,
-	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt)
+		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at FROM commands WHERE id = ?", id,
+	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return c, fmt.Errorf("get command %s: %w", id, err)
 	}
@@ -474,8 +499,11 @@ func (db *DB) CreateCommand(cmd Command) error {
 	defer tx.Rollback()
 
 	_, err = tx.Exec(
-		"INSERT INTO commands (id, title, description, script_content, category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		cmd.ID, cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.CreatedAt, cmd.UpdatedAt,
+		`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, COALESCE((SELECT MAX(position)+1 FROM commands WHERE category_id IS ?), 0), ?, ?)`,
+		cmd.ID, cmd.Title, cmd.Description, cmd.ScriptContent,
+		nullableString(cmd.CategoryID), nullableString(cmd.CategoryID),
+		cmd.CreatedAt, cmd.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert command: %w", err)
@@ -498,16 +526,54 @@ func (db *DB) UpdateCommand(cmd Command) error {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec(
-		"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
-		cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
-	)
+	// Fetch existing command to check if category_id changed
+	var oldCategoryID sql.NullString
+	err = tx.QueryRow("SELECT category_id FROM commands WHERE id = ?", cmd.ID).Scan(&oldCategoryID)
 	if err != nil {
-		return fmt.Errorf("update command: %w", err)
+		return fmt.Errorf("get existing command: %w", err)
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("command %s not found", cmd.ID)
+
+	// Determine if category changed
+	oldCat := oldCategoryID.String
+	newCat := cmd.CategoryID
+	categoryChanged := oldCat != newCat
+
+	// If category changed, route through UpdateCommandPosition logic
+	if categoryChanged {
+		// Rollback this transaction and use UpdateCommandPosition instead for the move
+		tx.Rollback()
+
+		// Use UpdateCommandPosition to handle the category move with proper reindexing
+		// Append to end of new category (position = len of target category)
+		if err := db.UpdateCommandPosition(cmd.ID, newCat, 999999); err != nil {
+			return err
+		}
+
+		// Now open a new transaction to update the other fields
+		tx, err = db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx after position update: %w", err)
+		}
+		defer tx.Rollback()
+	}
+
+	// Update all fields except category_id and position (those are handled by UpdateCommandPosition if changed)
+	var updateErr error
+	if categoryChanged {
+		// Category already updated by UpdateCommandPosition, so skip it
+		_, updateErr = tx.Exec(
+			"UPDATE commands SET title = ?, description = ?, script_content = ?, updated_at = ? WHERE id = ?",
+			cmd.Title, cmd.Description, cmd.ScriptContent, cmd.UpdatedAt, cmd.ID,
+		)
+	} else {
+		// Category didn't change, safe to update everything
+		_, updateErr = tx.Exec(
+			"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
+			cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
+		)
+	}
+	if updateErr != nil {
+		return fmt.Errorf("update command: %w", updateErr)
 	}
 
 	// Replace tags
@@ -554,6 +620,81 @@ func (db *DB) DeleteCommand(id string) error {
 		return fmt.Errorf("command %s not found", id)
 	}
 	return nil
+}
+
+// UpdateCommandPosition moves a command to a new category and normalizes
+// positions within the target category so they are 0-indexed with no gaps.
+// newCategoryID may be empty string (uncategorized).
+// newIndex is the 0-based insertion index within the target category.
+func (db *DB) UpdateCommandPosition(id string, newCategoryID string, newIndex int) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Fetch all commands in the target category, excluding the moving one
+	var rows *sql.Rows
+	if newCategoryID == "" {
+		rows, err = tx.Query(
+			"SELECT id FROM commands WHERE (category_id IS NULL OR category_id = '') AND id != ? ORDER BY position ASC",
+			id,
+		)
+	} else {
+		rows, err = tx.Query(
+			"SELECT id FROM commands WHERE category_id = ? AND id != ? ORDER BY position ASC",
+			newCategoryID, id,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("query commands for reorder: %w", err)
+	}
+
+	var ordered []string
+	for rows.Next() {
+		var rowID string
+		if err := rows.Scan(&rowID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan id: %w", err)
+		}
+		ordered = append(ordered, rowID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	// Insert the moving command at newIndex (clamped to valid range)
+	if newIndex < 0 {
+		newIndex = 0
+	}
+	if newIndex > len(ordered) {
+		newIndex = len(ordered)
+	}
+	tail := make([]string, len(ordered)-newIndex)
+	copy(tail, ordered[newIndex:])
+	ordered = append(ordered[:newIndex], append([]string{id}, tail...)...)
+
+	// Write positions 0, 1, 2, … and update category
+	for i, cmdID := range ordered {
+		var execErr error
+		if newCategoryID == "" {
+			_, execErr = tx.Exec(
+				"UPDATE commands SET position = ?, category_id = NULL WHERE id = ?",
+				i, cmdID,
+			)
+		} else {
+			_, execErr = tx.Exec(
+				"UPDATE commands SET position = ?, category_id = ? WHERE id = ?",
+				i, newCategoryID, cmdID,
+			)
+		}
+		if execErr != nil {
+			return fmt.Errorf("update position for %s: %w", cmdID, execErr)
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (db *DB) saveTags(tx *sql.Tx, commandID string, tags []string) error {
@@ -758,7 +899,7 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 
 	// Try FTS5 first
 	rows, err := db.conn.Query(
-		`SELECT c.id, c.title, c.description, c.script_content, c.category_id, c.created_at, c.updated_at
+		`SELECT c.id, c.title, c.description, c.script_content, c.category_id, c.position, c.created_at, c.updated_at
 		 FROM commands_fts fts
 		 JOIN commands c ON c.rowid = fts.rowid
 		 WHERE commands_fts MATCH ?
@@ -775,7 +916,7 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan search result: %w", err)
 		}
 		c.CategoryID = catID.String
@@ -796,10 +937,10 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 	like := "%" + query + "%"
 	rows, err := db.conn.Query(
-		`SELECT id, title, description, script_content, category_id, created_at, updated_at
+		`SELECT id, title, description, script_content, category_id, position, created_at, updated_at
 		 FROM commands
 		 WHERE title LIKE ? OR description LIKE ? OR script_content LIKE ?
-		 ORDER BY created_at`,
+		 ORDER BY position ASC`,
 		like, like, like,
 	)
 	if err != nil {
@@ -811,7 +952,7 @@ func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan like result: %w", err)
 		}
 		c.CategoryID = catID.String

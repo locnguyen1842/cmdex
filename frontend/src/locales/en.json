@@ -2,12 +2,21 @@
   "sidebar": {
     "searchPlaceholder": "Search commands...",
     "addCommand": "Add command",
+    "newCommand": "New Command",
+    "settings": "Settings",
     "editCategory": "Edit category",
     "deleteCategory": "Delete category",
     "addACommand": "Add a command...",
     "uncategorized": "Uncategorized",
     "category": "Category",
-    "command": "Command"
+    "command": "Command",
+    "contextMenu": {
+      "edit": "Edit",
+      "managePresets": "Manage Presets",
+      "delete": "Delete",
+      "newCommand": "New Command",
+      "newGroup": "New Group"
+    }
   },
   "commandDetail": {
     "command": "Script",
@@ -132,5 +141,10 @@
     "terminalAuto": "Auto-detect",
     "save": "Save",
     "close": "Close"
+  },
+  "resizablePanel": {
+    "expandPanel": "Expand panel",
+    "resizeHandle": "Resize handle",
+    "resizeHandleTooltip": "Drag to resize · Click to collapse"
   }
 }

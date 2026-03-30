@@ -189,6 +189,16 @@ func (a *App) DeleteCommand(id string) error {
 	return a.db.DeleteCommand(id)
 }
 
+// ReorderCommand moves a command to a new position within a category (or to a
+// different category). newCategoryId may be empty string for uncategorized.
+// newPosition is the 0-based index within the target category.
+func (a *App) ReorderCommand(id string, newPosition int, newCategoryId string) ([]Command, error) {
+	if err := a.db.UpdateCommandPosition(id, newCategoryId, newPosition); err != nil {
+		return nil, fmt.Errorf("reorder command: %w", err)
+	}
+	return a.db.GetCommands()
+}
+
 // GetScriptContent returns the full script content for the editor
 func (a *App) GetScriptContent(commandID string) (string, error) {
 	cmd, err := a.db.GetCommand(commandID)

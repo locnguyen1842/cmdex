@@ -113,8 +113,8 @@ body {
 /* ========== Sidebar ========== */
 
 .sidebar {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
+  flex: 1;
+  min-width: 0;
   background: var(--card);
   border-right: 1px solid var(--border);
   display: flex;
@@ -467,8 +467,8 @@ body {
 /* ========== History Pane ========== */
 
 .history-pane {
-  width: 280px;
-  min-width: 280px;
+  flex: 1;
+  min-width: 0;
   background: var(--card);
   border-left: 1px solid var(--border);
   display: flex;
@@ -680,4 +680,115 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+}
+
+/* ========== ResizablePanel ========== */
+
+.resizable-panel {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.resizable-panel > *:not(.resize-handle) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.resize-handle {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--transition-fast);
+  z-index: 10;
+  position: relative;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+  background: var(--primary);
+}
+
+.resizable-panel-rail {
+  width: 40px;
+  min-width: 40px;
+  flex-shrink: 0;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 12px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.resizable-panel-rail.left {
+  border-right: 1px solid var(--border);
+}
+
+.resizable-panel-rail.right {
+  border-left: 1px solid var(--border);
+}
+
+.rail-expand-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.rail-expand-btn:hover {
+  background: var(--accent);
+}
+
+/* ========== Sidebar search row ========== */
+
+.sidebar-search-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ========== Drag handle on command items ========== */
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  color: transparent;
+  flex-shrink: 0;
+  padding: 0 2px;
+  transition: color var(--transition-fast);
+}
+
+.command-item:hover .drag-handle {
+  color: var(--muted-foreground);
+}
+
+.command-item.dragging {
+  opacity: 0.4;
+}
+
+.dragging-ghost {
+  background: var(--accent);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0.9;
+}
+
+/* Drop target highlight on category */
+
+.sidebar-section.drop-target > .sidebar-section-header {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border-radius: 6px;
 }
