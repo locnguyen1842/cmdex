@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+  <!-- Bold C letter -->
+  <text x="240" y="620" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="480" font-weight="800" fill="#FFFFFF" letter-spacing="-20">C</text>
+  <!-- Terminal prompt >_ with blue glow -->
+  <g filter="url(#glow)">
+    <text x="530" y="620" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="320" font-weight="700" fill="#4A9EFF">&gt;_</text>
+  </g>
+</svg>

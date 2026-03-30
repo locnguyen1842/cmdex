@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="diamondGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="diamondGlow">
+      <feGaussianBlur stdDeviation="25" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+  <!-- Diamond shape with glow -->
+  <g filter="url(#diamondGlow)">
+    <polygon points="512,162 862,512 512,862 162,512" fill="none" stroke="url(#diamondGrad)" stroke-width="8"/>
+    <polygon points="512,192 832,512 512,832 192,512" fill="url(#diamondGrad)" opacity="0.08"/>
+  </g>
+  <!-- Inner diamond accent -->
+  <polygon points="512,262 762,512 512,762 262,512" fill="none" stroke="url(#diamondGrad)" stroke-width="3" opacity="0.3"/>
+  <!-- Terminal prompt centered -->
+  <text x="512" y="545" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="220" font-weight="700" fill="#FFFFFF" text-anchor="middle">&gt;_</text>
+</svg>

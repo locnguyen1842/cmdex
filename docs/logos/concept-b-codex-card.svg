@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <filter id="cardShadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="20" flood-color="#F0A030" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+  <!-- Card body -->
+  <g filter="url(#cardShadow)">
+    <rect x="222" y="222" width="580" height="580" rx="40" ry="40" fill="#1A1A24" stroke="#F0A030" stroke-width="6"/>
+  </g>
+  <!-- Card header bar -->
+  <rect x="222" y="222" width="580" height="100" rx="40" ry="40" fill="#F0A030" opacity="0.15"/>
+  <rect x="222" y="282" width="580" height="40" fill="#F0A030" opacity="0.15"/>
+  <!-- Header divider -->
+  <line x1="222" y1="322" x2="802" y2="322" stroke="#F0A030" stroke-width="2" opacity="0.5"/>
+  <!-- Terminal prompt in header -->
+  <text x="272" y="295" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="72" font-weight="700" fill="#F0A030">&gt;_ cmdex</text>
+  <!-- Command lines -->
+  <rect x="272" y="380" width="430" height="12" rx="6" fill="#FFFFFF" opacity="0.25"/>
+  <rect x="272" y="430" width="350" height="12" rx="6" fill="#FFFFFF" opacity="0.18"/>
+  <rect x="272" y="480" width="400" height="12" rx="6" fill="#FFFFFF" opacity="0.12"/>
+  <rect x="272" y="530" width="300" height="12" rx="6" fill="#FFFFFF" opacity="0.08"/>
+  <!-- Dot decorations in header -->
+  <circle cx="752" cy="272" r="10" fill="#F0A030" opacity="0.6"/>
+  <circle cx="718" cy="272" r="10" fill="#F0A030" opacity="0.4"/>
+  <circle cx="684" cy="272" r="10" fill="#F0A030" opacity="0.2"/>
+</svg>
