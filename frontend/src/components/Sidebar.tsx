@@ -71,6 +71,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
   onDelete,
   onManagePresets,
 }) => {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cmd.id });
 
   const style: React.CSSProperties = {
@@ -107,14 +108,14 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={onEdit}>
-          <Pencil className="size-3.5" /> Edit
+          <Pencil className="size-3.5" /> {t('sidebar.contextMenu.edit')}
         </ContextMenuItem>
         <ContextMenuItem onSelect={onManagePresets}>
-          <Settings className="size-3.5" /> Manage Presets
+          <Settings className="size-3.5" /> {t('sidebar.contextMenu.managePresets')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
-          <X className="size-3.5" /> Delete
+          <X className="size-3.5" /> {t('sidebar.contextMenu.delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -274,9 +275,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="sidebar-logo">
               <div className="logo-icon">⌘</div>
               <h1>Commamer</h1>
-              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto" title="Settings">
-                <Settings className="size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto">
+                    <Settings className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('sidebar.settings')}</TooltipContent>
+              </Tooltip>
             </div>
             <div className="sidebar-search-row">
               <div className="relative flex-1">
@@ -295,12 +301,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                     size="icon-sm"
                     onClick={() => onAddCommand()}
                     className="shrink-0 size-8"
-                    title="New command"
                   >
                     <Plus className="size-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>New Command</TooltipContent>
+                <TooltipContent>{t('sidebar.newCommand')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -355,10 +360,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </ContextMenuTrigger>
                         <ContextMenuContent>
                           <ContextMenuItem onSelect={() => onAddCommand(cat.id)}>
-                            <Plus className="size-3.5" /> New Command
+                            <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
                           </ContextMenuItem>
                           <ContextMenuItem onSelect={onAddCategory}>
-                            <ChevronRight className="size-3.5" /> New Group
+                            <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
                           </ContextMenuItem>
                         </ContextMenuContent>
                       </ContextMenu>
@@ -417,10 +422,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </ContextMenuTrigger>
                       <ContextMenuContent>
                         <ContextMenuItem onSelect={() => onAddCommand()}>
-                          <Plus className="size-3.5" /> New Command
+                          <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
                         </ContextMenuItem>
                         <ContextMenuItem onSelect={onAddCategory}>
-                          <ChevronRight className="size-3.5" /> New Group
+                          <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
                         </ContextMenuItem>
                       </ContextMenuContent>
                     </ContextMenu>
@@ -465,10 +470,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Sidebar-level context menu (empty area) */}
       <ContextMenuContent>
         <ContextMenuItem onSelect={() => onAddCommand()}>
-          <Plus className="size-3.5" /> New Command
+          <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
         </ContextMenuItem>
         <ContextMenuItem onSelect={onAddCategory}>
-          <ChevronRight className="size-3.5" /> New Group
+          <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

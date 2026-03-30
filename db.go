@@ -526,16 +526,54 @@ func (db *DB) UpdateCommand(cmd Command) error {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec(
-		"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
-		cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
-	)
+	// Fetch existing command to check if category_id changed
+	var oldCategoryID sql.NullString
+	err = tx.QueryRow("SELECT category_id FROM commands WHERE id = ?", cmd.ID).Scan(&oldCategoryID)
 	if err != nil {
-		return fmt.Errorf("update command: %w", err)
+		return fmt.Errorf("get existing command: %w", err)
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("command %s not found", cmd.ID)
+
+	// Determine if category changed
+	oldCat := oldCategoryID.String
+	newCat := cmd.CategoryID
+	categoryChanged := oldCat != newCat
+
+	// If category changed, route through UpdateCommandPosition logic
+	if categoryChanged {
+		// Rollback this transaction and use UpdateCommandPosition instead for the move
+		tx.Rollback()
+
+		// Use UpdateCommandPosition to handle the category move with proper reindexing
+		// Append to end of new category (position = len of target category)
+		if err := db.UpdateCommandPosition(cmd.ID, newCat, 999999); err != nil {
+			return err
+		}
+
+		// Now open a new transaction to update the other fields
+		tx, err = db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx after position update: %w", err)
+		}
+		defer tx.Rollback()
+	}
+
+	// Update all fields except category_id and position (those are handled by UpdateCommandPosition if changed)
+	var updateErr error
+	if categoryChanged {
+		// Category already updated by UpdateCommandPosition, so skip it
+		_, updateErr = tx.Exec(
+			"UPDATE commands SET title = ?, description = ?, script_content = ?, updated_at = ? WHERE id = ?",
+			cmd.Title, cmd.Description, cmd.ScriptContent, cmd.UpdatedAt, cmd.ID,
+		)
+	} else {
+		// Category didn't change, safe to update everything
+		_, updateErr = tx.Exec(
+			"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
+			cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
+		)
+	}
+	if updateErr != nil {
+		return fmt.Errorf("update command: %w", updateErr)
 	}
 
 	// Replace tags

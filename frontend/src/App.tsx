@@ -58,7 +58,8 @@ type ModalState =
     | { type: 'categoryEditor'; category?: Category }
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
-    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string };
+    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
+    | { type: 'settings' };
 
 function App() {
     const { t } = useTranslation();
@@ -73,7 +74,6 @@ function App() {
     const [selectedRecord, setSelectedRecord] = useState<ExecutionRecord | null>(null);
     const [outputPaneOpen, setOutputPaneOpen] = useState(true);
     const [resolvedVariables, setResolvedVariables] = useState<VarPromptType[]>([]);
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [lastSelectedPresetId, setLastSelectedPresetId] = useState<string>('');
     const [streamLines, setStreamLines] = useState<string[]>([]);
     const streamBufferRef = useRef<string[]>([]);
@@ -110,7 +110,7 @@ function App() {
     }, [loadData, loadHistory]);
 
     useEffect(() => {
-        const cleanup = EventsOn('open-settings', () => setSettingsOpen(true));
+        const cleanup = EventsOn('open-settings', () => setModal({ type: 'settings' }));
         return cleanup;
     }, []);
 
@@ -279,7 +279,13 @@ function App() {
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         try {
             const updated = await ReorderCommand(id, newPosition, newCategoryId);
-            setCommands(updated || []);
+            // Reapply search filter if active to preserve search results
+            if (searchQuery.trim()) {
+                const filtered = await SearchCommands(searchQuery);
+                setCommands(filtered || []);
+            } else {
+                setCommands(updated || []);
+            }
         } catch (err) {
             console.error('Failed to reorder command:', err);
         }
@@ -448,7 +454,7 @@ function App() {
                         onDeleteCommand={handleDeleteCommand}
                         onManagePresets={handleManagePresetsForCommand}
                         onReorderCommand={handleReorderCommand}
-                        onOpenSettings={() => setSettingsOpen(true)}
+                        onOpenSettings={() => setModal({ type: 'settings' })}
                     />
                 </ResizablePanel>
 
@@ -583,7 +589,7 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+                <SettingsDialog open={modal.type === 'settings'} onClose={() => setModal({ type: 'none' })} />
                 <Toaster position="bottom-right" richColors closeButton duration={3000} />
             </div>
         </TooltipProvider>

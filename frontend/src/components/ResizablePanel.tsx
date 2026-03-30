@@ -1,4 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface ResizablePanelProps {
   side: 'left' | 'right';
@@ -21,6 +24,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   children,
   className,
 }) => {
+  const { t } = useTranslation();
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(`${storageKey}-width`);
     return saved ? parseInt(saved, 10) : defaultWidth;
@@ -96,24 +100,36 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     return (
       <div className={`resizable-panel-rail ${side} ${className ?? ''}`}>
         {collapsedIcon}
-        <button
-          className="rail-expand-btn"
-          onClick={toggleCollapse}
-          title="Expand panel"
-        >
-          {side === 'left' ? '▶' : '◀'}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="rail-expand-btn"
+              onClick={toggleCollapse}
+              aria-label={t('resizablePanel.expandPanel')}
+            >
+              {side === 'left' ? '▶' : '◀'}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('resizablePanel.expandPanel')}</TooltipContent>
+        </Tooltip>
       </div>
     );
   }
 
   const handle = (
-    <div
-      className={`resize-handle ${side} ${dragging ? 'dragging' : ''}`}
-      onMouseDown={onMouseDown}
-      onClick={() => { if (!didDragRef.current) toggleCollapse(); }}
-      title="Drag to resize · Click to collapse"
-    />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className={`resize-handle ${side} ${dragging ? 'dragging' : ''}`}
+          onMouseDown={onMouseDown}
+          onClick={() => { if (!didDragRef.current) toggleCollapse(); }}
+          aria-label={t('resizablePanel.resizeHandle')}
+        />
+      </TooltipTrigger>
+      <TooltipContent>{t('resizablePanel.resizeHandleTooltip')}</TooltipContent>
+    </Tooltip>
   );
 
   return (
