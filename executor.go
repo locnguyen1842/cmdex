@@ -48,7 +48,7 @@ func NewExecutor() *Executor {
 
 // writeTempScript writes script content to a temp file and returns its path.
 func writeTempScript(content string) (string, error) {
-	f, err := os.CreateTemp("", "commamer-*.sh")
+	f, err := os.CreateTemp("", "cmdex-*.sh")
 	if err != nil {
 		return "", err
 	}

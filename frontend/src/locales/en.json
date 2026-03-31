@@ -111,7 +111,7 @@
     "emptyState": "Run a command or select a history entry to see output here."
   },
   "app": {
-    "welcomeTitle": "Welcome to Commamer",
+    "welcomeTitle": "Welcome to Cmdex",
     "welcomeDescription": "Select a command from the sidebar or create a new one to get started.",
     "newCommand": "+ New Command",
     "confirmDeleteTitle": "Confirm Delete",

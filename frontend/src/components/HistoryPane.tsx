@@ -42,7 +42,7 @@ const HistoryPane: React.FC<HistoryPaneProps> = ({
       defaultWidth={220}
       minWidth={160}
       maxWidth={400}
-      storageKey="commamer-history"
+      storageKey="cmdex-history"
       collapsedIcon={<History className="size-5 text-muted-foreground" />}
     >
       <div className="history-pane">

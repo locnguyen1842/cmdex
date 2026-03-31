@@ -1,4 +1,4 @@
-module commamer
+module cmdex
 
 go 1.25.0
 

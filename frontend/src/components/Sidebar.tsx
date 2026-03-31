@@ -34,9 +34,9 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical } from 'lucide-react';
+import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group } from 'lucide-react';
 
-const STORAGE_KEY = 'commamer-expanded-categories';
+const STORAGE_KEY = 'cmdex-expanded-categories';
 
 /** Normalize null/undefined/'' to '' for uncategorized bucket */
 const normCatId = (id: string | null | undefined): string => id || '';
@@ -289,8 +289,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Header — outside context menu trigger so right-click doesn't fire */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <div className="logo-icon">⌘</div>
-          <h1>Commamer</h1>
+          <div className="logo-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="32" height="32">
+              <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
+              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
+              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
+            </svg>
+          </div>
+          <h1>Cmdex</h1>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto">
@@ -477,10 +483,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           {/* Empty-space context menu (scoped to scroll area) */}
           <ContextMenuContent>
             <ContextMenuItem onSelect={() => onAddCommand()}>
-              <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
+              <Terminal className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
             </ContextMenuItem>
             <ContextMenuItem onSelect={onAddCategory}>
-              <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+              <Group className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>

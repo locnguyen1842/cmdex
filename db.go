@@ -128,12 +128,12 @@ func NewDB() (*DB, error) {
 		return nil, fmt.Errorf("get home dir: %w", err)
 	}
 
-	dataDir := filepath.Join(homeDir, ".commamer")
+	dataDir := filepath.Join(homeDir, ".cmdex")
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
-	dbPath := filepath.Join(dataDir, "commamer.db")
+	dbPath := filepath.Join(dataDir, "cmdex.db")
 	conn, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
