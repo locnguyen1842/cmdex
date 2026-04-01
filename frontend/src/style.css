@@ -1433,3 +1433,102 @@ kbd, .kbd {
   display: flex;
   gap: 2px;
 }
+
+/* ========== Preset Chips ========== */
+
+.preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.preset-chip {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-sans);
+}
+
+.preset-chip:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.preset-chip.active {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ========== Preset Var Rows ========== */
+
+.preset-vars-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.preset-var-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.preset-var-name {
+  min-width: 120px;
+}
+
+.preset-var-equals {
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.preset-var-value {
+  flex: 1;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 22px;
+}
+
+.preset-var-value:hover {
+  background: var(--accent);
+  border-color: var(--border);
+}
+
+.preset-var-value.empty {
+  color: var(--muted-foreground);
+}
+
+.preset-var-placeholder {
+  font-style: italic;
+  opacity: 0.5;
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.preset-var-input {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--foreground);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+}

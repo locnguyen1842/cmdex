@@ -16,26 +16,12 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
-import {
-  Command as CmdPrimitive,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
-import {
   Pencil,
   Copy,
   Check,
   ListTree,
   Play,
   Loader2,
-  ChevronDown,
   SquareTerminal,
 } from "lucide-react";
 import { GetScriptBody } from "../../wailsjs/go/main/App";
@@ -80,7 +66,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [copied, setCopied] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
-  const [presetOpen, setPresetOpen] = useState(false);
+  const [editingVar, setEditingVar] = useState<string | null>(null);
+  const [editingVarValue, setEditingVarValue] = useState('');
   const [titleDraft, setTitleDraft] = useState("");
   const [scriptBody, setScriptBody] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -187,18 +174,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [getResolvedScript, scriptBody]);
 
-  const argsPreview = useMemo(() => {
-    if (variables.length === 0) return null;
-    return variables.map((v) => {
-      const val = resolvedValues[v.name];
-      return { name: v.name, value: val || "" };
-    });
-  }, [variables, resolvedValues]);
-
-  const selectedPresetLabel = selectedPresetId
-    ? (command.presets.find((p) => p.id === selectedPresetId)?.name ??
-      t("commandDetail.noPreset"))
-    : t("commandDetail.noPreset");
 
   return (
     <div className="command-detail">
@@ -324,169 +299,127 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             {t("commandDetail.arguments")}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={onManagePresets}
-                >
+                <Button variant="ghost" size="icon-xs" onClick={onManagePresets}>
                   <ListTree />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                {t("commandDetail.managePresets")}
-              </TooltipContent>
+              <TooltipContent>{t("commandDetail.managePresets")}</TooltipContent>
             </Tooltip>
           </div>
-          <div className="preview-box-wrapper">
-            <div className="preview-floating-actions">
-              <Popover open={presetOpen} onOpenChange={setPresetOpen}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-r-none border-r-0 min-w-[120px] justify-between font-normal"
-                      >
-                        <span
-                          className={
-                            selectedPresetId ? "" : "italic opacity-60"
-                          }
-                        >
-                          {selectedPresetLabel}
-                        </span>
-                        <ChevronDown className="size-3.5 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("commandDetail.presets")}</TooltipContent>
-                </Tooltip>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <CmdPrimitive>
-                    <CommandInput
-                      placeholder={t("commandDetail.searchPresets")}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {t("commandDetail.noPresetsFound")}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          onSelect={() => {
-                            setSelectedPresetId("");
-                            setPresetOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={`size-3.5 ${selectedPresetId === "" ? "opacity-100" : "opacity-0"}`}
-                          />
-                          <span className="italic opacity-60">
-                            {t("commandDetail.noPreset")}
-                          </span>
-                        </CommandItem>
-                        {(command.presets || []).map((p) => (
-                          <CommandItem
-                            key={p.id}
-                            onSelect={() => {
-                              setSelectedPresetId(p.id);
-                              setPresetOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={`size-3.5 ${selectedPresetId === p.id ? "opacity-100" : "opacity-0"}`}
-                            />
-                            {p.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </CmdPrimitive>
-                </PopoverContent>
-              </Popover>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="success"
-                    size="sm"
-                    className="rounded-l-none px-3"
-                    onClick={() => {
-                      const hasEmpty = variables.some(
-                        (v) => !resolvedValues[v.name],
-                      );
-                      if (hasEmpty) {
-                        onFillVariables(resolvedValues);
-                      } else {
-                        onExecute(resolvedValues);
-                      }
-                    }}
-                    disabled={isExecuting}
-                  >
-                    {isExecuting ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Play className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isExecuting
-                    ? t("commandDetail.running")
-                    : <ShortcutHint label={t("commandDetail.execute")} shortcut={`${cmdKey}↩`} />}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="command-text-box text-xs preview-box-with-float">
-              <div className="mb-2 pb-2 border-b border-border/50">
-                <code className="text-xs whitespace-pre-wrap break-all">
-                  {renderScriptResolved}
-                </code>
-              </div>
-              {argsPreview && argsPreview.map((arg, i) => (
-                <span key={arg.name}>
-                  <span className="text-muted-foreground">{arg.name}=</span>
-                  {arg.value ? (
-                    <span className="var-filled">{arg.value}</span>
-                  ) : (
-                    <span className="var-missing">{"<empty>"}</span>
-                  )}
-                  {i < argsPreview.length - 1 && " "}
-                </span>
+
+          {/* Preset chip row */}
+          {command.presets && command.presets.length > 0 && (
+            <div className="preset-chips">
+              <button
+                className={`preset-chip${selectedPresetId === '' ? ' active' : ''}`}
+                onClick={() => setSelectedPresetId('')}
+              >
+                {t("commandDetail.noPreset")}
+              </button>
+              {command.presets.map((p) => (
+                <button
+                  key={p.id}
+                  className={`preset-chip${selectedPresetId === p.id ? ' active' : ''}`}
+                  onClick={() => setSelectedPresetId(p.id)}
+                >
+                  {p.name}
+                </button>
               ))}
-              <div className="preview-actions">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => onRunInTerminal(resolvedValues)}
-                    >
-                      <SquareTerminal className="size-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={handleCopy}
-                    >
-                      {copied ? (
-                        <Check className="size-3 text-success" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {copied
-                      ? t("commandDetail.copied")
-                      : t("commandDetail.copyCommand")}
-                  </TooltipContent>
-                </Tooltip>
-              </div>
             </div>
+          )}
+
+          {/* Pattern=Value rows */}
+          <div className="preset-vars-list">
+            {variables.map((v) => {
+              const val = resolvedValues[v.name];
+              const isEditing = editingVar === v.name;
+              return (
+                <div key={v.name} className="preset-var-row">
+                  <span className="preset-var-name">
+                    {val ? (
+                      <span className="var-filled" title={v.name}>{"{{" + v.name + "}}"}</span>
+                    ) : (
+                      <span className="var-missing" title={v.name}>{"{{" + v.name + "}}"}</span>
+                    )}
+                  </span>
+                  <span className="preset-var-equals">=</span>
+                  {isEditing ? (
+                    <input
+                      className="preset-var-input"
+                      autoFocus
+                      value={editingVarValue}
+                      onChange={(e) => setEditingVarValue(e.target.value)}
+                      onBlur={() => setEditingVar(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditingVar(null);
+                        if (e.key === 'Escape') setEditingVar(null);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className={`preset-var-value${val ? '' : ' empty'}`}
+                      onClick={() => {
+                        setEditingVar(v.name);
+                        setEditingVarValue(val || '');
+                      }}
+                      title="Click to edit"
+                    >
+                      {val || <span className="preset-var-placeholder">click to set…</span>}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Actions row */}
+          <div className="command-actions mt-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="success"
+                  size="sm"
+                  onClick={() => {
+                    const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
+                    if (hasEmpty) {
+                      onFillVariables(resolvedValues);
+                    } else {
+                      onExecute(resolvedValues);
+                    }
+                  }}
+                  disabled={isExecuting}
+                >
+                  {isExecuting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Play className="size-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isExecuting
+                  ? t("commandDetail.running")
+                  : <ShortcutHint label={t("commandDetail.execute")} shortcut={`${cmdKey}↩`} />}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => onRunInTerminal(resolvedValues)}>
+                  <SquareTerminal className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={handleCopy}>
+                  {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {copied ? t("commandDetail.copied") : t("commandDetail.copyCommand")}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       )}
