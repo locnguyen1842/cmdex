@@ -510,30 +510,6 @@ function App() {
         }
     };
 
-    // ========== Palette run handler ==========
-
-    const handlePaletteRun = useCallback(async (cmd: Command) => {
-        openTab(cmd);
-        try {
-            const vars = await GetVariables(cmd.id);
-            if (!vars || vars.length === 0) {
-                runCommandDirect(cmd.id, {});
-            } else {
-                const filled = vars.every(v => v.defaultValue);
-                const values: Record<string, string> = {};
-                vars.forEach(v => { values[v.name] = v.defaultValue || ''; });
-                if (filled) {
-                    runCommandDirect(cmd.id, values);
-                } else {
-                    setResolvedVariables(vars);
-                    setModal({ type: 'fillVariables', variables: vars, commandId: cmd.id, initialValues: values });
-                }
-            }
-        } catch {
-            runCommandDirect(cmd.id, {});
-        }
-    }, [commands]);
-
     // ========== Keyboard shortcuts ==========
 
     const cmdOrCtrl = isMac ? 'meta' : 'ctrl';
@@ -812,7 +788,6 @@ function App() {
                     categories={categories}
                     onClose={() => setPaletteOpen(false)}
                     onOpen={handleSelectCommand}
-                    onRun={handlePaletteRun}
                 />
                 <Toaster position="bottom-right" richColors closeButton duration={3000} />
             </div>

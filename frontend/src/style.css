@@ -1321,6 +1321,17 @@ kbd, .kbd {
   text-overflow: ellipsis;
 }
 
+.palette-item-script {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--primary);
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
 .palette-match {
   background: color-mix(in srgb, var(--primary) 25%, transparent);
   color: var(--primary);
@@ -1351,33 +1362,6 @@ kbd, .kbd {
   color: var(--primary);
   opacity: 0.75;
   white-space: nowrap;
-}
-
-.palette-run-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: all var(--transition-fast);
-}
-
-.palette-item:hover .palette-run-btn,
-.palette-item.active .palette-run-btn {
-  opacity: 1;
-}
-
-.palette-run-btn:hover {
-  background: color-mix(in srgb, var(--success) 15%, transparent);
-  border-color: var(--success);
-  color: var(--success);
 }
 
 .palette-footer {
