@@ -10,6 +10,9 @@ import HistoryPane from './components/HistoryPane';
 import OutputPane from './components/OutputPane';
 import SettingsDialog from './components/SettingsDialog';
 import ResizablePanel from './components/ResizablePanel';
+import TabBar, { Tab } from './components/TabBar';
+import CommandPalette from './components/CommandPalette';
+import { useKeyboardShortcuts, isMac } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -24,7 +27,7 @@ import {
     AlertDialogCancel,
     AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+import { EventsOn } from '../wailsjs/runtime/runtime';
 import { Category, Command, VariableDefinition, VariablePrompt as VarPromptType, VariablePreset, ExecutionRecord } from './types';
 
 import {
@@ -61,6 +64,17 @@ type ModalState =
     | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
     | { type: 'settings' };
 
+const THEME_STORAGE_KEY = 'cmdex-theme';
+
+export const THEMES = [
+    { id: 'vscode-dark', label: 'VS Code Dark+' },
+    { id: 'vscode-light', label: 'VS Code Light+' },
+    { id: 'monokai', label: 'Monokai' },
+    { id: 'tokyo-night', label: 'Tokyo Night' },
+    { id: 'one-dark', label: 'One Dark Pro' },
+    { id: 'classic', label: 'Classic (Purple)' },
+] as const;
+
 function App() {
     const { t } = useTranslation();
     const [categories, setCategories] = useState<Category[]>([]);
@@ -78,6 +92,30 @@ function App() {
     const [streamLines, setStreamLines] = useState<string[]>([]);
     const streamBufferRef = useRef<string[]>([]);
     const streamFlushRef = useRef<number | null>(null);
+
+    // Tab management
+    const [openTabs, setOpenTabs] = useState<Tab[]>([]);
+    const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
+    // Command palette
+    const [paletteOpen, setPaletteOpen] = useState(false);
+
+    // Theme
+    const [theme, setTheme] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) || 'vscode-dark');
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }, [theme]);
+
+    // Keep tab titles in sync when commands are renamed
+    useEffect(() => {
+        if (selectedCommand) {
+            setOpenTabs(prev => prev.map(t =>
+                t.id === selectedCommand.id ? { ...t, title: selectedCommand.title } : t
+            ));
+        }
+    }, [selectedCommand?.title]);
 
     const loadData = useCallback(async () => {
         try {
@@ -175,7 +213,7 @@ function App() {
             } else {
                 await DeleteCommand(modal.id);
                 if (selectedCommand?.id === modal.id) {
-                    setSelectedCommand(null);
+                    closeTab(modal.id);
                 }
             }
             await loadData();
@@ -194,7 +232,7 @@ function App() {
         try {
             const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
-            setSelectedCommand(cmd);
+            openTab(cmd);
             setModal({ type: 'none' });
             toast.success(t('toast.commandCreated'));
         } catch (err) {
@@ -209,7 +247,7 @@ function App() {
         try {
             const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
-            setSelectedCommand(cmd);
+            openTab(cmd);
             setModal({ type: 'none' });
             toast.success(t('toast.commandSaved'));
         } catch (err) {
@@ -222,9 +260,58 @@ function App() {
         try {
             const cmd = await RenameCommand(selectedCommand.id, newTitle);
             await loadData();
-            setSelectedCommand(cmd);
+            openTab(cmd);
         } catch (err) {
             console.error('Failed to rename command:', err);
+        }
+    };
+
+    // ========== Tab management ==========
+
+    const openTab = (cmd: Command) => {
+        setSelectedCommand(cmd);
+        setSelectedRecord(null);
+        setActiveTabId(cmd.id);
+        setOpenTabs(prev => {
+            const exists = prev.find(t => t.id === cmd.id);
+            if (exists) {
+                return prev.map(t => t.id === cmd.id ? { ...t, title: cmd.title } : t);
+            }
+            return [...prev, { id: cmd.id, title: cmd.title }];
+        });
+    };
+
+    const closeTab = (commandId: string) => {
+        setOpenTabs(prev => {
+            const newTabs = prev.filter(t => t.id !== commandId);
+            if (activeTabId === commandId) {
+                const idx = prev.findIndex(t => t.id === commandId);
+                const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
+                if (nextTab) {
+                    const nextCmd = commands.find(c => c.id === nextTab.id);
+                    if (nextCmd) {
+                        setSelectedCommand(nextCmd);
+                        setActiveTabId(nextTab.id);
+                    } else {
+                        setSelectedCommand(null);
+                        setActiveTabId(null);
+                    }
+                } else {
+                    setSelectedCommand(null);
+                    setActiveTabId(null);
+                }
+            }
+            return newTabs;
+        });
+    };
+
+    const handleSelectTab = (commandId: string) => {
+        if (commandId === activeTabId) return;
+        const cmd = commands.find(c => c.id === commandId);
+        if (cmd) {
+            setSelectedCommand(cmd);
+            setActiveTabId(commandId);
+            setSelectedRecord(null);
         }
     };
 
@@ -279,7 +366,6 @@ function App() {
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         try {
             const updated = await ReorderCommand(id, newPosition, newCategoryId);
-            // Reapply search filter if active to preserve search results
             if (searchQuery.trim()) {
                 const filtered = await SearchCommands(searchQuery);
                 setCommands(filtered || []);
@@ -339,7 +425,6 @@ function App() {
 
         try {
             const record = await RunCommand(commandId, variables);
-            // Final flush of any remaining buffered lines
             if (streamFlushRef.current !== null) {
                 cancelAnimationFrame(streamFlushRef.current);
                 streamFlushRef.current = null;
@@ -406,8 +491,7 @@ function App() {
     };
 
     const handleSelectCommand = (cmd: Command) => {
-        setSelectedCommand(cmd);
-        setSelectedRecord(null);
+        openTab(cmd);
     };
 
     const handleSelectRecord = (record: ExecutionRecord) => {
@@ -426,53 +510,168 @@ function App() {
         }
     };
 
+    // ========== Palette run handler ==========
+
+    const handlePaletteRun = useCallback(async (cmd: Command) => {
+        openTab(cmd);
+        try {
+            const vars = await GetVariables(cmd.id);
+            if (!vars || vars.length === 0) {
+                runCommandDirect(cmd.id, {});
+            } else {
+                const filled = vars.every(v => v.defaultValue);
+                const values: Record<string, string> = {};
+                vars.forEach(v => { values[v.name] = v.defaultValue || ''; });
+                if (filled) {
+                    runCommandDirect(cmd.id, values);
+                } else {
+                    setResolvedVariables(vars);
+                    setModal({ type: 'fillVariables', variables: vars, commandId: cmd.id, initialValues: values });
+                }
+            }
+        } catch {
+            runCommandDirect(cmd.id, {});
+        }
+    }, [commands]);
+
+    // ========== Keyboard shortcuts ==========
+
+    const cmdOrCtrl = isMac ? 'meta' : 'ctrl';
+
+    useKeyboardShortcuts({
+        // Command palette
+        [`${cmdOrCtrl}+p`]: () => setPaletteOpen(true),
+        'ctrl+p': () => setPaletteOpen(true), // also catch ctrl+p on mac
+
+        // Run active command
+        [`${cmdOrCtrl}+enter`]: () => {
+            if (!selectedCommand || modal.type !== 'none') return;
+            if (resolvedVariables.length === 0) {
+                handleExecute({});
+            } else {
+                const vals: Record<string, string> = {};
+                resolvedVariables.forEach(v => { vals[v.name] = v.defaultValue || ''; });
+                const hasEmpty = resolvedVariables.some(v => !v.defaultValue);
+                if (hasEmpty) {
+                    handleFillVariables(vals);
+                } else {
+                    handleExecute(vals);
+                }
+            }
+        },
+
+        // Edit active command
+        [`${cmdOrCtrl}+e`]: () => {
+            if (selectedCommand && modal.type === 'none') {
+                setModal({ type: 'commandEditor', command: selectedCommand });
+            }
+        },
+
+        // New command (Cmd/Ctrl+N or Cmd/Ctrl+T)
+        [`${cmdOrCtrl}+n`]: () => {
+            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+        },
+        [`${cmdOrCtrl}+t`]: () => {
+            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+        },
+        'ctrl+t': () => {
+            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+        },
+        'meta+t': () => {
+            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+        },
+
+        // Settings
+        [`${cmdOrCtrl}+,`]: () => {
+            if (modal.type === 'none') setModal({ type: 'settings' });
+        },
+
+        // Close active tab
+        'ctrl+w': () => {
+            if (activeTabId) closeTab(activeTabId);
+        },
+        'meta+w': () => {
+            if (activeTabId) closeTab(activeTabId);
+        },
+
+        // Next tab
+        'ctrl+tab': () => {
+            if (openTabs.length < 2) return;
+            const idx = openTabs.findIndex(t => t.id === activeTabId);
+            const next = openTabs[(idx + 1) % openTabs.length];
+            if (next) handleSelectTab(next.id);
+        },
+
+        // Previous tab
+        'ctrl+shift+tab': () => {
+            if (openTabs.length < 2) return;
+            const idx = openTabs.findIndex(t => t.id === activeTabId);
+            const prev = openTabs[(idx - 1 + openTabs.length) % openTabs.length];
+            if (prev) handleSelectTab(prev.id);
+        },
+
+        // Close palette / modals
+        'escape': () => {
+            if (paletteOpen) { setPaletteOpen(false); return; }
+        },
+    });
+
+    // Filter history to active command
+    const commandHistory = selectedCommand
+        ? executionHistory.filter(r => r.commandId === selectedCommand.id)
+        : executionHistory;
+
     return (
         <TooltipProvider>
             <div className="app-layout">
-                <ResizablePanel
-                    side="left"
-                    defaultWidth={300}
-                    minWidth={200}
-                    maxWidth={480}
-                    storageKey="cmdex-sidebar"
-                    collapsedIcon={
-                        <div className="logo-icon" style={{ width: 24, height: 24 }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="24" height="24">
-                              <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
-                              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
-                              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
-                            </svg>
-                        </div>
-                    }
-                >
-                    <Sidebar
-                        categories={categories}
-                        commands={commands}
-                        selectedCommandId={selectedCommand?.id || null}
-                        searchQuery={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        onSelectCommand={handleSelectCommand}
-                        onAddCategory={() => setModal({ type: 'categoryEditor' })}
-                        onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
-                        onDeleteCategory={handleDeleteCategory}
-                        onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
-                        onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
-                        onDeleteCommand={handleDeleteCommand}
-                        onManagePresets={handleManagePresetsForCommand}
-                        onReorderCommand={handleReorderCommand}
-                        onOpenSettings={() => setModal({ type: 'settings' })}
-                    />
-                </ResizablePanel>
+                <div className="app-body">
+                    <ResizablePanel
+                        side="left"
+                        defaultWidth={280}
+                        minWidth={180}
+                        maxWidth={460}
+                        storageKey="cmdex-sidebar"
+                        collapsedIcon={
+                            <div className="logo-icon" style={{ width: 22, height: 22 }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="22" height="22">
+                                  <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.1"/>
+                                  <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
+                                  <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
+                                </svg>
+                            </div>
+                        }
+                    >
+                        <Sidebar
+                            categories={categories}
+                            commands={commands}
+                            selectedCommandId={selectedCommand?.id || null}
+                            searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
+                            onSelectCommand={handleSelectCommand}
+                            onAddCategory={() => setModal({ type: 'categoryEditor' })}
+                            onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
+                            onDeleteCategory={handleDeleteCategory}
+                            onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
+                            onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
+                            onDeleteCommand={handleDeleteCommand}
+                            onManagePresets={handleManagePresetsForCommand}
+                            onReorderCommand={handleReorderCommand}
+                            onOpenSettings={() => setModal({ type: 'settings' })}
+                        />
+                    </ResizablePanel>
 
-                <div className="center-area">
-                    <div className="top-area">
-                        <div className="main-content">
-                            {selectedCommand ? (
-                                <>
-                                    <div className="main-header">
-                                        <div />
-                                        <div className="header-actions" />
-                                    </div>
+                    <div className="center-area">
+                        {/* Tab bar */}
+                        <TabBar
+                            tabs={openTabs}
+                            activeTabId={activeTabId}
+                            onSelectTab={handleSelectTab}
+                            onCloseTab={closeTab}
+                        />
+
+                        <div className="top-area">
+                            <div className="main-content">
+                                {selectedCommand ? (
                                     <div className="main-body">
                                         <CommandDetail
                                             command={selectedCommand}
@@ -494,40 +693,40 @@ function App() {
                                             onRename={handleRenameCommand}
                                         />
                                     </div>
-                                </>
-                            ) : (
-                                <div className="empty-state">
-                                    <div className="empty-icon">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="64" height="64">
-                                          <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
-                                          <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
-                                          <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
-                                        </svg>
+                                ) : (
+                                    <div className="empty-state">
+                                        <div className="empty-icon">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="64" height="64">
+                                              <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.05"/>
+                                              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
+                                              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
+                                            </svg>
+                                        </div>
+                                        <h2>{t('app.welcomeTitle')}</h2>
+                                        <p>{t('app.welcomeDescription')}</p>
+                                        <Button onClick={() => setModal({ type: 'commandEditor' })}>
+                                            {t('app.newCommand')}
+                                        </Button>
                                     </div>
-                                    <h2>{t('app.welcomeTitle')}</h2>
-                                    <p>{t('app.welcomeDescription')}</p>
-                                    <Button onClick={() => setModal({ type: 'commandEditor' })}>
-                                        {t('app.newCommand')}
-                                    </Button>
-                                </div>
-                            )}
+                                )}
+                            </div>
+
+                            <HistoryPane
+                                records={commandHistory}
+                                selectedRecordId={selectedRecord?.id || null}
+                                onSelectRecord={handleSelectRecord}
+                                onClearHistory={handleClearHistory}
+                            />
                         </div>
 
-                        <HistoryPane
-                            records={executionHistory}
-                            selectedRecordId={selectedRecord?.id || null}
-                            onSelectRecord={handleSelectRecord}
-                            onClearHistory={handleClearHistory}
+                        <OutputPane
+                            record={selectedRecord}
+                            streamLines={streamLines}
+                            isExecuting={isExecuting}
+                            isOpen={outputPaneOpen}
+                            onToggle={() => setOutputPaneOpen(prev => !prev)}
                         />
                     </div>
-
-                    <OutputPane
-                        record={selectedRecord}
-                        streamLines={streamLines}
-                        isExecuting={isExecuting}
-                        isOpen={outputPaneOpen}
-                        onToggle={() => setOutputPaneOpen(prev => !prev)}
-                    />
                 </div>
 
                 {/* Modals */}
@@ -601,7 +800,20 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <SettingsDialog open={modal.type === 'settings'} onClose={() => setModal({ type: 'none' })} />
+                <SettingsDialog
+                    open={modal.type === 'settings'}
+                    onClose={() => setModal({ type: 'none' })}
+                    theme={theme}
+                    onThemeChange={setTheme}
+                />
+                <CommandPalette
+                    open={paletteOpen}
+                    commands={commands}
+                    categories={categories}
+                    onClose={() => setPaletteOpen(false)}
+                    onOpen={handleSelectCommand}
+                    onRun={handlePaletteRun}
+                />
                 <Toaster position="bottom-right" richColors closeButton duration={3000} />
             </div>
         </TooltipProvider>
