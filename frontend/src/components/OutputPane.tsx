@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,10 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const STDERR_PREFIX = '\x1b[stderr]';
 const MAX_DISPLAY_LINES = 100;
+const MIN_HEIGHT = 80;
+const MAX_HEIGHT = 600;
+const DEFAULT_HEIGHT = 200;
+const STORAGE_KEY = 'cmdex-output-height';
 
 interface OutputPaneProps {
   record: ExecutionRecord | null;
@@ -21,6 +25,40 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const { t } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [height, setHeight] = useState<number>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? Number(saved) : DEFAULT_HEIGHT;
+  });
+  const isDraggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    startYRef.current = e.clientY;
+    startHeightRef.current = height;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = startYRef.current - ev.clientY; // drag up = increase height
+      const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeightRef.current + delta));
+      setHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      setHeight((h) => {
+        localStorage.setItem(STORAGE_KEY, String(h));
+        return h;
+      });
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [height]);
 
   const handleScroll = () => {
     if (!bodyRef.current) return;
@@ -44,8 +82,12 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
   const isStreaming = isExecuting && streamLines.length > 0;
   const showRecord = record && !isStreaming;
+
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle} className="output-pane">
+      {isOpen && (
+        <div className="output-resize-handle" onMouseDown={handleResizeStart} />
+      )}
       <div className="output-pane-header" onClick={onToggle}>
         <div className="output-pane-title">
           <span className="terminal-dots">
@@ -80,7 +122,12 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>
-        <div className="output-pane-body" ref={bodyRef} onScroll={handleScroll}>
+        <div
+          className="output-pane-body"
+          ref={bodyRef}
+          onScroll={handleScroll}
+          style={{ maxHeight: height }}
+        >
           {isExecuting && streamLines.length === 0 && !record && (
             <div className="output-line">
               <span className="output-cursor" />

@@ -899,6 +899,19 @@ body {
 .terminal-dots { display: flex; gap: 5px; }
 .terminal-dot { width: 9px; height: 9px; border-radius: 50%; }
 
+.output-resize-handle {
+  height: 4px;
+  cursor: ns-resize;
+  background: transparent;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.output-resize-handle:hover,
+.output-resize-handle:active {
+  background: var(--primary);
+}
+
 .output-pane-body {
   flex: 1;
   padding: 12px 14px;
@@ -909,8 +922,8 @@ body {
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 200px;
   opacity: 0.9;
+  /* max-height is now controlled by inline style */
 }
 
 .output-pane-body .output-line { margin-bottom: 1px; }
