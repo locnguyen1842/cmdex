@@ -225,9 +225,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             {command.title}
           </h1>
         )}
-        {command.description && (
-          <p className="detail-description">{command.description}</p>
-        )}
         {command.tags && command.tags.length > 0 && (
           <div className="detail-tags">
             {command.tags.map((tag, i) => (
@@ -236,6 +233,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </Badge>
             ))}
           </div>
+        )}
+        {command.description && (
+          <p className="detail-description">{command.description}</p>
         )}
       </div>
 

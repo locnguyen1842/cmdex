@@ -23,7 +23,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { Category, Command } from '../types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -103,12 +102,16 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
             <GripVertical className="size-3.5" />
           </span>
           <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="cmd-title">{cmd.title}</span>
-          {cmd.tags && cmd.tags.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-              {cmd.tags[0]}
-            </Badge>
-          )}
+          <span className="cmd-body">
+            <span className="cmd-title">{cmd.title}</span>
+            {cmd.tags && cmd.tags.length > 0 && (
+              <span className="cmd-tags-row">
+                {cmd.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="cmd-tag-chip">#{tag}</span>
+                ))}
+              </span>
+            )}
+          </span>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

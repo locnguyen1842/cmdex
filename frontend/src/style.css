@@ -547,12 +547,36 @@ body {
   margin-left: -1px;
 }
 
-.command-item .cmd-title {
+.command-item .cmd-body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.command-item .cmd-title {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
+}
+
+.cmd-tags-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.cmd-tag-chip {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
 }
 
 .sidebar-footer {
