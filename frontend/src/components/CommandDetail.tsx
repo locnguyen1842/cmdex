@@ -39,6 +39,17 @@ import {
   SquareTerminal,
 } from "lucide-react";
 import { GetScriptBody } from "../../wailsjs/go/main/App";
+import { isMac } from "../hooks/useKeyboardShortcuts";
+
+const cmdKey = isMac ? '⌘' : 'Ctrl';
+
+function ShortcutHint({ label, shortcut }: { label: string; shortcut: string }) {
+  return (
+    <span className="tooltip-with-shortcut">
+      {label} <kbd className="kbd">{shortcut}</kbd>
+    </span>
+  );
+}
 
 interface CommandDetailProps {
   command: Command;
@@ -134,6 +145,30 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [scriptBody, resolvedValues]);
 
+  const renderScriptResolved = useMemo(() => {
+    if (!scriptBody) return null;
+    const parts = scriptBody.split(/(\{\{\w+\}\})/g);
+    return parts.map((part, i) => {
+      if (/^\{\{\w+\}\}$/.test(part)) {
+        const varName = part.slice(2, -2);
+        const val = resolvedValues[varName];
+        if (val) {
+          return (
+            <span key={i} className="var-filled" title={`${varName}=${val}`}>
+              {val}
+            </span>
+          );
+        }
+        return (
+          <span key={i} className="var-missing" title={varName}>
+            {part}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }, [scriptBody, resolvedValues]);
+
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return "";
     return scriptBody.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
@@ -213,7 +248,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 <Pencil />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t("commandDetail.editCommand")}</TooltipContent>
+            <TooltipContent>
+              <ShortcutHint label={t("commandDetail.editCommand")} shortcut={`${cmdKey}E`} />
+            </TooltipContent>
           </Tooltip>
         </div>
         <div className="command-text-box">
@@ -275,7 +312,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             <TooltipContent>
               {isExecuting
                 ? t("commandDetail.running")
-                : t("commandDetail.execute")}
+                : <ShortcutHint label={t("commandDetail.execute")} shortcut={`${cmdKey}↩`} />}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -394,14 +431,14 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 <TooltipContent>
                   {isExecuting
                     ? t("commandDetail.running")
-                    : t("commandDetail.execute")}
+                    : <ShortcutHint label={t("commandDetail.execute")} shortcut={`${cmdKey}↩`} />}
                 </TooltipContent>
               </Tooltip>
             </div>
             <div className="command-text-box text-xs preview-box-with-float">
               <div className="mb-2 pb-2 border-b border-border/50">
                 <code className="text-xs whitespace-pre-wrap break-all">
-                  {getResolvedScript}
+                  {renderScriptResolved}
                 </code>
               </div>
               {argsPreview && argsPreview.map((arg, i) => (
