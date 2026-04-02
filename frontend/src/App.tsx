@@ -275,9 +275,9 @@ function App() {
         setOpenTabs(prev => {
             const exists = prev.find(t => t.id === cmd.id);
             if (exists) {
-                return prev.map(t => t.id === cmd.id ? { ...t, title: cmd.title } : t);
+                return prev.map(t => t.id === cmd.id ? { ...t, title: cmd.title, kind: 'command' as const } : t);
             }
-            return [...prev, { id: cmd.id, title: cmd.title }];
+            return [...prev, { id: cmd.id, title: cmd.title, kind: 'command' as const }];
         });
     };
 

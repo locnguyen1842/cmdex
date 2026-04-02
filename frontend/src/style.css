@@ -414,6 +414,19 @@ body {
   color: var(--foreground);
 }
 
+.tab-dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.tab-item.active .tab-dirty-dot {
+  background: var(--foreground);
+}
+
 /* ========== Sidebar ========== */
 
 .sidebar {
