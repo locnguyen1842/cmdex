@@ -52,6 +52,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
   const [title, setTitle] = useState(command?.title ?? '');
   const [description, setDescription] = useState(command?.description ?? '');
   const [scriptBody, setScriptBody] = useState('');
+  const [baselineScriptBody, setBaselineScriptBody] = useState('');
   const [categoryId, setCategoryId] = useState(command?.categoryId ?? defaultCategoryId ?? '');
   const [tags, setTags] = useState<string[]>(command?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
@@ -62,8 +63,14 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
   useEffect(() => {
     if (command?.id) {
       GetScriptBody(command.id)
-        .then(body => setScriptBody(body))
-        .catch(() => setScriptBody(''));
+        .then(body => {
+          setScriptBody(body);
+          setBaselineScriptBody(body);
+        })
+        .catch(() => {
+          setScriptBody('');
+          setBaselineScriptBody('');
+        });
     }
   }, [command?.id]);
 
@@ -73,9 +80,9 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
     return (
       title !== (command?.title ?? '') ||
       description !== (command?.description ?? '') ||
-      scriptBody !== ''
+      scriptBody !== baselineScriptBody
     );
-  }, [title, description, scriptBody, isNew, command]);
+  }, [title, description, scriptBody, baselineScriptBody, isNew, command]);
 
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 

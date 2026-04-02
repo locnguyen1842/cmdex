@@ -768,42 +768,6 @@ body {
   margin-top: 16px;
 }
 
-/* ========== Tags Input ========== */
-
-.tags-input-wrapper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 7px 9px;
-  background: var(--secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  min-height: 38px;
-  cursor: text;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.tags-input-wrapper:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 20%, transparent);
-}
-
-.tags-input-wrapper input,
-.tags-input-field {
-  flex: 1;
-  min-width: 80px;
-  border: none;
-  background: transparent;
-  color: var(--foreground);
-  font-size: 13px;
-  font-family: var(--font-sans);
-  outline: none;
-}
-
-.tags-input-wrapper input::placeholder,
-.tags-input-field::placeholder {
-  color: var(--muted-foreground);
-}
 
 /* ========== History Pane ========== */
 
@@ -1692,6 +1656,12 @@ kbd, .kbd {
   background: var(--card);
   min-height: 36px;
   cursor: text;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tags-input-wrapper:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 20%, transparent);
 }
 
 .tags-input-field {
@@ -1701,6 +1671,7 @@ kbd, .kbd {
   border: none;
   outline: none;
   font-size: 13px;
+  font-family: var(--font-sans);
   color: var(--foreground);
   padding: 2px 0;
 }
