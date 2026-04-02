@@ -333,6 +333,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             </div>
           )}
 
+          {/* Script preview with resolved values */}
+          <div className="command-text-box text-xs mb-3">
+            <code className="text-xs whitespace-pre-wrap break-all">
+              {renderScriptResolved}
+            </code>
+          </div>
+
           {/* Pattern=Value rows */}
           <div className="preset-vars-list">
             {variables.map((v) => {
