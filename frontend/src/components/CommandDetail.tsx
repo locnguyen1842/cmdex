@@ -68,6 +68,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [editingVar, setEditingVar] = useState<string | null>(null);
   const [editingVarValue, setEditingVarValue] = useState('');
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [titleDraft, setTitleDraft] = useState("");
   const [scriptBody, setScriptBody] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -84,6 +85,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       .then((body) => setScriptBody(body))
       .catch(() => setScriptBody(""));
   }, [command.id, command.scriptContent]);
+
+  useEffect(() => {
+    setOverrides({});
+  }, [command.id, selectedPresetId]);
 
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
@@ -106,14 +111,14 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         variables.forEach((v) => {
           vals[v.name] = preset.values[v.name] ?? v.defaultValue ?? "";
         });
-        return vals;
+        return { ...vals, ...overrides };
       }
     }
     variables.forEach((v) => {
       vals[v.name] = v.defaultValue ?? "";
     });
-    return vals;
-  }, [selectedPresetId, command.presets, variables]);
+    return { ...vals, ...overrides };
+  }, [selectedPresetId, command.presets, variables, overrides]);
 
   const renderScriptWithVars = useMemo(() => {
     if (!scriptBody) return null;
@@ -349,9 +354,19 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       autoFocus
                       value={editingVarValue}
                       onChange={(e) => setEditingVarValue(e.target.value)}
-                      onBlur={() => setEditingVar(null)}
+                      onBlur={() => {
+                        if (editingVar) {
+                          setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
+                        }
+                        setEditingVar(null);
+                      }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') setEditingVar(null);
+                        if (e.key === 'Enter') {
+                          if (editingVar) {
+                            setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
+                          }
+                          setEditingVar(null);
+                        }
                         if (e.key === 'Escape') setEditingVar(null);
                       }}
                     />
