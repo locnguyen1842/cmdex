@@ -84,7 +84,9 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
     );
   }, [title, description, scriptBody, baselineScriptBody, isNew, command]);
 
-  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  useEffect(() => { onDirtyChangeRef.current?.(isDirty); }, [isDirty]);
 
   // Auto-detect variables from script
   useEffect(() => {
