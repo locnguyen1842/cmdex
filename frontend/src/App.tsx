@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import './style.css';
 import Sidebar from './components/Sidebar';
 import CommandDetail from './components/CommandDetail';
-import CommandEditor from './components/CommandEditor';
 import CategoryEditor from './components/CategoryEditor';
 import VariablePrompt from './components/VariablePrompt';
 import HistoryPane from './components/HistoryPane';
