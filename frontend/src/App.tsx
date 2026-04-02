@@ -12,6 +12,7 @@ import SettingsDialog from './components/SettingsDialog';
 import ResizablePanel from './components/ResizablePanel';
 import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
+import CommandEditorTab from './components/CommandEditorTab';
 import { useKeyboardShortcuts, isMac } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -57,7 +58,6 @@ import i18n from './i18n';
 
 type ModalState =
     | { type: 'none' }
-    | { type: 'commandEditor'; command?: Command; defaultCategoryId?: string }
     | { type: 'categoryEditor'; category?: Category }
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
@@ -99,6 +99,12 @@ function App() {
 
     // Command palette
     const [paletteOpen, setPaletteOpen] = useState(false);
+
+    interface EditorTabData {
+        command?: Command;
+        defaultCategoryId?: string;
+    }
+    const [editorTabData, setEditorTabData] = useState<EditorTabData | null>(null);
 
     // Theme
     const [theme, setTheme] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) || 'vscode-dark');
@@ -233,7 +239,7 @@ function App() {
             const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
             openTab(cmd);
-            setModal({ type: 'none' });
+            closeEditorTab();
             toast.success(t('toast.commandCreated'));
         } catch (err) {
             console.error('Failed to create command:', err);
@@ -243,12 +249,12 @@ function App() {
     const handleUpdateCommand = async (data: {
         title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
     }) => {
-        if (modal.type !== 'commandEditor' || !modal.command) return;
+        if (!editorTabData?.command) return;
         try {
-            const cmd = await UpdateCommand(modal.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
+            const cmd = await UpdateCommand(editorTabData.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
             openTab(cmd);
-            setModal({ type: 'none' });
+            closeEditorTab();
             toast.success(t('toast.commandSaved'));
         } catch (err) {
             console.error('Failed to update command:', err);
@@ -281,7 +287,44 @@ function App() {
         });
     };
 
+    const EDITOR_TAB_ID = '__editor__';
+
+    const openEditorTab = useCallback((data: EditorTabData) => {
+        setEditorTabData(data);
+        setActiveTabId(EDITOR_TAB_ID);
+        setOpenTabs(prev => {
+            const exists = prev.find(t => t.id === EDITOR_TAB_ID);
+            const title = data.command ? `Edit: ${data.command.title}` : 'New Command';
+            if (exists) return prev.map(t => t.id === EDITOR_TAB_ID ? { ...t, title, isDirty: false } : t);
+            return [...prev, { id: EDITOR_TAB_ID, title, kind: 'editor' as const, isDirty: false }];
+        });
+    }, []);
+
+    const closeEditorTab = useCallback(() => {
+        setEditorTabData(null);
+        setOpenTabs(prev => {
+            const newTabs = prev.filter(t => t.id !== EDITOR_TAB_ID);
+            if (activeTabId === EDITOR_TAB_ID) {
+                const lastCmd = [...newTabs].reverse().find(t => t.kind === 'command');
+                if (lastCmd) {
+                    const cmd = commands.find(c => c.id === lastCmd.id);
+                    if (cmd) { setSelectedCommand(cmd); setActiveTabId(lastCmd.id); }
+                } else {
+                    setSelectedCommand(null);
+                    setActiveTabId(null);
+                }
+            }
+            return newTabs;
+        });
+    }, [activeTabId, commands]);
+
     const closeTab = (commandId: string) => {
+        if (commandId === EDITOR_TAB_ID) {
+            const editorTab = openTabs.find(t => t.id === EDITOR_TAB_ID);
+            if (editorTab?.isDirty && !confirm('Discard unsaved changes?')) return;
+            closeEditorTab();
+            return;
+        }
         setOpenTabs(prev => {
             const newTabs = prev.filter(t => t.id !== commandId);
             if (activeTabId === commandId) {
@@ -538,23 +581,23 @@ function App() {
 
         // Edit active command
         [`${cmdOrCtrl}+e`]: () => {
-            if (selectedCommand && modal.type === 'none') {
-                setModal({ type: 'commandEditor', command: selectedCommand });
+            if (selectedCommand && activeTabId !== EDITOR_TAB_ID) {
+                openEditorTab({ command: selectedCommand });
             }
         },
 
         // New command (Cmd/Ctrl+N or Cmd/Ctrl+T)
         [`${cmdOrCtrl}+n`]: () => {
-            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
         },
         [`${cmdOrCtrl}+t`]: () => {
-            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
         },
         'ctrl+t': () => {
-            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
         },
         'meta+t': () => {
-            if (modal.type === 'none') setModal({ type: 'commandEditor' });
+            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
         },
 
         // Settings
@@ -627,8 +670,8 @@ function App() {
                             onAddCategory={() => setModal({ type: 'categoryEditor' })}
                             onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
                             onDeleteCategory={handleDeleteCategory}
-                            onAddCommand={(catId) => setModal({ type: 'commandEditor', defaultCategoryId: catId })}
-                            onEditCommand={(cmd) => setModal({ type: 'commandEditor', command: cmd })}
+                            onAddCommand={(catId) => openEditorTab({ defaultCategoryId: catId })}
+                            onEditCommand={(cmd) => openEditorTab({ command: cmd })}
                             onDeleteCommand={handleDeleteCommand}
                             onManagePresets={handleManagePresetsForCommand}
                             onReorderCommand={handleReorderCommand}
@@ -647,7 +690,25 @@ function App() {
 
                         <div className="top-area">
                             <div className="main-content">
-                                {selectedCommand ? (
+                                {activeTabId === EDITOR_TAB_ID && editorTabData !== null ? (
+                                    <CommandEditorTab
+                                        command={editorTabData.command}
+                                        categories={categories}
+                                        defaultCategoryId={editorTabData.defaultCategoryId}
+                                        onSave={editorTabData.command ? handleUpdateCommand : handleCreateCommand}
+                                        onDiscard={() => {
+                                            const editorTab = openTabs.find(t => t.id === EDITOR_TAB_ID);
+                                            if (!editorTab?.isDirty || confirm('Discard unsaved changes?')) {
+                                                closeEditorTab();
+                                            }
+                                        }}
+                                        onDirtyChange={(dirty) => {
+                                            setOpenTabs(prev => prev.map(t =>
+                                                t.id === EDITOR_TAB_ID ? { ...t, isDirty: dirty } : t
+                                            ));
+                                        }}
+                                    />
+                                ) : selectedCommand ? (
                                     <div className="main-body">
                                         <CommandDetail
                                             command={selectedCommand}
@@ -657,7 +718,7 @@ function App() {
                                             onRunInTerminal={handleRunInTerminal}
                                             onManagePresets={handleManagePresets}
                                             onFillVariables={handleFillVariables}
-                                            onEdit={() => setModal({ type: 'commandEditor', command: selectedCommand })}
+                                            onEdit={() => openEditorTab({ command: selectedCommand })}
                                             onDelete={() =>
                                                 setModal({
                                                     type: 'confirmDelete',
@@ -680,7 +741,7 @@ function App() {
                                         </div>
                                         <h2>{t('app.welcomeTitle')}</h2>
                                         <p>{t('app.welcomeDescription')}</p>
-                                        <Button onClick={() => setModal({ type: 'commandEditor' })}>
+                                        <Button onClick={() => openEditorTab({})}>
                                             {t('app.newCommand')}
                                         </Button>
                                     </div>
@@ -706,16 +767,6 @@ function App() {
                 </div>
 
                 {/* Modals */}
-                {modal.type === 'commandEditor' && (
-                    <CommandEditor
-                        command={modal.command}
-                        categories={categories}
-                        defaultCategoryId={modal.defaultCategoryId}
-                        onSave={modal.command ? handleUpdateCommand : handleCreateCommand}
-                        onCancel={() => setModal({ type: 'none' })}
-                    />
-                )}
-
                 {modal.type === 'categoryEditor' && (
                     <CategoryEditor
                         category={modal.category}
