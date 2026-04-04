@@ -21,7 +21,7 @@
   "commandDetail": {
     "command": "Script",
     "editCommand": "Edit command",
-    "copyCommand": "Copy script body",
+    "copyCommand": "Copy",
     "copied": "Copied!",
     "arguments": "Arguments",
     "presets": "Presets",

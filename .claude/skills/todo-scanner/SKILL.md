@@ -75,6 +75,8 @@ git mv todos/<name>.pending.md todos/<name>.resolved.md
 
 **If a plan is abandoned:** Leave the file as `*.pending.md`. It can be picked up again in a future session.
 
+**If resolved name already exists:** Merge these files by appending the new resolved content to the old resolved file.
+
 ## File Naming Convention
 
 | State | Pattern | Example |
