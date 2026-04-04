@@ -30,7 +30,6 @@ import {
   Pencil,
   Copy,
   Check,
-  ListTree,
   Play,
   Plus,
   Loader2,
@@ -541,15 +540,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                                 }
                               }
                               if (e.key === 'Enter') {
-                                const newOverrides = editingVar
-                                  ? { ...overrides, [editingVar]: editingVarValue }
-                                  : overrides;
-                                setOverrides(newOverrides);
+                                const saveValues = { ...resolvedValues, ...(editingVar ? { [editingVar]: editingVarValue } : {}) };
                                 setEditingVar(null);
                                 if (selectedPresetId) {
-                                  const merged = { ...resolvedValues, ...(editingVar ? { [editingVar]: editingVarValue } : {}) };
-                                  await onSavePresetValues(selectedPresetId, merged);
+                                  await onSavePresetValues(selectedPresetId, saveValues);
                                   setOverrides({});
+                                } else {
+                                  if (editingVar) setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
                                 }
                               }
                               if (e.key === 'Escape') setEditingVar(null);

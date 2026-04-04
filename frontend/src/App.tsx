@@ -522,14 +522,19 @@ function App() {
         setModal({ ...modal, presets: presets || [] });
     };
 
+    const refreshSelectedCommand = async (): Promise<Command[]> => {
+        const cmds = await GetCommands();
+        setCommands(cmds || []);
+        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand?.id);
+        if (refreshed) setSelectedCommand(refreshed);
+        return cmds || [];
+    };
+
     const handleAddPresetFromDetail = async (): Promise<string> => {
         if (!selectedCommand) return '';
         await SavePreset(selectedCommand.id, 'New Preset', {});
-        const cmds = await GetCommands();
-        setCommands(cmds || []);
-        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand.id);
-        if (refreshed) setSelectedCommand(refreshed);
-        // Return the ID of the last (newly created) preset
+        const cmds = await refreshSelectedCommand();
+        const refreshed = cmds.find((c: Command) => c.id === selectedCommand.id);
         return refreshed?.presets?.at(-1)?.id ?? '';
     };
 
@@ -538,19 +543,13 @@ function App() {
         const preset = selectedCommand.presets.find(p => p.id === presetId);
         if (!preset) return;
         await UpdatePreset(selectedCommand.id, presetId, newName, preset.values);
-        const cmds = await GetCommands();
-        setCommands(cmds || []);
-        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand.id);
-        if (refreshed) setSelectedCommand(refreshed);
+        await refreshSelectedCommand();
     };
 
     const handleDeletePresetFromDetail = async (presetId: string) => {
         if (!selectedCommand) return;
         await DeletePreset(selectedCommand.id, presetId);
-        const cmds = await GetCommands();
-        setCommands(cmds || []);
-        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand.id);
-        if (refreshed) setSelectedCommand(refreshed);
+        await refreshSelectedCommand();
     };
 
     const handleSavePresetValuesFromDetail = async (presetId: string, values: Record<string, string>) => {
@@ -558,21 +557,14 @@ function App() {
         const preset = selectedCommand.presets.find(p => p.id === presetId);
         if (!preset) return;
         await UpdatePreset(selectedCommand.id, presetId, preset.name, values);
-        const cmds = await GetCommands();
-        setCommands(cmds || []);
-        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand.id);
-        if (refreshed) setSelectedCommand(refreshed);
+        await refreshSelectedCommand();
         toast.success(t('toast.presetSaved'));
     };
 
     const handleCloseManagePresets = async () => {
         setModal({ type: 'none' });
         await loadData();
-        if (selectedCommand) {
-            const cmds = await GetCommands();
-            const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand.id);
-            if (refreshed) setSelectedCommand(refreshed);
-        }
+        if (selectedCommand) await refreshSelectedCommand();
     };
 
     const handleSelectCommand = (cmd: Command) => {
