@@ -125,10 +125,14 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     setOverrides({});
   }, [command.id, selectedPresetId]);
 
-  // Auto-select first preset when opening a command with presets
+  // Auto-select first preset when opening a command (or switching commands)
   useEffect(() => {
-    if (command.presets && command.presets.length > 0 && !selectedPresetId) {
-      setSelectedPresetId(command.presets[0].id);
+    if (command.presets && command.presets.length > 0) {
+      // Check if current selectedPresetId is valid for this command
+      const isValidPreset = command.presets.some(p => p.id === selectedPresetId);
+      if (!isValidPreset) {
+        setSelectedPresetId(command.presets[0].id);
+      }
     }
   }, [command.id, command.presets, selectedPresetId]);
 
