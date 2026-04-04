@@ -23,10 +23,8 @@ const (
 )
 
 type Executor struct {
-	shell    string
-	flag     string
-	tmpFiles []string // temp files created by OpenInTerminal for cleanup
-	tmpMu    sync.Mutex
+	shell string
+	flag  string
 }
 
 func NewExecutor() *Executor {
@@ -187,28 +185,20 @@ func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)
 	return result
 }
 
-// CleanupTempFiles removes temp files created by OpenInTerminal.
-func (e *Executor) CleanupTempFiles() {
-	e.tmpMu.Lock()
-	defer e.tmpMu.Unlock()
-	for _, f := range e.tmpFiles {
-		os.Remove(f)
-	}
-	e.tmpFiles = nil
-}
-
 // OpenInTerminal opens a terminal and runs the resolved script.
 func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error {
-	tmpPath, err := writeTempScript(scriptContent)
-	if err != nil {
-		return err
+	// Strip shebang so the terminal shows the actual script body
+	body := scriptContent
+	if strings.HasPrefix(body, "#!") {
+		if idx := strings.Index(body, "\n"); idx != -1 {
+			body = body[idx+1:]
+		}
 	}
-	// Track temp file for cleanup on shutdown
-	e.tmpMu.Lock()
-	e.tmpFiles = append(e.tmpFiles, tmpPath)
-	e.tmpMu.Unlock()
+	body = strings.TrimSpace(body)
 
-	cmdText := "bash " + tmpPath
+	// Escape single quotes for safe inline embedding: ' → '\''
+	escaped := strings.ReplaceAll(body, "'", `'\''`)
+	cmdText := "bash -c '" + escaped + "'"
 
 	defs := e.terminalDefs()
 
