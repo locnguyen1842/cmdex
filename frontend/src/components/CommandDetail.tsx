@@ -125,16 +125,31 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     setOverrides({});
   }, [command.id, selectedPresetId]);
 
-  // Auto-select first preset when opening a command (or switching commands)
+  // Track last selected preset per command to restore when returning
+  const lastSelectedPresetRef = useRef<Record<string, string>>({});
+
+  // Auto-select first preset when opening a new command (or restore previous selection)
   useEffect(() => {
     if (command.presets && command.presets.length > 0) {
       // Check if current selectedPresetId is valid for this command
       const isValidPreset = command.presets.some(p => p.id === selectedPresetId);
       if (!isValidPreset) {
-        setSelectedPresetId(command.presets[0].id);
+        // Restore previous selection for this command, or default to first
+        const lastPreset = lastSelectedPresetRef.current[command.id];
+        const presetToSelect = command.presets.some(p => p.id === lastPreset)
+          ? lastPreset!
+          : command.presets[0].id;
+        setSelectedPresetId(presetToSelect);
       }
     }
   }, [command.id, command.presets, selectedPresetId]);
+
+  // Save the selected preset when it changes
+  useEffect(() => {
+    if (selectedPresetId && command.presets?.some(p => p.id === selectedPresetId)) {
+      lastSelectedPresetRef.current[command.id] = selectedPresetId;
+    }
+  }, [selectedPresetId, command.id, command.presets]);
 
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
@@ -402,6 +417,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     <button
                       className={`preset-chip${selectedPresetId === p.id ? ' active' : ''}`}
                       onClick={() => setSelectedPresetId(p.id)}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        setRenamingChipId(p.id);
+                        setRenamingChipDraft(p.name);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'F2') {
                           e.preventDefault();
