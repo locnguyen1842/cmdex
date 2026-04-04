@@ -1078,26 +1078,75 @@ body {
   flex-shrink: 0;
 }
 
-.resizable-panel > *:not(.resize-handle) {
+.resizable-panel > *:not(.resize-handle-wrap) {
   height: 100%;
   overflow: hidden;
 }
 
-.resize-handle {
-  width: 4px;
+/* The draggable strip — wider hit area, but visually thin */
+.resize-handle-wrap {
+  width: 8px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: transparent;
-  transition: background var(--transition-fast);
-  z-index: 10;
   position: relative;
+  z-index: 10;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.resize-handle:hover,
-.resize-handle.dragging {
+/* The 1px visible line inside the strip */
+.resize-handle-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  margin: auto;
+  background: var(--border);
+  transition: background 0.15s, width 0.1s;
+}
+
+.resize-handle-wrap:hover::before,
+.resize-handle-wrap.dragging::before {
+  width: 2px;
   background: var(--primary);
 }
 
+/* Chevron collapse button — centered, visible only on hover */
+.resize-collapse-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  z-index: 11;
+  line-height: 1;
+  padding: 0;
+}
+
+.resize-handle-wrap:hover .resize-collapse-btn {
+  opacity: 1;
+}
+
+.resize-collapse-btn:hover {
+  background: var(--accent);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Collapsed rail — full height, click anywhere to expand */
 .resizable-panel-rail {
   width: 36px;
   min-width: 36px;
@@ -1110,6 +1159,11 @@ body {
   gap: 10px;
   height: 100%;
   overflow: hidden;
+  cursor: pointer;
+}
+
+.resizable-panel-rail:hover {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
 }
 
 .resizable-panel-rail.left {
@@ -1118,21 +1172,6 @@ body {
 
 .resizable-panel-rail.right {
   border-left: 1px solid var(--border);
-}
-
-.rail-expand-btn {
-  background: none;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px;
-  border-radius: 3px;
-  line-height: 1;
-}
-
-.rail-expand-btn:hover {
-  background: var(--accent);
 }
 
 /* ========== Sidebar search row ========== */
