@@ -4,3 +4,6 @@ frontend/dist
 cmdex
 .worktrees/
 .superpowers/
+.cursor/hooks.json
+
+todos/

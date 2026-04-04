@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+description: "Claude-mem context from past sessions (auto-updated)"
+---
+
+# Memory Context from Past Sessions
+
+The following context is from claude-mem, a persistent memory system that tracks your coding sessions.
+
+# $CMEM commamer 2026-04-04 11:49am GMT+7
+
+No previous sessions found.
+
+---
+*Updated after last session. Use claude-mem's MCP search tools for more detailed queries.*

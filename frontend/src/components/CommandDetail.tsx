@@ -16,29 +16,42 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import {
-  Command as CmdPrimitive,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   Pencil,
   Copy,
   Check,
-  ListTree,
   Play,
+  Plus,
   Loader2,
-  ChevronDown,
   SquareTerminal,
+  X,
 } from "lucide-react";
+import { toast } from 'sonner';
 import { GetScriptBody } from "../../wailsjs/go/main/App";
+import { cmdSymbol as cmdKey } from "../hooks/useKeyboardShortcuts";
+
+function ShortcutHint({ label, shortcut }: { label: string; shortcut: string }) {
+  return (
+    <span className="tooltip-with-shortcut">
+      {label} <kbd className="kbd">{shortcut}</kbd>
+    </span>
+  );
+}
 
 interface CommandDetailProps {
   command: Command;
@@ -51,6 +64,11 @@ interface CommandDetailProps {
   onEdit: () => void;
   onDelete: () => void;
   onRename: (newTitle: string) => void;
+  onRenamePreset: (presetId: string, newName: string) => Promise<void>;
+  onDeletePreset: (presetId: string) => Promise<void>;
+  onAddPreset: () => Promise<string>;
+  onSavePresetValues: (presetId: string, values: Record<string, string>) => Promise<void>;
+  onResolvedValuesChange?: (values: Record<string, string>) => void;
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -64,15 +82,31 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onEdit,
   onDelete,
   onRename,
+  onRenamePreset,
+  onDeletePreset,
+  onAddPreset,
+  onSavePresetValues,
+  onResolvedValuesChange,
 }) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+  const [copiedPreview, setCopiedPreview] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
-  const [presetOpen, setPresetOpen] = useState(false);
+  const [editingVar, setEditingVar] = useState<string | null>(null);
+  const [editingVarValue, setEditingVarValue] = useState('');
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [titleDraft, setTitleDraft] = useState("");
   const [scriptBody, setScriptBody] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline chip rename state
+  const [renamingChipId, setRenamingChipId] = useState<string | null>(null);
+  const [renamingChipDraft, setRenamingChipDraft] = useState('');
+
+  // Confirm delete preset state
+  const [confirmDeletePresetId, setConfirmDeletePresetId] = useState<string | null>(null);
+  const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingTitle && titleInputRef.current) {
@@ -87,6 +121,36 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       .catch(() => setScriptBody(""));
   }, [command.id, command.scriptContent]);
 
+  useEffect(() => {
+    setOverrides({});
+  }, [command.id, selectedPresetId]);
+
+  // Track last selected preset per command to restore when returning
+  const lastSelectedPresetRef = useRef<Record<string, string>>({});
+
+  // Auto-select first preset when opening a new command (or restore previous selection)
+  useEffect(() => {
+    if (command.presets && command.presets.length > 0) {
+      // Check if current selectedPresetId is valid for this command
+      const isValidPreset = command.presets.some(p => p.id === selectedPresetId);
+      if (!isValidPreset) {
+        // Restore previous selection for this command, or default to first
+        const lastPreset = lastSelectedPresetRef.current[command.id];
+        const presetToSelect = command.presets.some(p => p.id === lastPreset)
+          ? lastPreset!
+          : command.presets[0].id;
+        setSelectedPresetId(presetToSelect);
+      }
+    }
+  }, [command.id, command.presets, selectedPresetId]);
+
+  // Save the selected preset when it changes
+  useEffect(() => {
+    if (selectedPresetId && command.presets?.some(p => p.id === selectedPresetId)) {
+      lastSelectedPresetRef.current[command.id] = selectedPresetId;
+    }
+  }, [selectedPresetId, command.id, command.presets]);
+
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
     setEditingTitle(true);
@@ -100,6 +164,17 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     setEditingTitle(false);
   };
 
+  const commitChipRename = async () => {
+    if (!renamingChipId) return;
+    const trimmed = renamingChipDraft.trim().slice(0, 30);
+    if (!trimmed) {
+      setRenamingChipId(null);
+      return;
+    }
+    await onRenamePreset(renamingChipId, trimmed);
+    setRenamingChipId(null);
+  };
+
   const resolvedValues = useMemo(() => {
     const vals: Record<string, string> = {};
     if (selectedPresetId) {
@@ -108,31 +183,76 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         variables.forEach((v) => {
           vals[v.name] = preset.values[v.name] ?? v.defaultValue ?? "";
         });
-        return vals;
+        return { ...vals, ...overrides };
       }
     }
     variables.forEach((v) => {
       vals[v.name] = v.defaultValue ?? "";
     });
-    return vals;
-  }, [selectedPresetId, command.presets, variables]);
+    return { ...vals, ...overrides };
+  }, [selectedPresetId, command.presets, variables, overrides]);
+
+  useEffect(() => {
+    onResolvedValuesChange?.(resolvedValues);
+  }, [resolvedValues, onResolvedValuesChange]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!selectedPresetId) return false;
+    const preset = command.presets.find(p => p.id === selectedPresetId);
+    if (!preset) return false;
+    // Check overrides for any changes
+    const hasOverrideChanges = Object.entries(overrides).some(([k, v]) => {
+      const stored = preset.values[k] ?? variables.find(x => x.name === k)?.defaultValue ?? '';
+      return v !== stored;
+    });
+    // Check currently editing value (not yet in overrides) - only if no override changes already found
+    if (!hasOverrideChanges && editingVar) {
+      const stored = preset.values[editingVar] ?? variables.find(x => x.name === editingVar)?.defaultValue ?? '';
+      return editingVarValue !== stored;
+    }
+    return hasOverrideChanges;
+  }, [selectedPresetId, overrides, command.presets, variables, editingVar, editingVarValue]);
+
+  const scriptParts = useMemo(() => scriptBody ? scriptBody.split(/(\{\{\w+\}\})/g) : null, [scriptBody]);
 
   const renderScriptWithVars = useMemo(() => {
-    if (!scriptBody) return null;
-    const parts = scriptBody.split(/(\{\{\w+\}\})/g);
-    return parts.map((part, i) => {
+    if (!scriptParts) return null;
+    return scriptParts.map((part, i) => {
       if (/^\{\{\w+\}\}$/.test(part)) {
         const varName = part.slice(2, -2);
-        const val = resolvedValues[varName];
         return (
-          <span key={i} className={val ? "var-filled" : "var-missing"} title={val || varName}>
+          <span key={i} className="var-missing" title={varName}>
             {part}
           </span>
         );
       }
       return <span key={i}>{part}</span>;
     });
-  }, [scriptBody, resolvedValues]);
+  }, [scriptParts]);
+
+  const renderScriptResolved = useMemo(() => {
+    if (!scriptParts) return null;
+    return scriptParts.map((part, i) => {
+      if (/^\{\{\w+\}\}$/.test(part)) {
+        const varName = part.slice(2, -2);
+        const val = resolvedValues[varName];
+        const isFocused = editingVar === varName;
+        if (val) {
+          return (
+            <span key={i} className={`var-filled${isFocused ? ' var-focused' : ''}`} title={`${varName}=${val}`}>
+              {val}
+            </span>
+          );
+        }
+        return (
+          <span key={i} className={`var-missing${isFocused ? ' var-focused' : ''}`} title={varName}>
+            {part}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }, [scriptParts, resolvedValues, editingVar]);
 
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return "";
@@ -141,29 +261,27 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [scriptBody, resolvedValues]);
 
-  const handleCopy = useCallback(() => {
-    const textToCopy = getResolvedScript || scriptBody;
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+  const handleCopyTemplate = useCallback(() => {
+    navigator.clipboard.writeText(scriptBody).then(() => {
+      setCopiedTemplate(true);
+      setTimeout(() => setCopiedTemplate(false), 1500);
     }).catch((err) => {
       console.error("Failed to copy to clipboard:", err);
-      setCopied(false);
+      setCopiedTemplate(false);
     });
-  }, [getResolvedScript, scriptBody]);
+  }, [scriptBody]);
 
-  const argsPreview = useMemo(() => {
-    if (variables.length === 0) return null;
-    return variables.map((v) => {
-      const val = resolvedValues[v.name];
-      return { name: v.name, value: val || "" };
+  const handleCopyPreview = useCallback(() => {
+    const textToCopy = getResolvedScript;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedPreview(true);
+      setTimeout(() => setCopiedPreview(false), 1500);
+    }).catch((err) => {
+      console.error("Failed to copy to clipboard:", err);
+      setCopiedPreview(false);
     });
-  }, [variables, resolvedValues]);
+  }, [getResolvedScript]);
 
-  const selectedPresetLabel = selectedPresetId
-    ? (command.presets.find((p) => p.id === selectedPresetId)?.name ??
-      t("commandDetail.noPreset"))
-    : t("commandDetail.noPreset");
 
   return (
     <div className="command-detail">
@@ -190,9 +308,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             {command.title}
           </h1>
         )}
-        {command.description && (
-          <p className="detail-description">{command.description}</p>
-        )}
         {command.tags && command.tags.length > 0 && (
           <div className="detail-tags">
             {command.tags.map((tag, i) => (
@@ -201,6 +316,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </Badge>
             ))}
           </div>
+        )}
+        {command.description && (
+          <p className="detail-description">{command.description}</p>
         )}
       </div>
 
@@ -213,246 +331,347 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 <Pencil />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t("commandDetail.editCommand")}</TooltipContent>
-          </Tooltip>
-        </div>
-        <div className="command-text-box">
-          <code className="whitespace-pre-wrap">{renderScriptWithVars}</code>
-          <div className="preview-actions">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => onRunInTerminal(resolvedValues)}
-                >
-                  <SquareTerminal className="size-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleCopy}
-                >
-                  {copied ? (
-                    <Check className="size-3.5 text-success" />
-                  ) : (
-                    <Copy className="size-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {copied
-                  ? t("commandDetail.copied")
-                  : t("commandDetail.copyCommand")}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </div>
-
-      {variables.length === 0 && (
-        <div className="command-actions mt-4">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="success"
-                size="sm"
-                onClick={() => onExecute({})}
-                disabled={isExecuting}
-              >
-                {isExecuting ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Play className="size-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
             <TooltipContent>
-              {isExecuting
-                ? t("commandDetail.running")
-                : t("commandDetail.execute")}
+              <ShortcutHint label={t("commandDetail.editCommand")} shortcut={`${cmdKey}E`} />
             </TooltipContent>
           </Tooltip>
         </div>
-      )}
-
-      {variables.length > 0 && (
-        <div className="detail-section mt-4">
-          <div className="detail-section-title">
-            {t("commandDetail.arguments")}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={onManagePresets}
-                >
-                  <ListTree />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {t("commandDetail.managePresets")}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <div className="preview-box-wrapper">
-            <div className="preview-floating-actions">
-              <Popover open={presetOpen} onOpenChange={setPresetOpen}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-r-none border-r-0 min-w-[120px] justify-between font-normal"
-                      >
-                        <span
-                          className={
-                            selectedPresetId ? "" : "italic opacity-60"
-                          }
-                        >
-                          {selectedPresetLabel}
-                        </span>
-                        <ChevronDown className="size-3.5 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("commandDetail.presets")}</TooltipContent>
-                </Tooltip>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <CmdPrimitive>
-                    <CommandInput
-                      placeholder={t("commandDetail.searchPresets")}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {t("commandDetail.noPresetsFound")}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          onSelect={() => {
-                            setSelectedPresetId("");
-                            setPresetOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={`size-3.5 ${selectedPresetId === "" ? "opacity-100" : "opacity-0"}`}
-                          />
-                          <span className="italic opacity-60">
-                            {t("commandDetail.noPreset")}
-                          </span>
-                        </CommandItem>
-                        {(command.presets || []).map((p) => (
-                          <CommandItem
-                            key={p.id}
-                            onSelect={() => {
-                              setSelectedPresetId(p.id);
-                              setPresetOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={`size-3.5 ${selectedPresetId === p.id ? "opacity-100" : "opacity-0"}`}
-                            />
-                            {p.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </CmdPrimitive>
-                </PopoverContent>
-              </Popover>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="success"
-                    size="sm"
-                    className="rounded-l-none px-3"
-                    onClick={() => {
-                      const hasEmpty = variables.some(
-                        (v) => !resolvedValues[v.name],
-                      );
-                      if (hasEmpty) {
-                        onFillVariables(resolvedValues);
-                      } else {
-                        onExecute(resolvedValues);
-                      }
-                    }}
-                    disabled={isExecuting}
-                  >
-                    {isExecuting ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Play className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isExecuting
-                    ? t("commandDetail.running")
-                    : t("commandDetail.execute")}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="command-text-box text-xs preview-box-with-float">
-              <div className="mb-2 pb-2 border-b border-border/50">
-                <code className="text-xs whitespace-pre-wrap break-all">
-                  {getResolvedScript}
-                </code>
-              </div>
-              {argsPreview && argsPreview.map((arg, i) => (
-                <span key={arg.name}>
-                  <span className="text-muted-foreground">{arg.name}=</span>
-                  {arg.value ? (
-                    <span className="var-filled">{arg.value}</span>
-                  ) : (
-                    <span className="var-missing">{"<empty>"}</span>
-                  )}
-                  {i < argsPreview.length - 1 && " "}
-                </span>
-              ))}
-              <div className="preview-actions">
+        <div className="command-text-box-glow">
+          <div className="command-text-box-inner">
+            <div className="command-text-box-header">
+              <div className="flex items-center gap-1.5">
+                <span className="command-text-box-label">{t("commandDetail.template")}</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      onClick={() => onRunInTerminal(resolvedValues)}
+                      className="text-primary hover:text-primary"
+                      disabled={isExecuting}
+                      onClick={() => onExecute(resolvedValues)}
                     >
-                      <SquareTerminal className="size-3" />
+                      {isExecuting ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isExecuting ? t("commandDetail.running") : <ShortcutHint label={t("commandDetail.execute")} shortcut={`${cmdKey}↩`} />}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="command-text-box-header-actions">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-xs" onClick={() => onRunInTerminal(resolvedValues)}>
+                      <SquareTerminal className="size-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={handleCopy}
-                    >
-                      {copied ? (
-                        <Check className="size-3 text-success" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
+                    <Button variant="ghost" size="icon-xs" onClick={handleCopyTemplate}>
+                      {copiedTemplate ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    {copied
-                      ? t("commandDetail.copied")
-                      : t("commandDetail.copyCommand")}
-                  </TooltipContent>
+                  <TooltipContent>{copiedTemplate ? t("commandDetail.copied") : t("commandDetail.copyCommand")}</TooltipContent>
                 </Tooltip>
+              </div>
+            </div>
+            <div className="command-text-box">
+              <code className="whitespace-pre-wrap">{renderScriptWithVars}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      {variables.length > 0 && (
+        <div className="detail-section mt-4">
+          <div className="detail-section-title">
+            {t("commandDetail.arguments")}
+          </div>
+
+          {/* Preset chip row */}
+          <div className="preset-chips">
+            {command.presets && command.presets.map((p) => {
+              if (renamingChipId === p.id) {
+                return (
+                  <input
+                    key={p.id}
+                    className="preset-chip preset-chip-renaming"
+                    autoFocus
+                    value={renamingChipDraft}
+                    onChange={(e) => setRenamingChipDraft(e.target.value.slice(0, 30))}
+                    onBlur={commitChipRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); commitChipRename(); }
+                      if (e.key === 'Escape') { setRenamingChipId(null); }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                );
+              }
+              return (
+                <ContextMenu key={p.id}>
+                  <ContextMenuTrigger asChild>
+                    <button
+                      className={`preset-chip${selectedPresetId === p.id ? ' active' : ''}`}
+                      onClick={() => setSelectedPresetId(p.id)}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        setRenamingChipId(p.id);
+                        setRenamingChipDraft(p.name);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'F2') {
+                          e.preventDefault();
+                          setRenamingChipId(p.id);
+                          setRenamingChipDraft(p.name);
+                        }
+                      }}
+                    >
+                      {p.name}
+                    </button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onClick={() => {
+                        setRenamingChipId(p.id);
+                        setRenamingChipDraft(p.name);
+                        setSelectedPresetId(p.id);
+                      }}
+                    >
+                      {t("commandDetail.rename")}
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setConfirmDeletePresetId(p.id)}
+                    >
+                      {t("commandDetail.delete")}
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              );
+            })}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="preset-chip preset-chip-add"
+                  onClick={async () => {
+                    const newId = await onAddPreset();
+                    setSelectedPresetId(newId);
+                    setRenamingChipId(newId);
+                    setRenamingChipDraft(t("commandDetail.newPresetName"));
+                  }}
+                >
+                  <Plus size={12} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{t("commandDetail.addPreset")}</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Script preview with resolved values */}
+          <div className="command-text-box-glow">
+            <div className="command-text-box-inner">
+              <div className="command-text-box-header">
+                <div className="flex items-center gap-1.5">
+                  <span className="command-text-box-label">{t("commandDetail.preview")}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-primary hover:text-primary"
+                        disabled={isExecuting}
+                        onClick={() => {
+                          const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
+                          if (hasEmpty) {
+                            onFillVariables(resolvedValues);
+                          } else {
+                            onExecute(resolvedValues);
+                          }
+                        }}
+                      >
+                        {isExecuting ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {isExecuting ? t("commandDetail.running") : <ShortcutHint label={t("commandDetail.execute")} shortcut={`${cmdKey}↩`} />}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="command-text-box-header-actions">
+                  {hasUnsavedChanges && (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => setOverrides({})}
+                          >
+                            <X className="size-3.5 text-destructive" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("commandDetail.revertChanges")}</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={async () => {
+                              await onSavePresetValues(selectedPresetId, resolvedValues);
+                              setOverrides({});
+                            }}
+                          >
+                            <Check className="size-3.5 text-success" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("commandDetail.savePresetValues")}</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-xs" onClick={() => onRunInTerminal(resolvedValues)}>
+                        <SquareTerminal className="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t("commandDetail.runInTerminal")}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-xs" onClick={handleCopyPreview}>
+                        {copiedPreview ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{copiedPreview ? t("commandDetail.copied") : t("commandDetail.copyCommand")}</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+              <div className="command-text-box text-xs">
+                <code className="text-xs whitespace-pre-wrap break-all">{renderScriptResolved}</code>
+              </div>
+              <div className="preset-vars-panel">
+                <div className="preset-vars-list">
+                  {variables.map((v) => {
+                    const val = resolvedValues[v.name];
+                    const isEditing = editingVar === v.name;
+                    return (
+                      <div key={v.name} className={`preset-var-row${val ? '' : ' preset-var-row-empty'}`}>
+                        <span className="preset-var-name" title={"{{" + v.name + "}}"}>{v.name}</span>
+                        {isEditing ? (
+                          <input
+                            className="preset-var-input"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            autoFocus
+                            value={editingVarValue}
+                            onChange={(e) => setEditingVarValue(e.target.value)}
+                            onBlur={() => {
+                              if (editingVar) {
+                                setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
+                              }
+                              setEditingVar(null);
+                            }}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Tab') {
+                                e.preventDefault();
+                                if (editingVar) {
+                                  setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
+                                }
+                                const idx = variables.findIndex(x => x.name === editingVar);
+                                const nextIdx = e.shiftKey ? idx - 1 : idx + 1;
+                                if (nextIdx >= 0 && nextIdx < variables.length) {
+                                  const next = variables[nextIdx];
+                                  setEditingVar(next.name);
+                                  setEditingVarValue(resolvedValues[next.name] || '');
+                                } else {
+                                  setEditingVar(null);
+                                }
+                              }
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                // Compute the new overrides synchronously so saveValues is correct
+                                const newOverrides = editingVar
+                                  ? { ...overrides, [editingVar]: editingVarValue }
+                                  : overrides;
+                                setOverrides(newOverrides);
+                                if (selectedPresetId) {
+                                  // Build saveValues using current preset values + all overrides
+                                  const preset = command.presets.find(p => p.id === selectedPresetId);
+                                  const saveValues: Record<string, string> = {};
+                                  variables.forEach(v => {
+                                    saveValues[v.name] = newOverrides[v.name] ?? preset?.values[v.name] ?? v.defaultValue ?? '';
+                                  });
+                                  try {
+                                    await onSavePresetValues(selectedPresetId, saveValues);
+                                    setEditingVar(null);
+                                    setOverrides({});
+                                  } catch (err) {
+                                    toast.error(t('commandDetail.savePresetFailed'));
+                                  }
+                                } else {
+                                  setEditingVar(null);
+                                }
+                              }
+                              if (e.key === 'Escape') setEditingVar(null);
+                            }}
+                          />
+                        ) : (
+                          <span
+                            className={`preset-var-value${val ? '' : ' empty'}`}
+                            onClick={() => {
+                              setEditingVar(v.name);
+                              setEditingVarValue(val || '');
+                            }}
+                            title={t("commandDetail.clickToEdit")}
+                          >
+                            {val || <span className="preset-var-placeholder">{t("commandDetail.clickToSet")}</span>}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirm delete preset dialog */}
+      <AlertDialog open={confirmDeletePresetId !== null} onOpenChange={(open) => { if (!open) { setConfirmDeletePresetId(null); setDeletingPresetId(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("commandDetail.deletePresetTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("commandDetail.deletePresetDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("commandDetail.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={async () => {
+                const id = deletingPresetId || confirmDeletePresetId;
+                if (id) {
+                  await onDeletePreset(id);
+                  if (selectedPresetId === id) setSelectedPresetId('');
+                }
+                setConfirmDeletePresetId(null);
+                setDeletingPresetId(null);
+              }}
+            >
+              {t("commandDetail.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

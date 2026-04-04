@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,10 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const STDERR_PREFIX = '\x1b[stderr]';
 const MAX_DISPLAY_LINES = 100;
+const MIN_HEIGHT = 80;
+const MAX_HEIGHT = 600;
+const DEFAULT_HEIGHT = 200;
+const STORAGE_KEY = 'cmdex-output-height';
 
 interface OutputPaneProps {
   record: ExecutionRecord | null;
@@ -21,6 +25,54 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const { t } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [height, setHeight] = useState<number>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const parsed = saved ? Number(saved) : NaN;
+    return Number.isFinite(parsed) ? Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, parsed)) : DEFAULT_HEIGHT;
+  });
+  const isDraggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
+  const heightRef = useRef(height);
+  const [isDragging, setIsDragging] = useState(false);
+  useEffect(() => { heightRef.current = height; }, [height]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    startYRef.current = e.clientY;
+    startHeightRef.current = heightRef.current;
+    setIsDragging(true);
+  }, []);
+
+  // Manage window listeners with proper cleanup on unmount or drag stop
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = startYRef.current - ev.clientY;
+      const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeightRef.current + delta));
+      setHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      setHeight((h) => {
+        localStorage.setItem(STORAGE_KEY, String(h));
+        return h;
+      });
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isDragging]);
 
   const handleScroll = () => {
     if (!bodyRef.current) return;
@@ -44,8 +96,12 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
   const isStreaming = isExecuting && streamLines.length > 0;
   const showRecord = record && !isStreaming;
+
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle} className="output-pane">
+      {isOpen && (
+        <div className="output-resize-handle" onMouseDown={handleResizeStart} />
+      )}
       <div className="output-pane-header" onClick={onToggle}>
         <div className="output-pane-title">
           <span className="terminal-dots">
@@ -74,13 +130,24 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
           )}
         </div>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); onToggle(); }}>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={isOpen ? t("outputPane.collapse") : t("outputPane.expand")}
+            aria-expanded={isOpen}
+            onClick={(e) => { e.stopPropagation(); }}
+          >
             {isOpen ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           </Button>
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>
-        <div className="output-pane-body" ref={bodyRef} onScroll={handleScroll}>
+        <div
+          className="output-pane-body"
+          ref={bodyRef}
+          onScroll={handleScroll}
+          style={{ height: height }}
+        >
           {isExecuting && streamLines.length === 0 && !record && (
             <div className="output-line">
               <span className="output-cursor" />

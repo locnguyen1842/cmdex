@@ -9,6 +9,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Plus, Check, X, Play } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 
 interface VariablePromptProps {
   mode: 'manage' | 'fill';
@@ -64,6 +74,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
   };
 
   const [values, setValues] = useState<Record<string, string>>(buildDefaults);
+  const [confirmDeletePreset, setConfirmDeletePreset] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>(() => initialPreset?.id ?? '');
   const [editingPresetNameId, setEditingPresetNameId] = useState<string>('');
   const [editingName, setEditingName] = useState('');
@@ -138,7 +149,11 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      if (mode === 'manage') {
+        handleSaveCurrentPreset();
+      } else {
+        handleSubmit();
+      }
     }
   };
 
@@ -199,160 +214,205 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     setEditingPresetNameId('');
   };
 
+  const firstEmptyIdx = variables.findIndex(v => !values[v.name]);
+  const fillFocusIdx = firstEmptyIdx >= 0 ? firstEmptyIdx : 0;
+
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
-      <DialogContent className="sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-7xl p-0">
-        <DialogHeader className="px-6 pt-6 pb-0">
-          <DialogTitle>{mode === 'manage' ? t('variablePrompt.manageTitle') : t('variablePrompt.fillTitle')}</DialogTitle>
-          <DialogDescription className="sr-only">{mode === 'manage' ? t('variablePrompt.manageDescription') : t('variablePrompt.fillDescription')}</DialogDescription>
-        </DialogHeader>
-        <div className="vp-layout">
-          {/* Left pane: preset list */}
-          {mode === 'manage' && <div className="vp-preset-list">
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.presets')}</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-xs" onClick={() => handleCreatePreset('New Preset')}>
-                    <Plus />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('variablePrompt.saveAsNewPreset')}</TooltipContent>
-              </Tooltip>
+    <>
+    {mode === 'fill' ? (
+      <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+        <DialogContent className="max-w-sm p-0 gap-0">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="text-base">{t('variablePrompt.fillTitle')}</DialogTitle>
+            <DialogDescription className="sr-only">{t('variablePrompt.fillDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="vp-fill-vars px-5 pb-2">
+            {variables.map((v, i) => (
+                <div key={v.name} className="vp-fill-row">
+                  <div className="vp-fill-label">
+                    <code className="vp-fill-varname">{v.name}</code>
+                    {v.description && <span className="vp-fill-desc">{v.description}</span>}
+                  </div>
+                  <Input
+                    className="vp-fill-input font-mono text-sm h-8"
+                    placeholder={v.example ? `e.g. ${v.example}` : ''}
+                    value={values[v.name] || ''}
+                    onChange={(e) => setValues({ ...values, [v.name]: e.target.value })}
+                    onKeyDown={handleKeyDown}
+                    autoFocus={i === fillFocusIdx}
+                  />
+                </div>
+              ))}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+            <Button variant="ghost" size="sm" onClick={onCancel}>{t('variablePrompt.cancel')}</Button>
+            <Button variant="success" size="sm" onClick={handleSubmit}>
+              <Play className="size-3.5" /> {t('variablePrompt.execute')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    ) : (
+      <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+        <DialogContent className="sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-7xl p-0">
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle>{t('variablePrompt.manageTitle')}</DialogTitle>
+            <DialogDescription className="sr-only">{t('variablePrompt.manageDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="vp-layout">
+            <div className="vp-preset-list">
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.presets')}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-xs" onClick={() => handleCreatePreset('New Preset')}>
+                      <Plus />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('variablePrompt.saveAsNewPreset')}</TooltipContent>
+                </Tooltip>
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="vp-preset-items">
+                  {presets.length === 0 ? (
+                    <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">{t('variablePrompt.noPresetsYet')}</div>
+                  ) : (
+                    presets.map(p => (
+                      <div
+                        key={p.id}
+                        className={`vp-preset-item ${selectedPresetId === p.id ? 'active' : ''}`}
+                        onClick={() => handleSelectPreset(p.id)}
+                        onDoubleClick={() => handleDoubleClickName(p)}
+                      >
+                        {editingPresetNameId === p.id ? (
+                          <Input
+                            ref={nameInputRef}
+                            className="h-6 text-xs px-1"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onBlur={commitNameEdit}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitNameEdit();
+                              if (e.key === 'Escape') setEditingPresetNameId('');
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="vp-preset-item-name">{p.name}</span>
+                        )}
+                        {selectedPresetId === p.id && editingPresetNameId !== p.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="shrink-0"
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeletePreset(true); }}
+                          >
+                            <X className="size-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </div>
-            <ScrollArea className="flex-1">
-              <div className="vp-preset-items">
-                {presets.length === 0 ? (
-                  <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">{t('variablePrompt.noPresetsYet')}</div>
-                ) : (
-                  presets.map(p => (
-                    <div
-                      key={p.id}
-                      className={`vp-preset-item ${selectedPresetId === p.id ? 'active' : ''}`}
-                      onClick={() => handleSelectPreset(p.id)}
-                      onDoubleClick={() => handleDoubleClickName(p)}
+
+            <div className="vp-center">
+              {(selectedPreset || isCreatingNew) && (
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.preset')}</span>
+                  {editingToolbarName ? (
+                    <Input
+                      ref={toolbarNameInputRef}
+                      className="h-7 text-sm flex-1"
+                      value={toolbarName}
+                      onChange={(e) => setToolbarName(e.target.value)}
+                      onBlur={() => setEditingToolbarName(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditingToolbarName(false);
+                        if (e.key === 'Escape') setEditingToolbarName(false);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className="text-sm flex-1 truncate cursor-text px-1"
+                      onDoubleClick={() => setEditingToolbarName(true)}
+                      title={t('commandDetail.doubleClickToRename')}
                     >
-                      {editingPresetNameId === p.id ? (
-                        <Input
-                          ref={nameInputRef}
-                          className="h-6 text-xs px-1"
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          onBlur={commitNameEdit}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') commitNameEdit();
-                            if (e.key === 'Escape') setEditingPresetNameId('');
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span className="vp-preset-item-name">{p.name}</span>
+                      {toolbarName || 'Default'}
+                    </span>
+                  )}
+                </div>
+              )}
+              <ScrollArea className="vp-vars-scroll">
+                <div className="space-y-3 p-4">
+                  {variables.map((v, i) => (
+                    <div key={v.name} className="space-y-1">
+                      <Label className="text-sm font-medium">{v.name}</Label>
+                      {v.description && (
+                        <p className="text-xs text-muted-foreground">{v.description}</p>
                       )}
-                      {selectedPresetId === p.id && editingPresetNameId !== p.id && (
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleDeletePreset(); }}
-                        >
-                          <X className="size-3" />
-                        </Button>
+                      <Input
+                        className="font-mono"
+                        placeholder={v.example ? t('variablePrompt.examplePrefix', { example: v.example }) : t('variablePrompt.enterValueFor', { name: v.name })}
+                        value={values[v.name] || ''}
+                        onChange={(e) => setValues({ ...values, [v.name]: e.target.value })}
+                        onKeyDown={handleKeyDown}
+                        autoFocus={i === 0}
+                      />
+                      {v.defaultExpr && (
+                        <p className="text-xs text-muted-foreground">
+                          {t('variablePrompt.default')} <code className="bg-muted px-1 rounded">{v.defaultExpr}</code>
+                        </p>
                       )}
                     </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>}
+                  ))}
+                </div>
+              </ScrollArea>
 
-          {/* Center: variable form */}
-          <div className="vp-center">
-            {mode === 'manage' && (selectedPreset || isCreatingNew) && (
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.preset')}</span>
-                {editingToolbarName ? (
-                  <Input
-                    ref={toolbarNameInputRef}
-                    className="h-7 text-sm flex-1"
-                    value={toolbarName}
-                    onChange={(e) => setToolbarName(e.target.value)}
-                    onBlur={() => setEditingToolbarName(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') setEditingToolbarName(false);
-                      if (e.key === 'Escape') setEditingToolbarName(false);
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="text-sm flex-1 truncate cursor-text px-1"
-                    onDoubleClick={() => setEditingToolbarName(true)}
-                    title={t('commandDetail.doubleClickToRename')}
-                  >
-                    {toolbarName || 'Default'}
-                  </span>
-                )}
-              </div>
-            )}
-            <ScrollArea className="vp-vars-scroll">
-              <div className="space-y-3 p-4">
-                {variables.map((v, i) => (
-                  <div key={v.name} className="space-y-1">
-                    <Label className="text-sm font-medium">{v.name}</Label>
-                    {v.description && (
-                      <p className="text-xs text-muted-foreground">{v.description}</p>
-                    )}
-                    <Input
-                      className="font-mono"
-                      placeholder={v.example ? t('variablePrompt.examplePrefix', { example: v.example }) : t('variablePrompt.enterValueFor', { name: v.name })}
-                      value={values[v.name] || ''}
-                      onChange={(e) => setValues({ ...values, [v.name]: e.target.value })}
-                      onKeyDown={handleKeyDown}
-                      autoFocus={i === 0}
-                    />
-                    {v.defaultExpr && (
-                      <p className="text-xs text-muted-foreground">
-                        {t('variablePrompt.default')} <code className="bg-muted px-1 rounded">{v.defaultExpr}</code>
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+              <Separator />
 
-            <Separator />
-
-            <DialogFooter className="px-4 py-4">
-              {mode === 'fill' ? (
-                <>
-                  <Button variant="ghost" onClick={onCancel}>{t('variablePrompt.cancel')}</Button>
-                  <Button variant="success" onClick={handleSubmit}>
-                    <Play className="size-4" /> {t('variablePrompt.execute')}
+              <DialogFooter className="px-4 py-4">
+                {!isCreatingNew && (
+                  <Button variant="outline" className="group gap-0 overflow-hidden" onClick={() => handleCreatePreset('New Preset')}>
+                    <span className="max-w-0 opacity-0 group-hover:max-w-40 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap overflow-hidden">
+                      {t('variablePrompt.saveAsNew')}
+                    </span>
+                    <Plus className="size-4 shrink-0 ml-0 group-hover:ml-1.5 transition-[margin] duration-200" />
                   </Button>
-                </>
-              ) : (
-                <>
-                  {!isCreatingNew && (
-                    <Button variant="outline" className="group gap-0 overflow-hidden" onClick={() => handleCreatePreset('New Preset')}>
-                      <span className="max-w-0 opacity-0 group-hover:max-w-40 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap overflow-hidden">
-                        {t('variablePrompt.saveAsNew')}
-                      </span>
-                      <Plus className="size-4 shrink-0 ml-0 group-hover:ml-1.5 transition-[margin] duration-200" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="default"
-                    onClick={handleSaveCurrentPreset}
-                    disabled={!isDirty}
-                  >
-                    <Check className="size-4" /> {t('variablePrompt.save')}
-                  </Button>
-                </>
-              )}
-            </DialogFooter>
+                )}
+                <Button
+                  variant="default"
+                  onClick={handleSaveCurrentPreset}
+                  disabled={!isDirty}
+                >
+                  <Check className="size-4" /> {t('variablePrompt.save')}
+                </Button>
+              </DialogFooter>
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    )}
+
+    <AlertDialog open={confirmDeletePreset} onOpenChange={setConfirmDeletePreset}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Preset</AlertDialogTitle>
+          <AlertDialogDescription>Are you sure you want to delete this preset? This cannot be undone.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => { handleDeletePreset(); setConfirmDeletePreset(false); }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
 

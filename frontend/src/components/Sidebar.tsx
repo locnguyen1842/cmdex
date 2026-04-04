@@ -23,7 +23,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { Category, Command } from '../types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -34,9 +33,37 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group } from 'lucide-react';
+import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { isMac, cmdSymbol as cmd } from '../hooks/useKeyboardShortcuts';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
+
+const SHORTCUT_GROUPS = [
+  {
+    label: 'Navigation',
+    items: [
+      { keys: [`${cmd}P`],               description: 'Command Palette' },
+      { keys: ['Ctrl+Tab'],              description: 'Next tab' },
+      { keys: ['Ctrl+Shift+Tab'],        description: 'Previous tab' },
+      { keys: [isMac ? '⌘W' : 'Ctrl+W'], description: 'Close tab' },
+    ],
+  },
+  {
+    label: 'Commands',
+    items: [
+      { keys: [`${cmd}↩`],  description: 'Run command' },
+      { keys: [`${cmd}E`],  description: 'Edit command' },
+      { keys: [`${cmd}N`],  description: 'New command' },
+    ],
+  },
+  {
+    label: 'App',
+    items: [
+      { keys: [`${cmd},`], description: 'Settings' },
+    ],
+  },
+];
 
 /** Normalize null/undefined/'' to '' for uncategorized bucket */
 const normCatId = (id: string | null | undefined): string => id || '';
@@ -103,12 +130,16 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
             <GripVertical className="size-3.5" />
           </span>
           <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="cmd-title">{cmd.title}</span>
-          {cmd.tags && cmd.tags.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-              {cmd.tags[0]}
-            </Badge>
-          )}
+          <span className="cmd-body">
+            <span className="cmd-title">{cmd.title}</span>
+            {cmd.tags && cmd.tags.length > 0 && (
+              <span className="cmd-tags-row">
+                {cmd.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="cmd-tag-chip">#{tag}</span>
+                ))}
+              </span>
+            )}
+          </span>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -305,6 +336,37 @@ const Sidebar: React.FC<SidebarProps> = ({
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.settings')}</TooltipContent>
           </Tooltip>
+
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon-sm">
+                    <Info className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Keyboard Shortcuts</TooltipContent>
+            </Tooltip>
+            <PopoverContent side="bottom" align="end" className="shortcuts-popup w-64 p-3">
+              <div className="shortcuts-popup-title">Keyboard Shortcuts</div>
+              {SHORTCUT_GROUPS.map((group) => (
+                <div key={group.label} className="shortcuts-group">
+                  <div className="shortcuts-group-label">{group.label}</div>
+                  {group.items.map((item) => (
+                    <div key={item.description} className="shortcut-row">
+                      <span className="shortcut-desc">{item.description}</span>
+                      <span className="shortcut-keys-row">
+                        {item.keys.map((k) => (
+                          <kbd key={k} className="kbd">{k}</kbd>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="sidebar-search-row">
           <div className="relative flex-1">

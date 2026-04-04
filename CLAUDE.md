@@ -63,7 +63,8 @@ Platform-aware shell: uses `$SHELL -lc` on Unix (falls back to `/bin/sh`), `cmd 
 - **`App.tsx`** - Central state management; all modals controlled via discriminated union `ModalState` type
 - **`types.ts`** - TypeScript interfaces mirroring Go models in `models.go`
 - **`i18n.ts`** - i18next setup; translations in `src/locales/en.json`
-- **UI components** in `src/components/`: `Sidebar`, `CommandDetail`, `CommandEditor`, `CategoryEditor`, `VariablePrompt`, `HistoryPane`, `OutputPane`, `SettingsDialog`
+- **UI components** in `src/components/`: `Sidebar`, `CommandDetail`, `CommandEditorTab`, `TabBar`, `CategoryEditor`, `VariablePrompt`, `HistoryPane`, `OutputPane`, `SettingsDialog`
+- **Tab system**: Editor uses tab-based interface (not modals). Each command opens in a tab with dirty state tracking. See **Tab-Based Editor Architecture** below
 - **shadcn/ui components** in `src/components/ui/` (Radix UI + Tailwind CSS + CVA)
 - Styling: Tailwind CSS v4 with custom CSS variables in `style.css` for the dark theme (`--bg-primary`, `--accent-primary`, etc.)
 
@@ -78,6 +79,28 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 5. Update TypeScript interfaces in `frontend/src/types.ts`
 6. Update the relevant editor component (`CommandEditor.tsx` or `CategoryEditor.tsx`)
 7. Update calls in `App.tsx`
+
+### Tab-Based Editor Architecture
+
+The editor uses a tab-based interface (replaced modal `CommandEditor`):
+- **Tab types**: `TabKind = 'welcome' | 'detail' | 'edit'` — discriminated union tracks tab purpose
+- **Dirty state**: Each tab tracks `isDirty` for unsaved changes; visual indicator shows dot on tab
+- **State management**: Tabs stored in array; `activeTabId` controls focus; `CommandEditorTab` handles editor UI
+- **Adding features**: Extend `TabKind` for new tab types; maintain dirty tracking via `onDirtyChange` callback with ref pattern (not direct state to avoid re-render loops)
+
+### Preset & Variable UX Patterns
+
+**Preset Management** (inline editing in `CommandDetail`):
+- Presets display as chips with context menu (rename, delete)
+- "+" chip creates empty preset with immediate name edit mode
+- Variables render as card rows with name label and value input
+- **Keyboard navigation**: Tab/Shift+Tab between variable inputs; Enter saves; Escape cancels
+- **Visual feedback**: Focused variable highlighted in command preview; TEMPLATE badge on placeholder view
+
+**Variable Preview System**:
+- Dual-preview: Template (with `{{var}}` placeholders) + Resolved (with actual values)
+- Focus highlight follows editing variable; `var-focused` CSS class for outline
+- Preset save: Check icon button in Preview header; auto-save on Enter
 
 ## Key Design Decisions
 
@@ -103,3 +126,37 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 - `wails build` requires `frontend/dist` to exist — run `cd frontend && pnpm build` first, or use `wails dev` which handles it
 - When changing script storage format, delete `~/.cmdex/cmdex.db` to reset
 - `RenameCommand` is a separate metadata-only DB method — don't re-process scripts through `UpdateCommand` just to change the title
+
+### Schema Migration Pattern (SQLite)
+
+SQLite doesn't support `ALTER COLUMN`, so schema changes require table recreation. Follow this pattern in `db.go`:
+
+```go
+// Migration v1 -> v2 example: make column nullable with FK change
+if version < 2 {
+    tx, err := db.conn.Begin()
+    if err != nil { return err }
+    defer tx.Rollback()
+
+    migrations := []string{
+        `CREATE TABLE commands_new (...)`,  // New schema
+        `INSERT INTO commands_new SELECT * FROM commands`,  // Copy data
+        `DROP TABLE commands`,
+        `ALTER TABLE commands_new RENAME TO commands`,
+        // Re-create triggers, indexes, etc.
+    }
+    for _, m := range migrations {
+        if _, err := tx.Exec(m); err != nil { return err }
+    }
+    if _, err := tx.Exec("UPDATE schema_version SET version = ?", 2); err != nil {
+        return err
+    }
+    if err := tx.Commit(); err != nil { return err }
+}
+```
+
+**Key rules:**
+- Always wrap in transactions (`BEGIN`/`COMMIT`/`ROLLBACK`)
+- Recreate FTS triggers after table changes
+- Update `schemaVersion` constant at top of file
+- Handle data transformation (e.g., empty string → NULL) in migration

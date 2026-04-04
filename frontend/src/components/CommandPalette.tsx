@@ -1,0 +1,201 @@
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+} from 'react';
+import { Command, Category } from '../types';
+import { cmdSymbol } from '../hooks/useKeyboardShortcuts';
+import { FileText, Search, X } from 'lucide-react';
+
+interface CommandPaletteProps {
+  open: boolean;
+  commands: Command[];
+  categories: Category[];
+  onClose: () => void;
+  onOpen: (cmd: Command) => void;
+}
+
+function matches(query: string, cmd: Command): boolean {
+  const q = query.toLowerCase();
+  return (
+    cmd.title.toLowerCase().includes(q) ||
+    (cmd.description || '').toLowerCase().includes(q) ||
+    (cmd.tags || []).some((t) => t.toLowerCase().includes(q))
+  );
+}
+
+/** Highlight substring matches in text */
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="palette-match">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+function scriptSnippet(content: string): string {
+  const body = content.replace(/^#!.*\n?/, '').trim();
+  const firstLine = body.split('\n').find((l) => l.trim()) || '';
+  return firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine;
+}
+
+const CommandPalette: React.FC<CommandPaletteProps> = ({
+  open,
+  commands,
+  categories,
+  onClose,
+  onOpen,
+}) => {
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const catMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    categories.forEach((c) => { m[c.id] = c.name; });
+    return m;
+  }, [categories]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim();
+    const list = q ? commands.filter((c) => matches(q, c)) : commands;
+    return list.slice(0, 30);
+  }, [query, commands]);
+
+  // Reset selection when results change
+  useEffect(() => { setActiveIndex(0); }, [filtered]);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (open) {
+      setQuery('');
+      setActiveIndex(0);
+      const t = setTimeout(() => inputRef.current?.focus(), 30);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (!listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(`[data-idx="${activeIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const cmd = filtered[activeIndex];
+        if (!cmd) return;
+        onOpen(cmd);
+        onClose();
+      } else if (e.key === 'Escape') {
+        onClose();
+      }
+    },
+    [filtered, activeIndex, onOpen, onClose],
+  );
+
+  if (!open) return null;
+
+  return (
+    <div className="palette-overlay" onMouseDown={onClose}>
+      <div className="palette-modal" onMouseDown={(e) => e.stopPropagation()}>
+
+        {/* Search row */}
+        <div className="palette-search">
+          <Search size={15} className="palette-search-icon" />
+          <input
+            ref={inputRef}
+            className="palette-input"
+            placeholder="Search commands…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {query && (
+            <button className="palette-clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }}>
+              <X size={13} />
+            </button>
+          )}
+          <div className="palette-shortcut-badge">
+            <kbd>{cmdSymbol}</kbd><kbd>P</kbd>
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="palette-results" ref={listRef}>
+          {filtered.length === 0 ? (
+            <div className="palette-empty">No commands match "{query}"</div>
+          ) : (
+            filtered.map((cmd, i) => {
+              const catName = cmd.categoryId ? catMap[cmd.categoryId] : null;
+              const isActive = i === activeIndex;
+              return (
+                <div
+                  key={cmd.id}
+                  data-idx={i}
+                  className={`palette-item${isActive ? ' active' : ''}`}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onClick={() => { onOpen(cmd); onClose(); }}
+                >
+                  <FileText size={13} className="palette-item-icon" />
+                  <div className="palette-item-body">
+                    <span className="palette-item-title">
+                      <Highlight text={cmd.title} query={query.trim()} />
+                    </span>
+                    {cmd.description && (
+                      <span className="palette-item-desc">
+                        <Highlight text={cmd.description} query={query.trim()} />
+                      </span>
+                    )}
+                    {cmd.scriptContent && (
+                      <span className="palette-item-script">
+                        {scriptSnippet(cmd.scriptContent)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="palette-item-meta">
+                    {catName && <span className="palette-cat-badge">{catName}</span>}
+                    {(cmd.tags || []).slice(0, 2).map((tag) => (
+                      <span key={tag} className="palette-tag-badge">#{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer hints */}
+        <div className="palette-footer">
+          <span className="palette-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span className="palette-hint"><kbd>↩</kbd> open</span>
+          <span className="palette-hint"><kbd>Esc</kbd> close</span>
+          <span className="palette-hint" style={{ marginLeft: 'auto', opacity: 0.5 }}>
+            {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CommandPalette;

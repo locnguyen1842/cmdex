@@ -23,10 +23,8 @@ const (
 )
 
 type Executor struct {
-	shell    string
-	flag     string
-	tmpFiles []string // temp files created by OpenInTerminal for cleanup
-	tmpMu    sync.Mutex
+	shell string
+	flag  string
 }
 
 func NewExecutor() *Executor {
@@ -187,42 +185,30 @@ func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)
 	return result
 }
 
-// CleanupTempFiles removes temp files created by OpenInTerminal.
-func (e *Executor) CleanupTempFiles() {
-	e.tmpMu.Lock()
-	defer e.tmpMu.Unlock()
-	for _, f := range e.tmpFiles {
-		os.Remove(f)
-	}
-	e.tmpFiles = nil
-}
-
 // OpenInTerminal opens a terminal and runs the resolved script.
+// Each LaunchFn receives the raw script body and handles its own quoting.
 func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error {
-	tmpPath, err := writeTempScript(scriptContent)
-	if err != nil {
-		return err
+	body := scriptContent
+	if strings.HasPrefix(body, "#!") {
+		if idx := strings.Index(body, "\n"); idx != -1 {
+			body = body[idx+1:]
+		}
 	}
-	// Track temp file for cleanup on shutdown
-	e.tmpMu.Lock()
-	e.tmpFiles = append(e.tmpFiles, tmpPath)
-	e.tmpMu.Unlock()
-
-	cmdText := "bash " + tmpPath
+	body = strings.TrimSpace(body)
 
 	defs := e.terminalDefs()
 
 	if terminalID != "" {
 		for _, d := range defs {
 			if d.ID == terminalID && e.terminalExists(d) && d.LaunchFn != nil {
-				return d.LaunchFn(e, cmdText)
+				return d.LaunchFn(e, body)
 			}
 		}
 	}
 
 	for _, d := range defs {
 		if e.terminalExists(d) && d.LaunchFn != nil {
-			return d.LaunchFn(e, cmdText)
+			return d.LaunchFn(e, body)
 		}
 	}
 	return fmt.Errorf("no terminal emulator found")
@@ -280,11 +266,15 @@ func (e *Executor) terminalDefs() []terminalDef {
 }
 
 func (e *Executor) darwinTerminals() []terminalDef {
+	// osa builds a LaunchFn that wraps raw body in a shell invocation,
+	// escapes for AppleScript, and runs via osascript.
 	osa := func(appName, script string) func(*Executor, string) error {
-		return func(_ *Executor, cmdText string) error {
-			escaped := strings.ReplaceAll(cmdText, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			s := fmt.Sprintf(script, escaped)
+		return func(ex *Executor, body string) error {
+			escapedBody := strings.ReplaceAll(body, "'", `'\''`)
+			shellCmd := ex.shell + " -lc '" + escapedBody + "'"
+			asEscaped := strings.ReplaceAll(shellCmd, `\`, `\\`)
+			asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
+			s := fmt.Sprintf(script, asEscaped)
 			return exec.Command("osascript", "-e", s).Start()
 		}
 	}
@@ -309,37 +299,39 @@ end tell`),
 		},
 		{
 			ID: "warp", Name: "Warp", Paths: []string{"/Applications/Warp.app"}, IsApp: true,
-			LaunchFn: func(_ *Executor, cmdText string) error {
-				escaped := strings.ReplaceAll(cmdText, `\`, `\\`)
-				escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			LaunchFn: func(ex *Executor, body string) error {
+				escapedBody := strings.ReplaceAll(body, "'", `'\''`)
+				shellCmd := ex.shell + " -lc '" + escapedBody + "'"
+				asEscaped := strings.ReplaceAll(shellCmd, `\`, `\\`)
+				asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
 				s := fmt.Sprintf(`tell application "Warp" to activate
 delay 0.5
 tell application "System Events" to keystroke "%s"
-tell application "System Events" to key code 36`, escaped)
+tell application "System Events" to key code 36`, asEscaped)
 				return exec.Command("osascript", "-e", s).Start()
 			},
 		},
 		{
 			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, cmdText string) error {
-				return exec.Command("alacritty", "-e", ex.shell, "-lc", cmdText+"; exec "+ex.shell).Start()
+			LaunchFn: func(ex *Executor, body string) error {
+				return exec.Command("alacritty", "-e", ex.shell, "-c", body+"; exec "+ex.shell).Start()
 			},
 		},
 		{
 			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, cmdText string) error {
-				return exec.Command("kitty", ex.shell, "-lc", cmdText+"; exec "+ex.shell).Start()
+			LaunchFn: func(ex *Executor, body string) error {
+				return exec.Command("kitty", ex.shell, "-c", body+"; exec "+ex.shell).Start()
 			},
 		},
 		{
 			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, cmdText string) error {
-				return exec.Command("ghostty", "-e", ex.shell, "-lc", cmdText+"; exec "+ex.shell).Start()
+			LaunchFn: func(ex *Executor, body string) error {
+				return exec.Command("ghostty", "-e", ex.shell, "-c", body+"; exec "+ex.shell).Start()
 			},
 		},
 		{
 			ID: "hyper", Name: "Hyper", Paths: []string{"/Applications/Hyper.app"}, IsApp: true,
-			LaunchFn: func(_ *Executor, cmdText string) error {
+			LaunchFn: func(_ *Executor, body string) error {
 				return exec.Command("open", "-a", "Hyper").Start()
 			},
 		},
@@ -347,66 +339,75 @@ tell application "System Events" to key code 36`, escaped)
 }
 
 func (e *Executor) linuxTerminals() []terminalDef {
-	shellExec := func(bin string, buildArgs func(string, string) []string) func(*Executor, string) error {
-		return func(ex *Executor, cmdText string) error {
-			args := buildArgs(ex.shell, cmdText)
+	// shellExec builds a LaunchFn that receives the raw body.
+	shellExec := func(bin string, buildArgs func(shell, body string) []string) func(*Executor, string) error {
+		return func(ex *Executor, body string) error {
+			args := buildArgs(ex.shell, body)
 			return exec.Command(bin, args...).Start()
 		}
 	}
 
 	return []terminalDef{
 		{ID: "gnome-terminal", Name: "GNOME Terminal", Paths: []string{"gnome-terminal"},
-			LaunchFn: shellExec("gnome-terminal", func(sh, cmd string) []string {
-				return []string{"--", sh, "-c", cmd + "; exec " + sh}
+			LaunchFn: shellExec("gnome-terminal", func(sh, body string) []string {
+				return []string{"--", sh, "-c", body + "; exec " + sh}
 			})},
 		{ID: "gnome-console", Name: "GNOME Console", Paths: []string{"kgx"},
-			LaunchFn: shellExec("kgx", func(sh, cmd string) []string {
-				return []string{"-e", sh + ` -c '` + cmd + "; exec " + sh + `'`}
+			LaunchFn: shellExec("kgx", func(sh, body string) []string {
+				escaped := strings.ReplaceAll(body, "'", `'\''`)
+				return []string{"-e", sh + " -c '" + escaped + "; exec " + sh + "'"}
 			})},
 		{ID: "konsole", Name: "Konsole", Paths: []string{"konsole"},
-			LaunchFn: shellExec("konsole", func(sh, cmd string) []string {
-				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
+			LaunchFn: shellExec("konsole", func(sh, body string) []string {
+				return []string{"-e", sh, "-c", body + "; exec " + sh}
 			})},
 		{ID: "xfce4-terminal", Name: "XFCE Terminal", Paths: []string{"xfce4-terminal"},
-			LaunchFn: shellExec("xfce4-terminal", func(sh, cmd string) []string {
-				return []string{"-e", sh + " -c '" + cmd + "; exec " + sh + "'"}
+			LaunchFn: shellExec("xfce4-terminal", func(sh, body string) []string {
+				escaped := strings.ReplaceAll(body, "'", `'\''`)
+				return []string{"-e", sh + " -c '" + escaped + "; exec " + sh + "'"}
 			})},
 		{ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty"},
-			LaunchFn: shellExec("alacritty", func(sh, cmd string) []string {
-				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
+			LaunchFn: shellExec("alacritty", func(sh, body string) []string {
+				return []string{"-e", sh, "-c", body + "; exec " + sh}
 			})},
 		{ID: "kitty", Name: "Kitty", Paths: []string{"kitty"},
-			LaunchFn: shellExec("kitty", func(sh, cmd string) []string {
-				return []string{sh, "-c", cmd + "; exec " + sh}
+			LaunchFn: shellExec("kitty", func(sh, body string) []string {
+				return []string{sh, "-c", body + "; exec " + sh}
 			})},
 		{ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty"},
-			LaunchFn: shellExec("ghostty", func(sh, cmd string) []string {
-				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
+			LaunchFn: shellExec("ghostty", func(sh, body string) []string {
+				return []string{"-e", sh, "-c", body + "; exec " + sh}
 			})},
 		{ID: "xterm", Name: "XTerm", Paths: []string{"xterm"},
-			LaunchFn: shellExec("xterm", func(sh, cmd string) []string {
-				return []string{"-e", sh, "-c", cmd + "; exec " + sh}
+			LaunchFn: shellExec("xterm", func(sh, body string) []string {
+				return []string{"-e", sh, "-c", body + "; exec " + sh}
 			})},
 	}
 }
 
 func (e *Executor) windowsTerminals() []terminalDef {
+	escapeCmdExe := func(body string) string {
+		s := strings.ReplaceAll(body, `"`, `""`)
+		s = strings.ReplaceAll(s, `%`, `%%`)
+		return `"` + s + `"`
+	}
+
 	return []terminalDef{
 		{ID: "windows-terminal", Name: "Windows Terminal", Paths: []string{"wt"},
-			LaunchFn: func(_ *Executor, cmdText string) error {
-				return exec.Command("wt", "cmd", "/k", cmdText).Start()
+			LaunchFn: func(_ *Executor, body string) error {
+				return exec.Command("wt", "cmd", "/k", escapeCmdExe(body)).Start()
 			}},
 		{ID: "cmd", Name: "Command Prompt", Paths: []string{"cmd"},
-			LaunchFn: func(_ *Executor, cmdText string) error {
-				return exec.Command("cmd", "/c", "start", "cmd", "/k", cmdText).Start()
+			LaunchFn: func(_ *Executor, body string) error {
+				return exec.Command("cmd", "/c", "start", "cmd", "/k", escapeCmdExe(body)).Start()
 			}},
 		{ID: "pwsh", Name: "PowerShell", Paths: []string{"pwsh", "powershell"},
-			LaunchFn: func(_ *Executor, cmdText string) error {
+			LaunchFn: func(_ *Executor, body string) error {
 				bin := "powershell"
 				if _, err := exec.LookPath("pwsh"); err == nil {
 					bin = "pwsh"
 				}
-				return exec.Command(bin, "-NoExit", "-Command", cmdText).Start()
+				return exec.Command(bin, "-NoExit", "-Command", body).Start()
 			}},
 	}
 }
