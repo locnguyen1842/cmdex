@@ -16,6 +16,8 @@ function buildKey(e: KeyboardEvent): string {
 export const isMac =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
 
+export const cmdSymbol = isMac ? '⌘' : 'Ctrl';
+
 /** Human-readable label for a shortcut combo.
  *  Parts: 'cmd' | 'ctrl' | 'alt' | 'shift' | 'enter' | 'tab' | 'escape' | any char
  */

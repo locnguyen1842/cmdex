@@ -37,9 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { GetScriptBody } from "../../wailsjs/go/main/App";
-import { isMac } from "../hooks/useKeyboardShortcuts";
-
-const cmdKey = isMac ? '⌘' : 'Ctrl';
+import { cmdSymbol as cmdKey } from "../hooks/useKeyboardShortcuts";
 
 function ShortcutHint({ label, shortcut }: { label: string; shortcut: string }) {
   return (

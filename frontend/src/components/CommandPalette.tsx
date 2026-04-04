@@ -6,7 +6,7 @@ import React, {
   useCallback,
 } from 'react';
 import { Command, Category } from '../types';
-import { isMac } from '../hooks/useKeyboardShortcuts';
+import { cmdSymbol } from '../hooks/useKeyboardShortcuts';
 import { FileText, Search, X } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -112,8 +112,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   );
 
   if (!open) return null;
-
-  const cmdSymbol = isMac ? '⌘' : 'Ctrl';
 
   return (
     <div className="palette-overlay" onMouseDown={onClose}>

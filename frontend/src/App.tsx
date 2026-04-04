@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import './style.css';
 import Sidebar from './components/Sidebar';
@@ -64,6 +64,7 @@ type ModalState =
     | { type: 'settings' };
 
 const THEME_STORAGE_KEY = 'cmdex-theme';
+const EDITOR_TAB_ID = '__editor__';
 
 export const THEMES = [
     { id: 'vscode-dark', label: 'VS Code Dark+' },
@@ -287,8 +288,6 @@ function App() {
         });
     };
 
-    const EDITOR_TAB_ID = '__editor__';
-
     const openEditorTab = useCallback((data: EditorTabData) => {
         setEditorTabData(data);
         setActiveTabId(EDITOR_TAB_ID);
@@ -350,6 +349,10 @@ function App() {
 
     const handleSelectTab = (commandId: string) => {
         if (commandId === activeTabId) return;
+        if (commandId === EDITOR_TAB_ID) {
+            setActiveTabId(EDITOR_TAB_ID);
+            return;
+        }
         const cmd = commands.find(c => c.id === commandId);
         if (cmd) {
             setSelectedCommand(cmd);
@@ -376,25 +379,13 @@ function App() {
 
     const handleManagePresets = async () => {
         if (!selectedCommand) return;
-        const vars = await GetVariables(selectedCommand.id);
-        const presets = await GetPresets(selectedCommand.id);
-        setModal({
-            type: 'managePresets',
-            variables: vars || [],
-            commandId: selectedCommand.id,
-            presets: presets || [],
-        });
+        const [vars, presets] = await Promise.all([GetVariables(selectedCommand.id), GetPresets(selectedCommand.id)]);
+        setModal({ type: 'managePresets', variables: vars || [], commandId: selectedCommand.id, presets: presets || [] });
     };
 
     const handleManagePresetsForCommand = async (cmd: Command) => {
-        const vars = await GetVariables(cmd.id);
-        const presets = await GetPresets(cmd.id);
-        setModal({
-            type: 'managePresets',
-            variables: vars || [],
-            commandId: cmd.id,
-            presets: presets || [],
-        });
+        const [vars, presets] = await Promise.all([GetVariables(cmd.id), GetPresets(cmd.id)]);
+        setModal({ type: 'managePresets', variables: vars || [], commandId: cmd.id, presets: presets || [] });
     };
 
     const handleDeleteCommand = (cmd: Command) => {
@@ -523,19 +514,18 @@ function App() {
         setModal({ ...modal, presets: presets || [] });
     };
 
-    const refreshSelectedCommand = async (): Promise<Command[]> => {
+    const refreshSelectedCommand = async (): Promise<Command | null> => {
         const cmds = await GetCommands();
         setCommands(cmds || []);
-        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand?.id);
+        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand?.id) ?? null;
         if (refreshed) setSelectedCommand(refreshed);
-        return cmds || [];
+        return refreshed;
     };
 
     const handleAddPresetFromDetail = async (): Promise<string> => {
         if (!selectedCommand) return '';
         await SavePreset(selectedCommand.id, 'New Preset', {});
-        const cmds = await refreshSelectedCommand();
-        const refreshed = cmds.find((c: Command) => c.id === selectedCommand.id);
+        const refreshed = await refreshSelectedCommand();
         return refreshed?.presets?.at(-1)?.id ?? '';
     };
 
@@ -631,12 +621,6 @@ function App() {
         [`${cmdOrCtrl}+t`]: () => {
             if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
         },
-        'ctrl+t': () => {
-            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
-        },
-        'meta+t': () => {
-            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
-        },
 
         // Settings
         [`${cmdOrCtrl}+,`]: () => {
@@ -673,10 +657,10 @@ function App() {
         },
     });
 
-    // Filter history to active command
-    const commandHistory = selectedCommand
-        ? executionHistory.filter(r => r.commandId === selectedCommand.id)
-        : executionHistory;
+    const commandHistory = useMemo(
+        () => selectedCommand ? executionHistory.filter(r => r.commandId === selectedCommand.id) : executionHistory,
+        [selectedCommand?.id, executionHistory]
+    );
 
     return (
         <TooltipProvider>

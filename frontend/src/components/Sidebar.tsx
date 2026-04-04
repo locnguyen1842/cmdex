@@ -35,11 +35,9 @@ import {
 } from '@/components/ui/context-menu';
 import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { isMac } from '../hooks/useKeyboardShortcuts';
+import { isMac, cmdSymbol as cmd } from '../hooks/useKeyboardShortcuts';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
-
-const cmd = isMac ? '⌘' : 'Ctrl';
 
 const SHORTCUT_GROUPS = [
   {
@@ -48,7 +46,7 @@ const SHORTCUT_GROUPS = [
       { keys: [`${cmd}P`],               description: 'Command Palette' },
       { keys: ['Ctrl+Tab'],              description: 'Next tab' },
       { keys: ['Ctrl+Shift+Tab'],        description: 'Previous tab' },
-      { keys: [isMac ? 'Ctrl+W' : 'Ctrl+W'], description: 'Close tab' },
+      { keys: [isMac ? '⌘W' : 'Ctrl+W'], description: 'Close tab' },
     ],
   },
   {
