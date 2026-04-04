@@ -88,9 +88,15 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
     return () => { active = false; };
   }, [command?.id, defaultCategoryId]);
 
+  const initialCategoryId = command?.categoryId ?? defaultCategoryId ?? '';
+
   // Track dirty state — includes all editable fields
   const isDirty = useMemo(() => {
-    if (isNew) return title !== '' || scriptBody !== '' || description !== '';
+    if (isNew) {
+      return title !== '' || scriptBody !== '' || description !== ''
+        || categoryId !== initialCategoryId
+        || tags.length > 0;
+    }
     const tagsMatch = JSON.stringify(tags) === JSON.stringify(command?.tags ?? []);
     const varsMatch = JSON.stringify(variables.map(v => ({ name: v.name, description: v.description, default: v.default, example: v.example })))
       === JSON.stringify((command?.variables ?? []).map(v => ({ name: v.name, description: v.description, default: v.default, example: v.example })));
@@ -102,7 +108,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
       !tagsMatch ||
       !varsMatch
     );
-  }, [title, description, scriptBody, baselineScriptBody, categoryId, tags, variables, isNew, command]);
+  }, [title, description, scriptBody, baselineScriptBody, categoryId, tags, variables, isNew, command, initialCategoryId]);
 
   const onDirtyChangeRef = useRef(onDirtyChange);
   onDirtyChangeRef.current = onDirtyChange;
@@ -155,16 +161,16 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
       {/* Header toolbar */}
       <div className="editor-tab-toolbar">
         <span className="editor-tab-breadcrumb">
-          {isNew ? 'New Command' : `Edit: ${command.title}`}
+          {isNew ? t('commandEditor.newCommand') : t('commandEditor.breadcrumbEdit', { title: command.title })}
         </span>
         <div className="editor-tab-actions">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" onClick={onDiscard}>
-                <X className="size-4 mr-1" /> Discard
+                <X className="size-4 mr-1" /> {t('commandEditor.discard')}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Discard changes (Esc)</TooltipContent>
+            <TooltipContent>{t('commandEditor.discardTooltip')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -174,10 +180,10 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
                 onClick={handleSave}
                 disabled={!title.trim() || !scriptBody.trim()}
               >
-                <Save className="size-4 mr-1" /> Save
+                <Save className="size-4 mr-1" /> {t('commandEditor.save')}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Save (⌘S)</TooltipContent>
+            <TooltipContent>{t('commandEditor.saveTooltip')}</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -186,26 +192,26 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
 
         {/* Title */}
         <div className="editor-section">
-          <label className="editor-label">Title</label>
+          <label className="editor-label">{t('commandEditor.title')}</label>
           <input
             className="editor-title-input"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="Command title…"
+            placeholder={t('commandEditor.titlePlaceholder')}
             autoFocus={isNew}
           />
         </div>
 
         {/* Category */}
         <div className="editor-section">
-          <label className="editor-label">Category</label>
+          <label className="editor-label">{t('commandEditor.category')}</label>
           <Select value={categoryId || '__none__'} onValueChange={v => setCategoryId(v === '__none__' ? '' : v)}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">
-                <span className="italic opacity-60">Uncategorized</span>
+                <span className="italic opacity-60">{t('commandEditor.uncategorized')}</span>
               </SelectItem>
               {categories.map(cat => (
                 <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
@@ -216,7 +222,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
 
         {/* Tags */}
         <div className="editor-section">
-          <label className="editor-label">Tags</label>
+          <label className="editor-label">{t('commandEditor.tags')}</label>
           <div className="tags-input-wrapper">
             {tags.map(tag => (
               <Badge key={tag} variant="secondary" className="gap-1">
@@ -231,19 +237,19 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
               value={tagInput}
               onChange={e => setTagInput(e.target.value)}
               onKeyDown={handleTagKeyDown}
-              placeholder={tags.length === 0 ? 'Add tags (Enter or comma)…' : ''}
+              placeholder={tags.length === 0 ? t('commandEditor.tagsPlaceholder') : ''}
             />
           </div>
         </div>
 
         {/* Description */}
         <div className="editor-section">
-          <label className="editor-label">Description</label>
+          <label className="editor-label">{t('commandEditor.description')}</label>
           <textarea
             className="editor-description-input"
             value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="Optional description…"
+            placeholder={t('commandEditor.descriptionPlaceholder')}
             rows={2}
           />
         </div>
@@ -251,10 +257,10 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
         {/* Script */}
         <div className="editor-section editor-section-grow">
           <label className="editor-label">
-            Script
+            {t('commandEditor.script')}
             {variables.length > 0 && (
               <span className="editor-label-hint">
-                — detected variables: {variables.map(v => `{{${v.name}}}`).join(', ')}
+                {t('commandEditor.detectedVarsHint', { vars: variables.map(v => `{{${v.name}}}`).join(', ') })}
               </span>
             )}
           </label>
@@ -263,7 +269,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
             className="editor-script-input"
             value={scriptBody}
             onChange={e => setScriptBody(e.target.value)}
-            placeholder={"#!/bin/bash\necho 'Hello {{name}}'"}
+            placeholder={t('commandEditor.commandPlaceholder')}
             spellCheck={false}
           />
         </div>
@@ -271,7 +277,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
         {/* Variables summary (auto-detected) */}
         {variables.length > 0 && (
           <div className="editor-section">
-            <label className="editor-label">Variables <span className="editor-label-hint">(auto-detected from script)</span></label>
+            <label className="editor-label">{t('commandEditor.variables')} <span className="editor-label-hint">({t('commandEditor.autoDetected')})</span></label>
             <div className="editor-vars-list">
               {variables.map((v, i) => (
                 <div key={v.name} className="editor-var-row">
@@ -282,7 +288,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
                     onChange={e => setVariables(prev => prev.map((vv, ii) =>
                       ii === i ? { ...vv, default: e.target.value } : vv
                     ))}
-                    placeholder="default value or CEL expression…"
+                    placeholder={t('commandEditor.varDefault')}
                   />
                   <input
                     className="editor-var-desc"
@@ -290,7 +296,7 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
                     onChange={e => setVariables(prev => prev.map((vv, ii) =>
                       ii === i ? { ...vv, description: e.target.value } : vv
                     ))}
-                    placeholder="description (optional)"
+                    placeholder={t('commandEditor.varDescription')}
                   />
                 </div>
               ))}

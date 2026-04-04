@@ -165,10 +165,14 @@ function App() {
 
     useEffect(() => {
         if (!searchQuery.trim()) {
-            GetCommands().then(cmds => {
-                allCommandsRef.current = cmds || [];
-                setCommands(cmds || []);
-            });
+            if (allCommandsRef.current.length > 0) {
+                setCommands(allCommandsRef.current);
+            } else {
+                GetCommands().then(cmds => {
+                    allCommandsRef.current = cmds || [];
+                    setCommands(cmds || []);
+                });
+            }
         } else {
             SearchCommands(searchQuery).then(cmds => setCommands(cmds || []));
         }
@@ -246,8 +250,8 @@ function App() {
         try {
             const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
-            openTab(cmd);
             closeEditorTab();
+            openTab(cmd);
             toast.success(t('toast.commandCreated'));
         } catch (err) {
             console.error('Failed to create command:', err);
@@ -261,8 +265,8 @@ function App() {
         try {
             const cmd = await UpdateCommand(editorTabData.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
             await loadData();
-            openTab(cmd);
             closeEditorTab();
+            openTab(cmd);
             toast.success(t('toast.commandSaved'));
         } catch (err) {
             console.error('Failed to update command:', err);
@@ -295,16 +299,23 @@ function App() {
         });
     };
 
+    const pendingEditorDataRef = useRef<EditorTabData | null>(null);
+
     const openEditorTab = useCallback((data: EditorTabData) => {
-        setEditorTabData(data);
-        setActiveTabId(EDITOR_TAB_ID);
         setOpenTabs(prev => {
-            const exists = prev.find(t => t.id === EDITOR_TAB_ID);
-            const title = data.command ? `Edit: ${data.command.title}` : 'New Command';
-            if (exists) return prev.map(t => t.id === EDITOR_TAB_ID ? { ...t, title, isDirty: false } : t);
+            const existing = prev.find(t => t.id === EDITOR_TAB_ID);
+            if (existing?.isDirty) {
+                pendingEditorDataRef.current = data;
+                setModal({ type: 'confirmDiscard' });
+                return prev;
+            }
+            const title = data.command ? `Edit: ${data.command.title}` : t('commandEditor.newCommand');
+            setEditorTabData(data);
+            setActiveTabId(EDITOR_TAB_ID);
+            if (existing) return prev.map(tab => tab.id === EDITOR_TAB_ID ? { ...tab, title, isDirty: false } : tab);
             return [...prev, { id: EDITOR_TAB_ID, title, kind: 'editor' as const, isDirty: false }];
         });
-    }, []);
+    }, [t]);
 
     const closeEditorTab = useCallback(() => {
         setEditorTabData(null);
@@ -603,7 +614,7 @@ function App() {
 
         // Run active command
         [`${cmdOrCtrl}+enter`]: () => {
-            if (!selectedCommand || modal.type !== 'none') return;
+            if (!selectedCommand || modal.type !== 'none' || activeTabId === EDITOR_TAB_ID) return;
             if (resolvedVariables.length === 0) {
                 handleExecute({});
             } else {
@@ -864,19 +875,27 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <AlertDialog open={modal.type === 'confirmDiscard'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
+                <AlertDialog open={modal.type === 'confirmDiscard'} onOpenChange={(open) => { if (!open) { pendingEditorDataRef.current = null; setModal({ type: 'none' }); } }}>
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-                            <AlertDialogDescription>Unsaved changes will be lost.</AlertDialogDescription>
+                            <AlertDialogTitle>{t('app.discardTitle')}</AlertDialogTitle>
+                            <AlertDialogDescription>{t('app.discardDescription')}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
                             <AlertDialogAction
                                 className="bg-destructive text-white hover:bg-destructive/90"
-                                onClick={() => { setModal({ type: 'none' }); closeEditorTab(); }}
+                                onClick={() => {
+                                    setModal({ type: 'none' });
+                                    const pending = pendingEditorDataRef.current;
+                                    pendingEditorDataRef.current = null;
+                                    closeEditorTab();
+                                    if (pending) {
+                                        setTimeout(() => openEditorTab(pending), 0);
+                                    }
+                                }}
                             >
-                                Discard
+                                {t('app.discard')}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -889,7 +908,7 @@ function App() {
                 />
                 <CommandPalette
                     open={paletteOpen}
-                    commands={commands}
+                    commands={allCommandsRef.current}
                     categories={categories}
                     onClose={() => setPaletteOpen(false)}
                     onOpen={handleSelectCommand}

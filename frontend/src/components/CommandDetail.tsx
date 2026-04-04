@@ -81,7 +81,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onSavePresetValues,
 }) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+  const [copiedPreview, setCopiedPreview] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [editingVar, setEditingVar] = useState<string | null>(null);
@@ -227,16 +228,26 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [scriptBody, resolvedValues]);
 
-  const handleCopy = useCallback(() => {
-    const textToCopy = getResolvedScript || scriptBody;
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+  const handleCopyTemplate = useCallback(() => {
+    navigator.clipboard.writeText(scriptBody).then(() => {
+      setCopiedTemplate(true);
+      setTimeout(() => setCopiedTemplate(false), 1500);
     }).catch((err) => {
       console.error("Failed to copy to clipboard:", err);
-      setCopied(false);
+      setCopiedTemplate(false);
     });
-  }, [getResolvedScript, scriptBody]);
+  }, [scriptBody]);
+
+  const handleCopyPreview = useCallback(() => {
+    const textToCopy = getResolvedScript;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedPreview(true);
+      setTimeout(() => setCopiedPreview(false), 1500);
+    }).catch((err) => {
+      console.error("Failed to copy to clipboard:", err);
+      setCopiedPreview(false);
+    });
+  }, [getResolvedScript]);
 
 
   return (
@@ -333,11 +344,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
-                      {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                    <Button variant="ghost" size="icon-xs" onClick={handleCopyTemplate}>
+                      {copiedTemplate ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{copied ? t("commandDetail.copied") : t("commandDetail.copyCommand")}</TooltipContent>
+                  <TooltipContent>{copiedTemplate ? t("commandDetail.copied") : t("commandDetail.copyCommand")}</TooltipContent>
                 </Tooltip>
               </div>
             </div>
@@ -485,11 +496,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
-                        {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                      <Button variant="ghost" size="icon-xs" onClick={handleCopyPreview}>
+                        {copiedPreview ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>{copied ? t("commandDetail.copied") : t("commandDetail.copyCommand")}</TooltipContent>
+                    <TooltipContent>{copiedPreview ? t("commandDetail.copied") : t("commandDetail.copyCommand")}</TooltipContent>
                   </Tooltip>
                 </div>
               </div>

@@ -62,7 +62,13 @@
     "varDefault": "Default / CEL",
     "cancel": "Cancel",
     "saveChanges": "Save Changes",
-    "createCommand": "Create Command"
+    "createCommand": "Create Command",
+    "discard": "Discard",
+    "save": "Save",
+    "discardTooltip": "Discard changes (Esc)",
+    "saveTooltip": "Save (⌘S)",
+    "breadcrumbEdit": "Edit: {{title}}",
+    "detectedVarsHint": "— detected variables: {{vars}}"
   },
   "categoryEditor": {
     "newCategory": "New Category",
@@ -119,7 +125,10 @@
     "confirmDeleteCategoryWarning": "Commands in this category will be moved to Uncategorized.",
     "confirmDeleteUndone": "This action cannot be undone.",
     "cancel": "Cancel",
-    "delete": "Delete"
+    "delete": "Delete",
+    "discard": "Discard",
+    "discardTitle": "Discard changes?",
+    "discardDescription": "Unsaved changes will be lost."
   },
   "toast": {
     "categoryCreated": "Category created",

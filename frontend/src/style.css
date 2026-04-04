@@ -79,7 +79,7 @@
   --tab-bar-height: 35px;
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', -apple-system, blinkmacsystemfont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
@@ -380,7 +380,7 @@ body {
 .tab-item.active {
   background: var(--tab-active-bg);
   color: var(--foreground);
-  border-top: 1px solid var(--tab-active-indicator);
+  border-bottom: 2px solid var(--tab-active-indicator);
 }
 
 .tab-title {
@@ -1136,11 +1136,15 @@ body {
   padding: 0;
 }
 
-.resize-handle-wrap:hover .resize-collapse-btn {
+.resize-handle-wrap:hover .resize-collapse-btn,
+.resize-collapse-btn:focus,
+.resize-collapse-btn:focus-visible,
+.resize-handle-wrap:focus-within .resize-collapse-btn {
   opacity: 1;
 }
 
-.resize-collapse-btn:hover {
+.resize-collapse-btn:hover,
+.resize-collapse-btn:focus-visible {
   background: var(--accent);
   color: var(--primary);
   border-color: var(--primary);
