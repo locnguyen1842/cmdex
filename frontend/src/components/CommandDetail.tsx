@@ -147,7 +147,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     if (!renamingChipId) return;
     const trimmed = renamingChipDraft.trim().slice(0, 30);
     if (!trimmed) {
-      alert('Preset name must not be empty');
+      setRenamingChipId(null);
       return;
     }
     await onRenamePreset(renamingChipId, trimmed);
@@ -181,13 +181,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [selectedPresetId, overrides, command.presets, variables]);
 
+  const scriptParts = useMemo(() => scriptBody ? scriptBody.split(/(\{\{\w+\}\})/g) : null, [scriptBody]);
+
   const renderScriptWithVars = useMemo(() => {
-    if (!scriptBody) return null;
-    const parts = scriptBody.split(/(\{\{\w+\}\})/g);
-    return parts.map((part, i) => {
+    if (!scriptParts) return null;
+    return scriptParts.map((part, i) => {
       if (/^\{\{\w+\}\}$/.test(part)) {
         const varName = part.slice(2, -2);
-        const val = resolvedValues[varName];
         return (
           <span key={i} className="var-missing" title={varName}>
             {part}
@@ -196,12 +196,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       }
       return <span key={i}>{part}</span>;
     });
-  }, [scriptBody, resolvedValues]);
+  }, [scriptParts]);
 
   const renderScriptResolved = useMemo(() => {
-    if (!scriptBody) return null;
-    const parts = scriptBody.split(/(\{\{\w+\}\})/g);
-    return parts.map((part, i) => {
+    if (!scriptParts) return null;
+    return scriptParts.map((part, i) => {
       if (/^\{\{\w+\}\}$/.test(part)) {
         const varName = part.slice(2, -2);
         const val = resolvedValues[varName];
@@ -221,7 +220,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       }
       return <span key={i}>{part}</span>;
     });
-  }, [scriptBody, resolvedValues, editingVar]);
+  }, [scriptParts, resolvedValues, editingVar]);
 
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return "";

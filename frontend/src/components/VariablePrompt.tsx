@@ -214,6 +214,9 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     setEditingPresetNameId('');
   };
 
+  const firstEmptyIdx = variables.findIndex(v => !values[v.name]);
+  const fillFocusIdx = firstEmptyIdx >= 0 ? firstEmptyIdx : 0;
+
   return (
     <>
     {mode === 'fill' ? (
@@ -224,10 +227,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
             <DialogDescription className="sr-only">{t('variablePrompt.fillDescription')}</DialogDescription>
           </DialogHeader>
           <div className="vp-fill-vars px-5 pb-2">
-            {(() => {
-              const firstEmptyIdx = variables.findIndex(v => !values[v.name]);
-              const focusIdx = firstEmptyIdx >= 0 ? firstEmptyIdx : 0;
-              return variables.map((v, i) => (
+            {variables.map((v, i) => (
                 <div key={v.name} className="vp-fill-row">
                   <div className="vp-fill-label">
                     <code className="vp-fill-varname">{v.name}</code>
@@ -239,11 +239,10 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                     value={values[v.name] || ''}
                     onChange={(e) => setValues({ ...values, [v.name]: e.target.value })}
                     onKeyDown={handleKeyDown}
-                    autoFocus={i === focusIdx}
+                    autoFocus={i === fillFocusIdx}
                   />
                 </div>
-              ));
-            })()}
+              ))}
           </div>
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
             <Button variant="ghost" size="sm" onClick={onCancel}>{t('variablePrompt.cancel')}</Button>
