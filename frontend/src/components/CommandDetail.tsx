@@ -511,7 +511,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                             size="icon-xs"
                             onClick={() => setOverrides({})}
                           >
-                            <X className="size-3.5 text-muted-foreground" />
+                            <X className="size-3.5 text-destructive" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>{t("commandDetail.revertChanges")}</TooltipContent>
@@ -656,7 +656,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("commandDetail.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               onClick={async () => {
                 const id = deletingPresetId || confirmDeletePresetId;
                 if (id) {

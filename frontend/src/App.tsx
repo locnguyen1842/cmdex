@@ -867,7 +867,7 @@ function App() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-white hover:bg-destructive/90">
+                            <AlertDialogAction onClick={confirmDelete} variant="destructive">
                                 {t('app.delete')}
                             </AlertDialogAction>
                         </AlertDialogFooter>
@@ -882,7 +882,7 @@ function App() {
                         <AlertDialogFooter>
                             <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
                             <AlertDialogAction
-                                className="bg-destructive text-white hover:bg-destructive/90"
+                                variant="destructive"
                                 onClick={() => {
                                     setModal({ type: 'none' });
                                     const pending = pendingEditorDataRef.current;
