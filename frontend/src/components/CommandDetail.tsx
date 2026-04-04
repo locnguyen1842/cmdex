@@ -125,6 +125,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     setOverrides({});
   }, [command.id, selectedPresetId]);
 
+  // Auto-select first preset when opening a command with presets
+  useEffect(() => {
+    if (command.presets && command.presets.length > 0 && !selectedPresetId) {
+      setSelectedPresetId(command.presets[0].id);
+    }
+  }, [command.id, command.presets, selectedPresetId]);
+
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
     setEditingTitle(true);
