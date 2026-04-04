@@ -41,6 +41,7 @@ import {
   SquareTerminal,
   X,
 } from "lucide-react";
+import { toast } from 'sonner';
 import { GetScriptBody } from "../../wailsjs/go/main/App";
 import { cmdSymbol as cmdKey } from "../hooks/useKeyboardShortcuts";
 
@@ -170,14 +171,22 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   }, [resolvedValues, onResolvedValuesChange]);
 
   const hasUnsavedChanges = useMemo(() => {
-    if (!selectedPresetId || Object.keys(overrides).length === 0) return false;
+    if (!selectedPresetId) return false;
     const preset = command.presets.find(p => p.id === selectedPresetId);
     if (!preset) return false;
-    return Object.entries(overrides).some(([k, v]) => {
+    // Check overrides
+    const hasOverrideChanges = Object.entries(overrides).some(([k, v]) => {
       const stored = preset.values[k] ?? variables.find(x => x.name === k)?.defaultValue ?? '';
       return v !== stored;
     });
-  }, [selectedPresetId, overrides, command.presets, variables]);
+    if (hasOverrideChanges) return true;
+    // Check currently editing value (not yet in overrides)
+    if (editingVar) {
+      const stored = preset.values[editingVar] ?? variables.find(x => x.name === editingVar)?.defaultValue ?? '';
+      return editingVarValue !== stored;
+    }
+    return false;
+  }, [selectedPresetId, overrides, command.presets, variables, editingVar, editingVarValue]);
 
   const scriptParts = useMemo(() => scriptBody ? scriptBody.split(/(\{\{\w+\}\})/g) : null, [scriptBody]);
 
@@ -563,13 +572,21 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                                 }
                               }
                               if (e.key === 'Enter') {
-                                const saveValues = { ...resolvedValues, ...(editingVar ? { [editingVar]: editingVarValue } : {}) };
-                                setEditingVar(null);
+                                e.preventDefault();
+                                if (editingVar) {
+                                  setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
+                                }
                                 if (selectedPresetId) {
-                                  await onSavePresetValues(selectedPresetId, saveValues);
-                                  setOverrides({});
+                                  const saveValues = { ...resolvedValues, [editingVar]: editingVarValue };
+                                  try {
+                                    await onSavePresetValues(selectedPresetId, saveValues);
+                                    setEditingVar(null);
+                                    setOverrides({});
+                                  } catch (err) {
+                                    toast.error(t('commandDetail.savePresetFailed'));
+                                  }
                                 } else {
-                                  if (editingVar) setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
+                                  setEditingVar(null);
                                 }
                               }
                               if (e.key === 'Escape') setEditingVar(null);

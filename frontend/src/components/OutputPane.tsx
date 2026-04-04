@@ -34,6 +34,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
   const heightRef = useRef(height);
+  const [isDragging, setIsDragging] = useState(false);
   useEffect(() => { heightRef.current = height; }, [height]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -41,27 +42,37 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
     isDraggingRef.current = true;
     startYRef.current = e.clientY;
     startHeightRef.current = heightRef.current;
+    setIsDragging(true);
+  }, []);
+
+  // Manage window listeners with proper cleanup on unmount or drag stop
+  useEffect(() => {
+    if (!isDragging) return;
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!isDraggingRef.current) return;
-      const delta = startYRef.current - ev.clientY; // drag up = increase height
+      const delta = startYRef.current - ev.clientY;
       const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeightRef.current + delta));
       setHeight(newHeight);
     };
 
     const onMouseUp = () => {
       isDraggingRef.current = false;
+      setIsDragging(false);
       setHeight((h) => {
         localStorage.setItem(STORAGE_KEY, String(h));
         return h;
       });
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
     };
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-  }, []);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isDragging]);
 
   const handleScroll = () => {
     if (!bodyRef.current) return;
