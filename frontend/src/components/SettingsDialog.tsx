@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../wailsjs/go/main/App';
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
+import { THEMES } from '../App';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -15,9 +16,11 @@ const LANGUAGES = [
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
+  theme: string;
+  onThemeChange: (theme: string) => void;
 }
 
-const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose }) => {
+const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, onThemeChange }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [savedLocale, setSavedLocale] = useState('en');
@@ -70,6 +73,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose }) => {
           <DialogDescription className="sr-only">{t('settings.description')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>Theme</Label>
+            <Select value={theme} onValueChange={onThemeChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THEMES.map(th => (
+                  <SelectItem key={th.id} value={th.id}>{th.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>{t('settings.language')}</Label>
             <Select value={locale} onValueChange={setLocale}>

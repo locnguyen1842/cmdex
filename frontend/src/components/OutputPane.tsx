@@ -126,7 +126,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
           className="output-pane-body"
           ref={bodyRef}
           onScroll={handleScroll}
-          style={{ maxHeight: height }}
+          style={{ height: height }}
         >
           {isExecuting && streamLines.length === 0 && !record && (
             <div className="output-line">
