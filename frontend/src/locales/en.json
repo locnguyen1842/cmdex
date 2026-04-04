@@ -35,7 +35,20 @@
     "running": "Running...",
     "manage": "Manage",
     "preview": "Preview",
-    "doubleClickToRename": "Double-click to rename"
+    "template": "Template",
+    "doubleClickToRename": "Double-click to rename",
+    "addPreset": "Add preset",
+    "revertChanges": "Revert changes",
+    "savePresetValues": "Save preset values",
+    "defaultPreset": "Default",
+    "newPresetName": "New Preset",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deletePresetTitle": "Delete Preset",
+    "deletePresetDescription": "Are you sure you want to delete this preset? This cannot be undone.",
+    "cancel": "Cancel",
+    "clickToEdit": "Click to edit",
+    "clickToSet": "click to set…"
   },
   "commandEditor": {
     "newCommand": "New Command",
@@ -114,7 +127,9 @@
     "streaming": "streaming…",
     "showingLast": "showing last {{count}} lines",
     "processExited": "Process exited with code {{code}}",
-    "emptyState": "Run a command or select a history entry to see output here."
+    "emptyState": "Run a command or select a history entry to see output here.",
+    "expand": "Expand pane",
+    "collapse": "Collapse pane"
   },
   "app": {
     "welcomeTitle": "Welcome to Cmdex",

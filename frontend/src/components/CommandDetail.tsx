@@ -5,7 +5,6 @@ import React, {
   useRef,
   useEffect,
 } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Command, VariablePrompt } from "../types";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,12 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   Pencil,
   Copy,
@@ -62,6 +67,7 @@ interface CommandDetailProps {
   onDeletePreset: (presetId: string) => Promise<void>;
   onAddPreset: () => Promise<string>;
   onSavePresetValues: (presetId: string, values: Record<string, string>) => Promise<void>;
+  onResolvedValuesChange?: (values: Record<string, string>) => void;
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -79,6 +85,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onDeletePreset,
   onAddPreset,
   onSavePresetValues,
+  onResolvedValuesChange,
 }) => {
   const { t } = useTranslation();
   const [copiedTemplate, setCopiedTemplate] = useState(false);
@@ -96,11 +103,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [renamingChipId, setRenamingChipId] = useState<string | null>(null);
   const [renamingChipDraft, setRenamingChipDraft] = useState('');
 
-  // Context menu state
-  const [chipContextMenu, setChipContextMenu] = useState<{ presetId: string; x: number; y: number } | null>(null);
-
   // Confirm delete preset state
   const [confirmDeletePresetId, setConfirmDeletePresetId] = useState<string | null>(null);
+  const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingTitle && titleInputRef.current) {
@@ -118,16 +123,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   useEffect(() => {
     setOverrides({});
   }, [command.id, selectedPresetId]);
-
-  // Close context menu on mousedown outside the menu
-  useEffect(() => {
-    if (!chipContextMenu) return;
-    const close = () => setChipContextMenu(null);
-    window.addEventListener('mousedown', close);
-    return () => {
-      window.removeEventListener('mousedown', close);
-    };
-  }, [chipContextMenu]);
 
   const handleTitleDoubleClick = () => {
     setTitleDraft(command.title);
@@ -169,6 +164,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
     return { ...vals, ...overrides };
   }, [selectedPresetId, command.presets, variables, overrides]);
+
+  useEffect(() => {
+    onResolvedValuesChange?.(resolvedValues);
+  }, [resolvedValues, onResolvedValuesChange]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedPresetId || Object.keys(overrides).length === 0) return false;
@@ -307,7 +306,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           <div className="command-text-box-inner">
             <div className="command-text-box-header">
               <div className="flex items-center gap-1.5">
-                <span className="command-text-box-label">Template</span>
+                <span className="command-text-box-label">{t("commandDetail.template")}</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -315,15 +314,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       size="icon-xs"
                       className="text-primary hover:text-primary"
                       disabled={isExecuting}
-                      onClick={() => {
-                        if (variables.length === 0) {
-                          onExecute({});
-                        } else {
-                          const defaults: Record<string, string> = {};
-                          variables.forEach((v) => { defaults[v.name] = v.defaultValue ?? ""; });
-                          onFillVariables(defaults);
-                        }
-                      }}
+                      onClick={() => onExecute(resolvedValues)}
                     >
                       {isExecuting ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
                     </Button>
@@ -368,22 +359,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 
           {/* Preset chip row */}
           <div className="preset-chips">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className="preset-chip preset-chip-add"
-                  onClick={async () => {
-                    const newId = await onAddPreset();
-                    setSelectedPresetId(newId);
-                    setRenamingChipId(newId);
-                    setRenamingChipDraft('New Preset');
-                  }}
-                >
-                  <Plus size={12} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Add preset</TooltipContent>
-            </Tooltip>
+            {/* Default preset chip */}
+            <button
+              className={`preset-chip${selectedPresetId === "" ? ' active' : ''}`}
+              onClick={() => setSelectedPresetId("")}
+            >
+              {t("commandDetail.defaultPreset")}
+            </button>
             {command.presets && command.presets.map((p) => {
               if (renamingChipId === p.id) {
                 return (
@@ -403,25 +385,58 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 );
               }
               return (
-                <button
-                  key={p.id}
-                  className={`preset-chip${selectedPresetId === p.id ? ' active' : ''}`}
-                  onClick={() => setSelectedPresetId(p.id)}
-                  onDoubleClick={(e) => {
-                    e.preventDefault();
-                    setRenamingChipId(p.id);
-                    setRenamingChipDraft(p.name);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setChipContextMenu({ presetId: p.id, x: e.clientX, y: e.clientY });
-                  }}
-                >
-                  {p.name}
-                </button>
+                <ContextMenu key={p.id}>
+                  <ContextMenuTrigger asChild>
+                    <button
+                      className={`preset-chip${selectedPresetId === p.id ? ' active' : ''}`}
+                      onClick={() => setSelectedPresetId(p.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'F2') {
+                          e.preventDefault();
+                          setRenamingChipId(p.id);
+                          setRenamingChipDraft(p.name);
+                        }
+                      }}
+                    >
+                      {p.name}
+                    </button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onClick={() => {
+                        setRenamingChipId(p.id);
+                        setRenamingChipDraft(p.name);
+                        setSelectedPresetId(p.id);
+                      }}
+                    >
+                      {t("commandDetail.rename")}
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setConfirmDeletePresetId(p.id)}
+                    >
+                      {t("commandDetail.delete")}
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               );
             })}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="preset-chip preset-chip-add"
+                  onClick={async () => {
+                    const newId = await onAddPreset();
+                    setSelectedPresetId(newId);
+                    setRenamingChipId(newId);
+                    setRenamingChipDraft(t("commandDetail.newPresetName"));
+                  }}
+                >
+                  <Plus size={12} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{t("commandDetail.addPreset")}</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Script preview with resolved values */}
@@ -429,7 +444,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             <div className="command-text-box-inner">
               <div className="command-text-box-header">
                 <div className="flex items-center gap-1.5">
-                  <span className="command-text-box-label">Preview</span>
+                  <span className="command-text-box-label">{t("commandDetail.preview")}</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -467,7 +482,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                             <X className="size-3.5 text-muted-foreground" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Revert changes</TooltipContent>
+                        <TooltipContent>{t("commandDetail.revertChanges")}</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -482,7 +497,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                             <Check className="size-3.5 text-success" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Save preset values</TooltipContent>
+                        <TooltipContent>{t("commandDetail.savePresetValues")}</TooltipContent>
                       </Tooltip>
                     </>
                   )}
@@ -567,9 +582,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                               setEditingVar(v.name);
                               setEditingVarValue(val || '');
                             }}
-                            title="Click to edit"
+                            title={t("commandDetail.clickToEdit")}
                           >
-                            {val || <span className="preset-var-placeholder">click to set…</span>}
+                            {val || <span className="preset-var-placeholder">{t("commandDetail.clickToSet")}</span>}
                           </span>
                         )}
                       </div>
@@ -582,65 +597,30 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         </div>
       )}
 
-      {/* Right-click context menu for preset chips — rendered via portal to avoid clipping */}
-      {chipContextMenu && createPortal(
-        <div
-          className="chip-context-menu"
-          style={{ top: chipContextMenu.y, left: chipContextMenu.x }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="chip-context-item"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const preset = command.presets.find(p => p.id === chipContextMenu.presetId);
-              if (preset) {
-                setRenamingChipId(preset.id);
-                setRenamingChipDraft(preset.name);
-                setSelectedPresetId(preset.id);
-              }
-              setChipContextMenu(null);
-            }}
-          >
-            Rename
-          </button>
-          <button
-            className="chip-context-item chip-context-item-danger"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setConfirmDeletePresetId(chipContextMenu.presetId);
-              setChipContextMenu(null);
-            }}
-          >
-            Delete
-          </button>
-        </div>,
-        document.body
-      )}
-
       {/* Confirm delete preset dialog */}
-      <AlertDialog open={confirmDeletePresetId !== null} onOpenChange={(open) => { if (!open) setConfirmDeletePresetId(null); }}>
+      <AlertDialog open={confirmDeletePresetId !== null} onOpenChange={(open) => { if (!open) { setConfirmDeletePresetId(null); setDeletingPresetId(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Preset</AlertDialogTitle>
+            <AlertDialogTitle>{t("commandDetail.deletePresetTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this preset? This cannot be undone.
+              {t("commandDetail.deletePresetDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("commandDetail.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
-                if (confirmDeletePresetId) {
-                  await onDeletePreset(confirmDeletePresetId);
-                  if (selectedPresetId === confirmDeletePresetId) setSelectedPresetId('');
+                const id = deletingPresetId || confirmDeletePresetId;
+                if (id) {
+                  await onDeletePreset(id);
+                  if (selectedPresetId === id) setSelectedPresetId('');
                 }
                 setConfirmDeletePresetId(null);
+                setDeletingPresetId(null);
               }}
             >
-              Delete
+              {t("commandDetail.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

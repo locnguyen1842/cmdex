@@ -91,6 +91,7 @@ function App() {
     const [selectedRecord, setSelectedRecord] = useState<ExecutionRecord | null>(null);
     const [outputPaneOpen, setOutputPaneOpen] = useState(true);
     const [resolvedVariables, setResolvedVariables] = useState<VarPromptType[]>([]);
+    const [currentResolvedValues, setCurrentResolvedValues] = useState<Record<string, string>>({});
     const [lastSelectedPresetId, setLastSelectedPresetId] = useState<string>('');
     const [streamLines, setStreamLines] = useState<string[]>([]);
     const streamBufferRef = useRef<string[]>([]);
@@ -165,14 +166,7 @@ function App() {
 
     useEffect(() => {
         if (!searchQuery.trim()) {
-            if (allCommandsRef.current.length > 0) {
-                setCommands(allCommandsRef.current);
-            } else {
-                GetCommands().then(cmds => {
-                    allCommandsRef.current = cmds || [];
-                    setCommands(cmds || []);
-                });
-            }
+            setCommands(allCommandsRef.current);
         } else {
             SearchCommands(searchQuery).then(cmds => setCommands(cmds || []));
         }
@@ -351,13 +345,18 @@ function App() {
                 const idx = prev.findIndex(t => t.id === commandId);
                 const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
                 if (nextTab) {
-                    const nextCmd = allCommandsRef.current.find(c => c.id === nextTab.id);
-                    if (nextCmd) {
-                        setSelectedCommand(nextCmd);
-                        setActiveTabId(nextTab.id);
-                    } else {
+                    if (nextTab.id === EDITOR_TAB_ID) {
                         setSelectedCommand(null);
-                        setActiveTabId(null);
+                        setActiveTabId(EDITOR_TAB_ID);
+                    } else {
+                        const nextCmd = allCommandsRef.current.find(c => c.id === nextTab.id);
+                        if (nextCmd) {
+                            setSelectedCommand(nextCmd);
+                            setActiveTabId(nextTab.id);
+                        } else {
+                            setSelectedCommand(null);
+                            setActiveTabId(null);
+                        }
                     }
                 } else {
                     setSelectedCommand(null);
@@ -618,13 +617,11 @@ function App() {
             if (resolvedVariables.length === 0) {
                 handleExecute({});
             } else {
-                const vals: Record<string, string> = {};
-                resolvedVariables.forEach(v => { vals[v.name] = v.defaultValue || ''; });
-                const hasEmpty = resolvedVariables.some(v => !v.defaultValue);
+                const hasEmpty = resolvedVariables.some(v => !currentResolvedValues[v.name]);
                 if (hasEmpty) {
-                    handleFillVariables(vals);
+                    handleFillVariables(currentResolvedValues);
                 } else {
-                    handleExecute(vals);
+                    handleExecute(currentResolvedValues);
                 }
             }
         },
@@ -776,6 +773,7 @@ function App() {
                                             onRenamePreset={handleRenamePresetFromDetail}
                                             onDeletePreset={handleDeletePresetFromDetail}
                                             onSavePresetValues={handleSavePresetValuesFromDetail}
+                                            onResolvedValuesChange={setCurrentResolvedValues}
                                         />
                                     </div>
                                 ) : (

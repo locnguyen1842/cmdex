@@ -32,6 +32,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --shadow-tooltip: var(--shadow-tooltip);
 }
 
 /* ========== Default Theme: VS Code Dark+ ========== */
@@ -81,6 +82,7 @@
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --font-sans: 'Inter', -apple-system, blinkmacsystemfont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --shadow-tooltip: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 /* ========== VS Code Light+ ========== */
@@ -340,6 +342,7 @@ body {
 
 .tab-bar {
   --wails-draggable: drag;
+
   display: flex;
   height: var(--tab-bar-height);
   background: var(--tab-bar-bg);
@@ -619,6 +622,7 @@ body {
   justify-content: space-between;
   min-height: var(--header-height);
   --wails-draggable: drag;
+
   background: var(--background);
 }
 

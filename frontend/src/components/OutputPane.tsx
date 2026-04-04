@@ -119,7 +119,13 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
           )}
         </div>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); }}>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={isOpen ? t("outputPane.collapse") : t("outputPane.expand")}
+            aria-expanded={isOpen}
+            onClick={(e) => { e.stopPropagation(); }}
+          >
             {isOpen ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           </Button>
         </CollapsibleTrigger>
