@@ -174,18 +174,17 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     if (!selectedPresetId) return false;
     const preset = command.presets.find(p => p.id === selectedPresetId);
     if (!preset) return false;
-    // Check overrides
+    // Check overrides for any changes
     const hasOverrideChanges = Object.entries(overrides).some(([k, v]) => {
       const stored = preset.values[k] ?? variables.find(x => x.name === k)?.defaultValue ?? '';
       return v !== stored;
     });
-    if (hasOverrideChanges) return true;
-    // Check currently editing value (not yet in overrides)
-    if (editingVar) {
+    // Check currently editing value (not yet in overrides) - only if no override changes already found
+    if (!hasOverrideChanges && editingVar) {
       const stored = preset.values[editingVar] ?? variables.find(x => x.name === editingVar)?.defaultValue ?? '';
       return editingVarValue !== stored;
     }
-    return false;
+    return hasOverrideChanges;
   }, [selectedPresetId, overrides, command.presets, variables, editingVar, editingVarValue]);
 
   const scriptParts = useMemo(() => scriptBody ? scriptBody.split(/(\{\{\w+\}\})/g) : null, [scriptBody]);
@@ -368,13 +367,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 
           {/* Preset chip row */}
           <div className="preset-chips">
-            {/* Default preset chip */}
-            <button
-              className={`preset-chip${selectedPresetId === "" ? ' active' : ''}`}
-              onClick={() => setSelectedPresetId("")}
-            >
-              {t("commandDetail.defaultPreset")}
-            </button>
             {command.presets && command.presets.map((p) => {
               if (renamingChipId === p.id) {
                 return (
@@ -573,11 +565,18 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                               }
                               if (e.key === 'Enter') {
                                 e.preventDefault();
-                                if (editingVar) {
-                                  setOverrides(prev => ({ ...prev, [editingVar]: editingVarValue }));
-                                }
+                                // Compute the new overrides synchronously so saveValues is correct
+                                const newOverrides = editingVar
+                                  ? { ...overrides, [editingVar]: editingVarValue }
+                                  : overrides;
+                                setOverrides(newOverrides);
                                 if (selectedPresetId) {
-                                  const saveValues = { ...resolvedValues, [editingVar]: editingVarValue };
+                                  // Build saveValues using current preset values + all overrides
+                                  const preset = command.presets.find(p => p.id === selectedPresetId);
+                                  const saveValues: Record<string, string> = {};
+                                  variables.forEach(v => {
+                                    saveValues[v.name] = newOverrides[v.name] ?? preset?.values[v.name] ?? v.defaultValue ?? '';
+                                  });
                                   try {
                                     await onSavePresetValues(selectedPresetId, saveValues);
                                     setEditingVar(null);

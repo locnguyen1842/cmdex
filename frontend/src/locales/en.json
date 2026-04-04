@@ -40,8 +40,6 @@
     "addPreset": "Add preset",
     "revertChanges": "Revert changes",
     "savePresetValues": "Save preset values",
-    "defaultPreset": "Default",
-    "newPresetName": "New Preset",
     "rename": "Rename",
     "delete": "Delete",
     "deletePresetTitle": "Delete Preset",
