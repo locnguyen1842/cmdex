@@ -5,3 +5,5 @@ cmdex
 .worktrees/
 .superpowers/
 .cursor/hooks.json
+
+todos/
