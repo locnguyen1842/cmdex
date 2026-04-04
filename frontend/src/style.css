@@ -1146,7 +1146,7 @@ body {
   border-color: var(--primary);
 }
 
-/* Collapsed rail — full height, click anywhere to expand */
+/* Collapsed rail — full height, click or Enter/Space to expand */
 .resizable-panel-rail {
   width: 36px;
   min-width: 36px;
@@ -1160,6 +1160,8 @@ body {
   height: 100%;
   overflow: hidden;
   cursor: pointer;
+  border: none;
+  border-radius: 0;
 }
 
 .resizable-panel-rail:hover {

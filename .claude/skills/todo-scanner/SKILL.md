@@ -75,7 +75,12 @@ git mv todos/<name>.pending.md todos/<name>.resolved.md
 
 **If a plan is abandoned:** Leave the file as `*.pending.md`. It can be picked up again in a future session.
 
-**If resolved name already exists:** Merge these files by appending the new resolved content to the old resolved file.
+**If `<name>.resolved.md` already exists (collision):** Do NOT use `git mv` — it will fail. Instead:
+1. Append the full content of `todos/<name>.pending.md` (including its resolution header) to the existing `todos/<name>.resolved.md`
+2. Delete `todos/<name>.pending.md` with `git rm todos/<name>.pending.md` (or plain `rm` if not in a git repo)
+3. Stage and commit: `git add todos/<name>.resolved.md && git rm todos/<name>.pending.md && git commit -m "..."`
+
+This avoids leaving the `*.pending.md` file in place and prevents `git mv` from erroring on an existing target.
 
 ## File Naming Convention
 

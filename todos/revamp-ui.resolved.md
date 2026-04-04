@@ -1,6 +1,4 @@
 <!-- Resolved: 2026-04-02 | Plan: docs/superpowers/plans/2026-04-01-ui-polish-fixes.md -->
-<!-- Resolved: 2026-04-02 | Plan: docs/superpowers/plans/2026-04-01-ui-polish-fixes.md -->
-<!-- Resolved: 2026-04-02 | Plan: docs/superpowers/plans/2026-04-01-ui-polish-fixes.md -->
 
 - there are a bug, the preset preview command must replace the placeholder with actual values from current preset instead only hightlight
 - Remove header (status-bar)

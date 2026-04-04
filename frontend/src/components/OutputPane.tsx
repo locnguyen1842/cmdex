@@ -27,7 +27,8 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const autoScrollRef = useRef(true);
   const [height, setHeight] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? Number(saved) : DEFAULT_HEIGHT;
+    const parsed = saved ? Number(saved) : NaN;
+    return Number.isFinite(parsed) ? Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, parsed)) : DEFAULT_HEIGHT;
   });
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);

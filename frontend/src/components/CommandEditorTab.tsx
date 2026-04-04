@@ -59,30 +59,50 @@ const CommandEditorTab: React.FC<CommandEditorTabProps> = ({
   const [variables, setVariables] = useState<VariableDefinition[]>(command?.variables ?? []);
   const scriptRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load script body for edit mode
+  // Reset all fields when the command being edited changes
   useEffect(() => {
+    setTitle(command?.title ?? '');
+    setDescription(command?.description ?? '');
+    setCategoryId(command?.categoryId ?? defaultCategoryId ?? '');
+    setTags(command?.tags ?? []);
+    setTagInput('');
+    setVariables(command?.variables ?? []);
+
+    let active = true;
     if (command?.id) {
       GetScriptBody(command.id)
         .then(body => {
+          if (!active) return;
           setScriptBody(body);
           setBaselineScriptBody(body);
         })
         .catch(() => {
+          if (!active) return;
           setScriptBody('');
           setBaselineScriptBody('');
         });
+    } else {
+      setScriptBody('');
+      setBaselineScriptBody('');
     }
-  }, [command?.id]);
+    return () => { active = false; };
+  }, [command?.id, defaultCategoryId]);
 
-  // Track dirty state
+  // Track dirty state — includes all editable fields
   const isDirty = useMemo(() => {
     if (isNew) return title !== '' || scriptBody !== '' || description !== '';
+    const tagsMatch = JSON.stringify(tags) === JSON.stringify(command?.tags ?? []);
+    const varsMatch = JSON.stringify(variables.map(v => ({ name: v.name, description: v.description, default: v.default, example: v.example })))
+      === JSON.stringify((command?.variables ?? []).map(v => ({ name: v.name, description: v.description, default: v.default, example: v.example })));
     return (
       title !== (command?.title ?? '') ||
       description !== (command?.description ?? '') ||
-      scriptBody !== baselineScriptBody
+      scriptBody !== baselineScriptBody ||
+      categoryId !== (command?.categoryId ?? '') ||
+      !tagsMatch ||
+      !varsMatch
     );
-  }, [title, description, scriptBody, baselineScriptBody, isNew, command]);
+  }, [title, description, scriptBody, baselineScriptBody, categoryId, tags, variables, isNew, command]);
 
   const onDirtyChangeRef = useRef(onDirtyChange);
   onDirtyChangeRef.current = onDirtyChange;

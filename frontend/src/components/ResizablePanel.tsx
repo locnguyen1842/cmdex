@@ -77,13 +77,15 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
 
   if (collapsed) {
     return (
-      <div
+      <button
         className={`resizable-panel-rail ${side} ${className ?? ''}`}
         onClick={expand}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expand(); } }}
+        aria-label="Expand panel"
         title="Click to expand"
       >
         {collapsedIcon}
-      </div>
+      </button>
     );
   }
 
@@ -97,7 +99,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
         onMouseDown={e => e.stopPropagation()}
         onClick={collapse}
         aria-label="Collapse panel"
-        tabIndex={-1}
       >
         {side === 'left' ? '◀' : '▶'}
       </button>

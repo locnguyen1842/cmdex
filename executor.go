@@ -196,9 +196,14 @@ func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error
 	}
 	body = strings.TrimSpace(body)
 
-	// Escape single quotes for safe inline embedding: ' → '\''
-	escaped := strings.ReplaceAll(body, "'", `'\''`)
-	cmdText := "bash -c '" + escaped + "'"
+	var cmdText string
+	if runtime.GOOS == "windows" {
+		escapedWin := strings.ReplaceAll(body, `"`, `\"`)
+		cmdText = e.shell + " " + e.flag + ` "` + escapedWin + `"`
+	} else {
+		escapedUnix := strings.ReplaceAll(body, "'", `'\''`)
+		cmdText = e.shell + " " + e.flag + " '" + escapedUnix + "'"
+	}
 
 	defs := e.terminalDefs()
 

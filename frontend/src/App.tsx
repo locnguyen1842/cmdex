@@ -61,6 +61,7 @@ type ModalState =
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
+    | { type: 'confirmDiscard' }
     | { type: 'settings' };
 
 const THEME_STORAGE_KEY = 'cmdex-theme';
@@ -79,6 +80,8 @@ function App() {
     const { t } = useTranslation();
     const [categories, setCategories] = useState<Category[]>([]);
     const [commands, setCommands] = useState<Command[]>([]);
+    // Unfiltered command list — safe to use in tab operations even when search is active
+    const allCommandsRef = useRef<Command[]>([]);
     const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [modal, setModal] = useState<ModalState>({ type: 'none' });
@@ -128,6 +131,7 @@ function App() {
             const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
             setCategories(cats || []);
             setCommands(cmds || []);
+            allCommandsRef.current = cmds || [];
             return cmds as Command[] || [];
         } catch (err) {
             console.error('Failed to load data:', err);
@@ -161,7 +165,10 @@ function App() {
 
     useEffect(() => {
         if (!searchQuery.trim()) {
-            GetCommands().then(cmds => setCommands(cmds || []));
+            GetCommands().then(cmds => {
+                allCommandsRef.current = cmds || [];
+                setCommands(cmds || []);
+            });
         } else {
             SearchCommands(searchQuery).then(cmds => setCommands(cmds || []));
         }
@@ -306,7 +313,7 @@ function App() {
             if (activeTabId === EDITOR_TAB_ID) {
                 const lastCmd = [...newTabs].reverse().find(t => t.kind === 'command');
                 if (lastCmd) {
-                    const cmd = commands.find(c => c.id === lastCmd.id);
+                    const cmd = allCommandsRef.current.find(c => c.id === lastCmd.id);
                     if (cmd) { setSelectedCommand(cmd); setActiveTabId(lastCmd.id); }
                 } else {
                     setSelectedCommand(null);
@@ -315,12 +322,15 @@ function App() {
             }
             return newTabs;
         });
-    }, [activeTabId, commands]);
+    }, [activeTabId]);
 
     const closeTab = (commandId: string) => {
         if (commandId === EDITOR_TAB_ID) {
             const editorTab = openTabs.find(t => t.id === EDITOR_TAB_ID);
-            if (editorTab?.isDirty && !confirm('Discard unsaved changes?')) return;
+            if (editorTab?.isDirty) {
+                setModal({ type: 'confirmDiscard' });
+                return;
+            }
             closeEditorTab();
             return;
         }
@@ -330,7 +340,7 @@ function App() {
                 const idx = prev.findIndex(t => t.id === commandId);
                 const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
                 if (nextTab) {
-                    const nextCmd = commands.find(c => c.id === nextTab.id);
+                    const nextCmd = allCommandsRef.current.find(c => c.id === nextTab.id);
                     if (nextCmd) {
                         setSelectedCommand(nextCmd);
                         setActiveTabId(nextTab.id);
@@ -353,7 +363,7 @@ function App() {
             setActiveTabId(EDITOR_TAB_ID);
             return;
         }
-        const cmd = commands.find(c => c.id === commandId);
+        const cmd = allCommandsRef.current.find(c => c.id === commandId);
         if (cmd) {
             setSelectedCommand(cmd);
             setActiveTabId(commandId);
@@ -516,6 +526,7 @@ function App() {
 
     const refreshSelectedCommand = async (): Promise<Command | null> => {
         const cmds = await GetCommands();
+        allCommandsRef.current = cmds || [];
         setCommands(cmds || []);
         const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand?.id) ?? null;
         if (refreshed) setSelectedCommand(refreshed);
@@ -524,9 +535,9 @@ function App() {
 
     const handleAddPresetFromDetail = async (): Promise<string> => {
         if (!selectedCommand) return '';
-        await SavePreset(selectedCommand.id, 'New Preset', {});
-        const refreshed = await refreshSelectedCommand();
-        return refreshed?.presets?.at(-1)?.id ?? '';
+        const created = await SavePreset(selectedCommand.id, 'New Preset', {});
+        await refreshSelectedCommand();
+        return created.id;
     };
 
     const handleRenamePresetFromDetail = async (presetId: string, newName: string) => {
@@ -651,10 +662,8 @@ function App() {
             if (prev) handleSelectTab(prev.id);
         },
 
-        // Close palette / modals
-        'escape': () => {
-            if (paletteOpen) { setPaletteOpen(false); return; }
-        },
+        // Close palette — only registered when open so it doesn't block Radix dialogs
+        ...(paletteOpen ? { 'escape': () => setPaletteOpen(false) } : {}),
     });
 
     const commandHistory = useMemo(
@@ -720,7 +729,9 @@ function App() {
                                         onSave={editorTabData.command ? handleUpdateCommand : handleCreateCommand}
                                         onDiscard={() => {
                                             const editorTab = openTabs.find(t => t.id === EDITOR_TAB_ID);
-                                            if (!editorTab?.isDirty || confirm('Discard unsaved changes?')) {
+                                            if (editorTab?.isDirty) {
+                                                setModal({ type: 'confirmDiscard' });
+                                            } else {
                                                 closeEditorTab();
                                             }
                                         }}
@@ -849,6 +860,23 @@ function App() {
                             <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
                             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-white hover:bg-destructive/90">
                                 {t('app.delete')}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog open={modal.type === 'confirmDiscard'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+                            <AlertDialogDescription>Unsaved changes will be lost.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                className="bg-destructive text-white hover:bg-destructive/90"
+                                onClick={() => { setModal({ type: 'none' }); closeEditorTab(); }}
+                            >
+                                Discard
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
