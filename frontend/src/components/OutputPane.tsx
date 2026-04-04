@@ -32,12 +32,14 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
+  const heightRef = useRef(height);
+  useEffect(() => { heightRef.current = height; }, [height]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDraggingRef.current = true;
     startYRef.current = e.clientY;
-    startHeightRef.current = height;
+    startHeightRef.current = heightRef.current;
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!isDraggingRef.current) return;
@@ -58,7 +60,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-  }, [height]);
+  }, []);
 
   const handleScroll = () => {
     if (!bodyRef.current) return;

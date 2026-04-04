@@ -124,12 +124,13 @@ function App() {
 
     const loadData = useCallback(async () => {
         try {
-            const cats = await GetCategories();
-            const cmds = await GetCommands();
+            const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
             setCategories(cats || []);
             setCommands(cmds || []);
+            return cmds as Command[] || [];
         } catch (err) {
             console.error('Failed to load data:', err);
+            return [] as Command[];
         }
     }, []);
 
@@ -563,8 +564,11 @@ function App() {
 
     const handleCloseManagePresets = async () => {
         setModal({ type: 'none' });
-        await loadData();
-        if (selectedCommand) await refreshSelectedCommand();
+        const cmds = await loadData();
+        if (selectedCommand) {
+            const refreshed = cmds.find((c: Command) => c.id === selectedCommand.id);
+            if (refreshed) setSelectedCommand(refreshed);
+        }
     };
 
     const handleSelectCommand = (cmd: Command) => {
