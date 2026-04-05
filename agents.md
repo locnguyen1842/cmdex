@@ -40,7 +40,7 @@ Data is stored locally in `~/.cmdex/cmdex.db`.
 2. Update the `Create` and `Update` method signatures in `app.go`.
 3. Update the data mappings in the CRUD logic within `app.go`.
 4. Update the TypeScript interfaces in `frontend/src/types.ts`.
-5. Update `CommandEditor.tsx` or `CategoryEditor.tsx` to handle the new input.
+5. Update `CommandDetail.tsx` or `CategoryEditor.tsx` to handle the new input.
 6. Update `App.tsx` where the Create/Update functions are called.
 
 ### Updating Wails config

@@ -20,9 +20,9 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Category, Command } from '../types';
-import { Input } from '@/components/ui/input';
+import { Category, Command, getCommandDisplayTitle } from '../types';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -31,9 +31,8 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { Search, Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info } from 'lucide-react';
+import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { isMac, cmdSymbol as cmd } from '../hooks/useKeyboardShortcuts';
 
@@ -53,7 +52,7 @@ const SHORTCUT_GROUPS = [
     label: 'Commands',
     items: [
       { keys: [`${cmd}↩`],  description: 'Run command' },
-      { keys: [`${cmd}E`],  description: 'Edit command' },
+      { keys: [`${cmd}S`],  description: 'Save command' },
       { keys: [`${cmd}N`],  description: 'New command' },
     ],
   },
@@ -72,16 +71,12 @@ interface SidebarProps {
   categories: Category[];
   commands: Command[];
   selectedCommandId: string | null;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
   onSelectCommand: (cmd: Command) => void;
   onAddCategory: () => void;
   onEditCategory: (cat: Category) => void;
   onDeleteCategory: (catId: string) => void;
   onAddCommand: (categoryId?: string) => void;
-  onEditCommand: (cmd: Command) => void;
   onDeleteCommand: (cmd: Command) => void;
-  onManagePresets: (cmd: Command) => void;
   onReorderCommand: (id: string, newPosition: number, newCategoryId: string) => void;
   onOpenSettings: () => void;
 }
@@ -90,18 +85,14 @@ interface SortableCommandItemProps {
   cmd: Command;
   isSelected: boolean;
   onSelect: () => void;
-  onEdit: () => void;
   onDelete: () => void;
-  onManagePresets: () => void;
 }
 
 const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
   cmd,
   isSelected,
   onSelect,
-  onEdit,
   onDelete,
-  onManagePresets,
 }) => {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cmd.id });
@@ -131,7 +122,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
           </span>
           <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="cmd-body">
-            <span className="cmd-title">{cmd.title}</span>
+            <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
             {cmd.tags && cmd.tags.length > 0 && (
               <span className="cmd-tags-row">
                 {cmd.tags.slice(0, 3).map((tag) => (
@@ -143,15 +134,8 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={onEdit}>
-          <Pencil className="size-3.5" /> {t('sidebar.contextMenu.edit')}
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onManagePresets}>
-          <Settings className="size-3.5" /> {t('sidebar.contextMenu.managePresets')}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
         <ContextMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
-          <X className="size-3.5" /> {t('sidebar.contextMenu.delete')}
+          <Trash2 className="size-3.5" /> {t('sidebar.contextMenu.delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -176,16 +160,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   categories,
   commands,
   selectedCommandId,
-  searchQuery,
-  onSearchChange,
   onSelectCommand,
   onAddCategory,
   onEditCategory,
   onDeleteCategory,
   onAddCommand,
-  onEditCommand,
   onDeleteCommand,
-  onManagePresets,
   onReorderCommand,
   onOpenSettings,
 }) => {
@@ -322,15 +302,28 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="sidebar-logo">
           <div className="logo-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="32" height="32">
-              <rect width="1024" height="1024" rx="180" ry="180" fill="#0F0F14"/>
-              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="#FFFFFF" letterSpacing="-20">C</text>
-              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="#4A9EFF">&gt;_</text>
+              <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.1" />
+              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
+              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
             </svg>
           </div>
           <h1>Cmdex</h1>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="ml-auto">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => onAddCommand()}
+                className="ml-auto"
+              >
+                <Plus className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('sidebar.newCommand')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings}>
                 <Settings className="size-4" />
               </Button>
             </TooltipTrigger>
@@ -358,7 +351,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <span className="shortcut-desc">{item.description}</span>
                       <span className="shortcut-keys-row">
                         {item.keys.map((k) => (
-                          <kbd key={k} className="kbd">{k}</kbd>
+                          <Kbd key={k}>{k}</Kbd>
                         ))}
                       </span>
                     </div>
@@ -367,30 +360,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               ))}
             </PopoverContent>
           </Popover>
-        </div>
-        <div className="sidebar-search-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder={t('sidebar.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-8 h-8 bg-secondary border-border"
-            />
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon-sm"
-                onClick={() => onAddCommand()}
-                className="shrink-0 size-8"
-              >
-                <Plus className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('sidebar.newCommand')}</TooltipContent>
-          </Tooltip>
         </div>
       </div>
 
@@ -467,9 +436,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 cmd={cmd}
                                 isSelected={selectedCommandId === cmd.id}
                                 onSelect={() => onSelectCommand(cmd)}
-                                onEdit={() => onEditCommand(cmd)}
                                 onDelete={() => onDeleteCommand(cmd)}
-                                onManagePresets={() => onManagePresets(cmd)}
                               />
                             ))}
                             {catCommands.length === 0 && (
@@ -529,9 +496,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             cmd={cmd}
                             isSelected={selectedCommandId === cmd.id}
                             onSelect={() => onSelectCommand(cmd)}
-                            onEdit={() => onEditCommand(cmd)}
                             onDelete={() => onDeleteCommand(cmd)}
-                            onManagePresets={() => onManagePresets(cmd)}
                           />
                         ))}
                       </DroppableCategoryZone>
@@ -559,7 +524,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="command-item dragging-ghost">
               <GripVertical className="size-3.5 text-muted-foreground" />
               <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="cmd-title">{activeCommand.title}</span>
+              <span className="cmd-title">{getCommandDisplayTitle(activeCommand)}</span>
             </div>
           )}
         </DragOverlay>

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -126,8 +128,8 @@ func (a *App) CreateCommand(title, description, scriptBody, categoryID string, t
 
 	cmd := Command{
 		ID:            uuid.New().String(),
-		Title:         title,
-		Description:   description,
+		Title:         sql.NullString{String: title, Valid: title != ""},
+		Description:   sql.NullString{String: description, Valid: description != ""},
 		ScriptContent: scriptContent,
 		CategoryID:    categoryID,
 		Tags:          tags,
@@ -159,8 +161,8 @@ func (a *App) UpdateCommand(id, title, description, scriptBody, categoryID strin
 
 	cmd := Command{
 		ID:            id,
-		Title:         title,
-		Description:   description,
+		Title:         sql.NullString{String: title, Valid: title != ""},
+		Description:   sql.NullString{String: description, Valid: description != ""},
 		ScriptContent: scriptContent,
 		CategoryID:    categoryID,
 		Tags:          tags,
@@ -264,6 +266,7 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 		wailsruntime.EventsEmit(a.ctx, "cmd-output", chunk)
 	})
 
+	wd, _ := os.Getwd()
 	record := ExecutionRecord{
 		ID:            uuid.New().String(),
 		CommandID:     commandID,
@@ -272,6 +275,7 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 		Output:        result.Output,
 		Error:         result.Error,
 		ExitCode:      result.ExitCode,
+		WorkingDir:    wd,
 		ExecutedAt:    time.Now(),
 	}
 
@@ -345,6 +349,10 @@ func (a *App) DeletePreset(commandID string, presetID string) error {
 	return a.db.DeletePreset(presetID)
 }
 
+func (a *App) ReorderPresets(commandID string, presetIDs []string) error {
+	return a.db.ReorderPresets(commandID, presetIDs)
+}
+
 // ========== Settings ==========
 
 func (a *App) GetSettings() AppSettings {
@@ -364,6 +372,10 @@ func (a *App) SetSettings(locale string, terminal string) error {
 }
 
 // ========== Search ==========
+
+func (a *App) ResetAllData() error {
+	return a.db.ResetAll()
+}
 
 func (a *App) SearchCommands(query string) []Command {
 	if query == "" {

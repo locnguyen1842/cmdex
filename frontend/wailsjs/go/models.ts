@@ -59,6 +59,7 @@ export namespace main {
 	export class VariablePreset {
 	    id: string;
 	    name: string;
+	    position: number;
 	    values: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
@@ -69,6 +70,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.position = source["position"];
 	        this.values = source["values"];
 	    }
 	}
@@ -94,8 +96,8 @@ export namespace main {
 	}
 	export class Command {
 	    id: string;
-	    title: string;
-	    description: string;
+	    title: sql.NullString;
+	    description: sql.NullString;
 	    scriptContent: string;
 	    tags: string[];
 	    variables: VariableDefinition[];
@@ -114,8 +116,8 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.title = source["title"];
-	        this.description = source["description"];
+	        this.title = this.convertValues(source["title"], sql.NullString);
+	        this.description = this.convertValues(source["description"], sql.NullString);
 	        this.scriptContent = source["scriptContent"];
 	        this.tags = source["tags"];
 	        this.variables = this.convertValues(source["variables"], VariableDefinition);
@@ -152,6 +154,7 @@ export namespace main {
 	    output: string;
 	    error: string;
 	    exitCode: number;
+	    workingDir: string;
 	    // Go type: time
 	    executedAt: any;
 	
@@ -168,6 +171,7 @@ export namespace main {
 	        this.output = source["output"];
 	        this.error = source["error"];
 	        this.exitCode = source["exitCode"];
+	        this.workingDir = source["workingDir"];
 	        this.executedAt = this.convertValues(source["executedAt"], null);
 	    }
 	
@@ -225,6 +229,25 @@ export namespace main {
 	        this.example = source["example"];
 	        this.defaultExpr = source["defaultExpr"];
 	        this.defaultValue = source["defaultValue"];
+	    }
+	}
+
+}
+
+export namespace sql {
+	
+	export class NullString {
+	    String: string;
+	    Valid: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NullString(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.String = source["String"];
+	        this.Valid = source["Valid"];
 	    }
 	}
 

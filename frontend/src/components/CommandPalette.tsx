@@ -5,9 +5,10 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
-import { Command, Category } from '../types';
+import { Command, Category, getCommandDisplayTitle } from '../types';
 import { cmdSymbol } from '../hooks/useKeyboardShortcuts';
 import { FileText, Search, X } from 'lucide-react';
+import { Kbd } from '@/components/ui/kbd';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -19,9 +20,16 @@ interface CommandPaletteProps {
 
 function matches(query: string, cmd: Command): boolean {
   const q = query.toLowerCase();
+  if (q.startsWith('#')) {
+    const tagQuery = q.slice(1);
+    if (!tagQuery) return (cmd.tags || []).length > 0;
+    return (cmd.tags || []).some((t) => t.toLowerCase().includes(tagQuery));
+  }
+  const displayTitle = getCommandDisplayTitle(cmd).toLowerCase();
+  const desc = cmd.description?.Valid ? cmd.description.String : '';
   return (
-    cmd.title.toLowerCase().includes(q) ||
-    (cmd.description || '').toLowerCase().includes(q) ||
+    displayTitle.includes(q) ||
+    desc.toLowerCase().includes(q) ||
     (cmd.tags || []).some((t) => t.toLowerCase().includes(q))
   );
 }
@@ -136,7 +144,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             </button>
           )}
           <div className="palette-shortcut-badge">
-            <kbd>{cmdSymbol}</kbd><kbd>P</kbd>
+            <Kbd>{cmdSymbol}</Kbd><Kbd>P</Kbd>
           </div>
         </div>
 
@@ -159,11 +167,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <FileText size={13} className="palette-item-icon" />
                   <div className="palette-item-body">
                     <span className="palette-item-title">
-                      <Highlight text={cmd.title} query={query.trim()} />
+                      <Highlight text={getCommandDisplayTitle(cmd)} query={query.trim()} />
                     </span>
-                    {cmd.description && (
+                    {cmd.description?.Valid && (
                       <span className="palette-item-desc">
-                        <Highlight text={cmd.description} query={query.trim()} />
+                        <Highlight text={cmd.description.String} query={query.trim()} />
                       </span>
                     )}
                     {cmd.scriptContent && (
@@ -186,9 +194,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         {/* Footer hints */}
         <div className="palette-footer">
-          <span className="palette-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span className="palette-hint"><kbd>↩</kbd> open</span>
-          <span className="palette-hint"><kbd>Esc</kbd> close</span>
+          <span className="palette-hint"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
+          <span className="palette-hint"><Kbd>↩</Kbd> open</span>
+          <span className="palette-hint"><Kbd>Esc</Kbd> close</span>
           <span className="palette-hint" style={{ marginLeft: 'auto', opacity: 0.5 }}>
             {filtered.length} result{filtered.length !== 1 ? 's' : ''}
           </span>

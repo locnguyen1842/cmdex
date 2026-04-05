@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,15 +28,17 @@ interface SettingsDialogProps {
   onClose: () => void;
   theme: string;
   onThemeChange: (theme: string) => void;
+  onResetAllData?: () => Promise<void>;
 }
 
-const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, onThemeChange }) => {
+const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, onThemeChange, onResetAllData }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [savedLocale, setSavedLocale] = useState('en');
   const [savedTerminal, setSavedTerminal] = useState('');
   const [locale, setLocale] = useState('en');
   const [terminal, setTerminal] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -74,7 +86,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Theme</Label>
+            <Label>{t('settings.theme')}</Label>
             <Select value={theme} onValueChange={onThemeChange}>
               <SelectTrigger>
                 <SelectValue />
@@ -116,6 +128,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
             </Select>
           </div>
         </div>
+        {onResetAllData && (
+          <div className="border-t border-border pt-4 mt-2">
+            <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
+              onClick={() => setConfirmReset(true)}
+            >
+              {t('settings.resetAllData')}
+            </Button>
+          </div>
+        )}
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => { setLocale(savedLocale); setTerminal(savedTerminal); onClose(); }}>
             {t('settings.close')}
@@ -125,6 +150,27 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={confirmReset} onOpenChange={(o) => { if (!o) setConfirmReset(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.resetConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.resetConfirmDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={async () => {
+                setConfirmReset(false);
+                if (onResetAllData) await onResetAllData();
+              }}
+            >
+              {t('settings.resetAllData')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

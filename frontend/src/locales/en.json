@@ -15,7 +15,7 @@
       "managePresets": "Manage Presets",
       "delete": "Delete",
       "newCommand": "New Command",
-      "newGroup": "New Group"
+      "newGroup": "New Category"
     }
   },
   "commandDetail": {
@@ -47,7 +47,33 @@
     "cancel": "Cancel",
     "clickToEdit": "Click to edit",
     "clickToSet": "click to set…",
-    "newPresetName": "New Preset"
+    "newPresetName": "New Preset",
+    "presetNamePlaceholder": "Name",
+    "addTitle": "Add title",
+    "addDescription": "Add description",
+    "addTags": "Add tags",
+    "titleTooltip": "Click to edit the command title",
+    "descriptionTooltip": "Description",
+    "tagsTooltip": "Tags",
+    "clickToEditScript": "Click to edit script",
+    "editScript": "Edit script",
+    "saveScript": "Save script",
+    "revertScript": "Discard changes",
+    "editingScript": "Editing script",
+    "savePresetFailed": "Could not save preset",
+    "addTag": "Add tag",
+    "tagNamePlaceholder": "name",
+    "scriptEditHint": "Shift+Enter: new line · Enter: save · {{cmdKey}}⇧⌫: discard",
+    "scriptEditHintTitle": "Keyboard Shortcuts",
+    "scriptEditHintNewLine": "New line",
+    "scriptEditHintSave": "Save changes",
+    "scriptEditHintDiscard": "Discard changes",
+    "varRemovalTitle": "Variables will be removed",
+    "varRemovalDescription": "The following variables are no longer in the script and will be removed:",
+    "varRemovalNote": "These variables will be automatically removed from all presets.",
+    "titleLabel": "Title",
+    "tagsLabel": "Tags",
+    "removeTag": "Remove"
   },
   "commandEditor": {
     "newCommand": "New Command",
@@ -55,7 +81,7 @@
     "editCommandDesc": "Edit command details",
     "createCommandDesc": "Create a new command",
     "title": "Title",
-    "titlePlaceholder": "e.g., Scan Redis Keys",
+    "titlePlaceholder": "Title",
     "description": "Description",
     "descriptionPlaceholder": "What does this command do?",
     "command": "Command",
@@ -128,7 +154,11 @@
     "processExited": "Process exited with code {{code}}",
     "emptyState": "Run a command or select a history entry to see output here.",
     "expand": "Expand pane",
-    "collapse": "Collapse pane"
+    "collapse": "Collapse pane",
+    "toggleShortcut": "Toggle output (Shift+`)",
+    "copyOutput": "Copy output",
+    "copyCommand": "Copy command",
+    "emptyResponse": "Empty Response"
   },
   "app": {
     "welcomeTitle": "Welcome to Cmdex",
@@ -142,7 +172,9 @@
     "delete": "Delete",
     "discard": "Discard",
     "discardTitle": "Discard changes?",
-    "discardDescription": "Unsaved changes will be lost."
+    "discardDescription": "Unsaved changes will be lost.",
+    "clearHistoryTitle": "Clear History",
+    "clearHistoryDescription": "Are you sure you want to clear all execution history? This cannot be undone."
   },
   "toast": {
     "categoryCreated": "Category created",
@@ -162,8 +194,13 @@
     "language": "Language",
     "terminal": "Terminal",
     "terminalAuto": "Auto-detect",
+    "theme": "Theme",
     "save": "Save",
-    "close": "Close"
+    "close": "Close",
+    "dangerZone": "Danger Zone",
+    "resetAllData": "Reset All Data",
+    "resetConfirmTitle": "Reset All Data?",
+    "resetConfirmDescription": "This will delete all commands, categories, presets, and history. This cannot be undone."
   },
   "resizablePanel": {
     "expandPanel": "Expand panel",

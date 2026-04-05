@@ -63,7 +63,7 @@ Platform-aware shell: uses `$SHELL -lc` on Unix (falls back to `/bin/sh`), `cmd 
 - **`App.tsx`** - Central state management; all modals controlled via discriminated union `ModalState` type
 - **`types.ts`** - TypeScript interfaces mirroring Go models in `models.go`
 - **`i18n.ts`** - i18next setup; translations in `src/locales/en.json`
-- **UI components** in `src/components/`: `Sidebar`, `CommandDetail`, `CommandEditorTab`, `TabBar`, `CategoryEditor`, `VariablePrompt`, `HistoryPane`, `OutputPane`, `SettingsDialog`
+- **UI components** in `src/components/`: `Sidebar`, `CommandDetail`, `TabBar`, `CategoryEditor`, `VariablePrompt`, `HistoryPane`, `OutputPane`, `SettingsDialog`, plus inline-edit helpers (`InlineEditField`, `HoverActionButton`, `FloatingSaveBar`)
 - **Tab system**: Editor uses tab-based interface (not modals). Each command opens in a tab with dirty state tracking. See **Tab-Based Editor Architecture** below
 - **shadcn/ui components** in `src/components/ui/` (Radix UI + Tailwind CSS + CVA)
 - Styling: Tailwind CSS v4 with custom CSS variables in `style.css` for the dark theme (`--bg-primary`, `--accent-primary`, etc.)
@@ -77,7 +77,7 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 3. Update method signatures in `app.go`
 4. Run `wails generate module` to regenerate bindings
 5. Update TypeScript interfaces in `frontend/src/types.ts`
-6. Update the relevant editor component (`CommandEditor.tsx` or `CategoryEditor.tsx`)
+6. Update the relevant UI (`CommandDetail.tsx` or `CategoryEditor.tsx`)
 7. Update calls in `App.tsx`
 
 ### Tab-Based Editor Architecture
@@ -85,7 +85,7 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 The editor uses a tab-based interface (replaced modal `CommandEditor`):
 - **Tab types**: `TabKind = 'welcome' | 'detail' | 'edit'` — discriminated union tracks tab purpose
 - **Dirty state**: Each tab tracks `isDirty` for unsaved changes; visual indicator shows dot on tab
-- **State management**: Tabs stored in array; `activeTabId` controls focus; `CommandEditorTab` handles editor UI
+- **State management**: Tabs stored in array; `activeTabId` controls focus; each command tab holds draft + baseline in `App` for inline editing and batch save
 - **Adding features**: Extend `TabKind` for new tab types; maintain dirty tracking via `onDirtyChange` callback with ref pattern (not direct state to avoid re-render loops)
 
 ### Preset & Variable UX Patterns

@@ -2,9 +2,8 @@ import React, { useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 export interface Tab {
-  id: string;       // for editor tabs: '__editor__'; for command tabs: commandId
+  id: string;
   title: string;
-  kind: 'command' | 'editor';
   isDirty?: boolean;
 }
 

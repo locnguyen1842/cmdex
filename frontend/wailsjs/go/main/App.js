@@ -74,6 +74,14 @@ export function ReorderCommand(arg1, arg2, arg3) {
   return window['go']['main']['App']['ReorderCommand'](arg1, arg2, arg3);
 }
 
+export function ReorderPresets(arg1, arg2) {
+  return window['go']['main']['App']['ReorderPresets'](arg1, arg2);
+}
+
+export function ResetAllData() {
+  return window['go']['main']['App']['ResetAllData']();
+}
+
 export function RunCommand(arg1, arg2) {
   return window['go']['main']['App']['RunCommand'](arg1, arg2);
 }
