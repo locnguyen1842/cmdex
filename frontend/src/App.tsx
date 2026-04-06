@@ -322,9 +322,16 @@ function App() {
                 return n;
             });
             delete tabPaneStateRef.current[tabId];
+            delete tabOutputRef.current[tabId];
         },
         [activeTabId],
     );
+
+    const applyPaneState = (tabId: string) => {
+        const saved = tabPaneStateRef.current[tabId];
+        setOutputPaneOpen(saved?.outputOpen ?? false);
+        setHistoryPaneOpen(saved?.historyOpen ?? false);
+    };
 
     const openNewCommandTab = useCallback(
         (defaultCategoryId?: string) => {
@@ -338,8 +345,7 @@ function App() {
             setActiveTabId(id);
             setOpenTabs((prev) => [...prev, { id, title: t('commandEditor.newCommand') }]);
             tabPaneStateRef.current[id] = { outputOpen: false, historyOpen: false };
-            setOutputPaneOpen(false);
-            setHistoryPaneOpen(false);
+            applyPaneState(id);
         },
         [t],
     );
@@ -358,16 +364,11 @@ function App() {
             return [...prev, { id: cmd.id, title: tabTitle }];
         });
         if (isExisting) {
-            const saved = tabPaneStateRef.current[cmd.id];
-            if (saved) {
-                setOutputPaneOpen(saved.outputOpen);
-                setHistoryPaneOpen(saved.historyOpen);
-            }
+            applyPaneState(cmd.id);
             return;
         }
         tabPaneStateRef.current[cmd.id] = { outputOpen: false, historyOpen: false };
-        setOutputPaneOpen(false);
-        setHistoryPaneOpen(false);
+        applyPaneState(cmd.id);
         void GetScriptBody(cmd.id)
             .then((body) => {
                 const d = draftFromCommand(cmd, body);
@@ -485,15 +486,7 @@ function App() {
             setSelectedRecord(null);
             setStreamLines([]);
         }
-        // Restore target tab's pane visibility
-        const savedPane = tabPaneStateRef.current[tabId];
-        if (savedPane) {
-            setOutputPaneOpen(savedPane.outputOpen);
-            setHistoryPaneOpen(savedPane.historyOpen);
-        } else {
-            setOutputPaneOpen(false);
-            setHistoryPaneOpen(false);
-        }
+        applyPaneState(tabId);
         if (isNewCommandTabId(tabId)) {
             const d = tabDraftsRef.current[tabId];
             setSelectedCommand(makePlaceholderCommand(tabId, d?.categoryId));
@@ -1101,7 +1094,7 @@ function App() {
                                     selectedRecordId={selectedRecord?.id || null}
                                     onSelectRecord={handleSelectRecord}
                                     onClearHistory={handleClearHistory}
-                                    defaultCollapsed={historyPaneOpen}
+                                    defaultCollapsed={!historyPaneOpen}
                                 />
                             )}
                         </div>
