@@ -350,6 +350,27 @@ func (a *App) DeletePreset(commandID string, presetID string) error {
 }
 
 func (a *App) ReorderPresets(commandID string, presetIDs []string) error {
+	existing, err := a.db.GetPresets(commandID)
+	if err != nil {
+		return fmt.Errorf("get presets for validation: %w", err)
+	}
+	if len(presetIDs) != len(existing) {
+		return fmt.Errorf("expected %d preset IDs, got %d", len(existing), len(presetIDs))
+	}
+	existingSet := make(map[string]bool, len(existing))
+	for _, p := range existing {
+		existingSet[p.ID] = true
+	}
+	seen := make(map[string]bool, len(presetIDs))
+	for _, id := range presetIDs {
+		if !existingSet[id] {
+			return fmt.Errorf("preset %s does not belong to command %s", id, commandID)
+		}
+		if seen[id] {
+			return fmt.Errorf("duplicate preset ID: %s", id)
+		}
+		seen[id] = true
+	}
 	return a.db.ReorderPresets(commandID, presetIDs)
 }
 

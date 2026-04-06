@@ -76,6 +76,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
       if (!o) {
         setLocale(savedLocale);
         setTerminal(savedTerminal);
+        setConfirmReset(false);
         onClose();
       }
     }}>
@@ -142,7 +143,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
           </div>
         )}
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => { setLocale(savedLocale); setTerminal(savedTerminal); onClose(); }}>
+          <Button variant="outline" onClick={() => { setLocale(savedLocale); setTerminal(savedTerminal); setConfirmReset(false); onClose(); }}>
             {t('settings.close')}
           </Button>
           <Button disabled={!isDirty} onClick={handleSave}>

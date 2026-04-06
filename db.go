@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS executions (
     output TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
     exit_code INTEGER NOT NULL DEFAULT 0,
+    working_dir TEXT DEFAULT '',
     executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -191,11 +192,13 @@ func (db *DB) migrate() error {
 			)`,
 			`INSERT INTO commands_new SELECT * FROM commands`,
 			`DROP TABLE commands`,
-			`ALTER TABLE commands_new RENAME TO commands`,
-			// Update empty strings to NULL
-			`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
-			// Recreate FTS triggers
-			`DROP TRIGGER IF EXISTS commands_ai`,
+		`ALTER TABLE commands_new RENAME TO commands`,
+		// Update empty strings to NULL
+		`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
+		// Rebuild FTS index to match new rowids after table recreation
+		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+		// Recreate FTS triggers
+		`DROP TRIGGER IF EXISTS commands_ai`,
 			`DROP TRIGGER IF EXISTS commands_ad`,
 			`DROP TRIGGER IF EXISTS commands_au`,
 			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
@@ -284,28 +287,30 @@ func (db *DB) migrate() error {
 				script_content, category_id, position, created_at, updated_at
 				FROM commands`,
 			`DROP TABLE commands`,
-			`ALTER TABLE commands_new RENAME TO commands`,
-			`DROP TRIGGER IF EXISTS commands_ai`,
-			`DROP TRIGGER IF EXISTS commands_ad`,
-			`DROP TRIGGER IF EXISTS commands_au`,
-			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
-				INSERT INTO commands_fts(rowid, title, description, script_content)
-				VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
-			END`,
-			`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
-				INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-				VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
-			END`,
-			`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
-				INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-				VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
-				INSERT INTO commands_fts(rowid, title, description, script_content)
-				VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
-			END`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v5: %w", err)
+		`ALTER TABLE commands_new RENAME TO commands`,
+		// Rebuild FTS index to match new rowids after table recreation
+		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+		`DROP TRIGGER IF EXISTS commands_ai`,
+		`DROP TRIGGER IF EXISTS commands_ad`,
+		`DROP TRIGGER IF EXISTS commands_au`,
+		`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
+			INSERT INTO commands_fts(rowid, title, description, script_content)
+			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
+		END`,
+		`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
+			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
+			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
+		END`,
+		`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
+			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
+			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
+			INSERT INTO commands_fts(rowid, title, description, script_content)
+			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
+		END`,
+	}
+	for _, m := range migrations {
+		if _, err := tx.Exec(m); err != nil {
+			return fmt.Errorf("migration v5: %w", err)
 			}
 		}
 		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 5); err != nil {

@@ -637,11 +637,14 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .main-body.command-tab-shell .command-detail {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 56px;
 }
 
 /* ========== Inline edit + hover actions + floating save ========== */
@@ -852,14 +855,14 @@ textarea.inline-edit-input {
 }
 
 .floating-save-bar {
-  position: sticky;
+  position: absolute;
   bottom: 12px;
   left: 0;
   right: 0;
   display: flex;
   justify-content: center;
   padding: 0;
-  margin: 16px 0 0;
+  pointer-events: none;
   animation: floating-save-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 5;
 }
@@ -867,14 +870,15 @@ textarea.inline-edit-input {
 .floating-save-group {
   display: flex;
   align-items: center;
-  background: color-mix(in srgb, var(--card) 92%, transparent);
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--primary) 18%, var(--card));
   backdrop-filter: blur(14px) saturate(1.6);
-  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border));
   border-radius: 9999px;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
-    0 4px 24px rgba(0, 0, 0, 0.25),
-    0 0 48px color-mix(in srgb, var(--primary) 10%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--primary) 15%, transparent),
+    0 4px 24px rgba(0, 0, 0, 0.35),
+    0 0 48px color-mix(in srgb, var(--primary) 18%, transparent);
   overflow: hidden;
 }
 
@@ -1068,7 +1072,7 @@ textarea.inline-edit-input {
   line-height: 1.6;
   padding: 8px 12px;
   white-space: pre-wrap;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
   color: transparent;
 }
 
@@ -2107,6 +2111,8 @@ kbd, .kbd {
   cursor: pointer;
   transition: all 0.15s;
   font-family: var(--font-sans);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .preset-chip:hover {
@@ -2547,6 +2553,9 @@ textarea.detail-description-textarea {
   border: none;
   color: var(--foreground);
   font-size: 13px;
+  max-height: 400px;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
   font-family: var(--font-sans);
   font-style: italic;
   padding: 8px 10px;
@@ -2557,4 +2566,6 @@ textarea.detail-description-textarea {
 
 textarea.detail-description-textarea:focus {
   font-style: normal;
+  max-height: 450px;
+  overflow-y: auto;
 }

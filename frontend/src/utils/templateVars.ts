@@ -16,15 +16,17 @@ export function extractTemplateVarNames(text: string): string[] {
   return result;
 }
 
-/** Merge auto-detected names with existing definitions (order follows script). */
+/** Merge auto-detected names with existing definitions, preserving manually added ones. */
 export function mergeDetectedVariables(
   scriptBody: string,
   existing: VariableDefinition[],
 ): VariableDefinition[] {
   const detected = extractTemplateVarNames(scriptBody);
-  const map = new Map(existing.map((v) => [v.name, v]));
-  return detected.map((name, i) => {
-    const prev = map.get(name);
+  const existingMap = new Map(existing.map((v) => [v.name, v]));
+  const usedNames = new Set<string>();
+  const result: VariableDefinition[] = detected.map((name, i) => {
+    usedNames.add(name);
+    const prev = existingMap.get(name);
     return (
       prev ?? {
         name,
@@ -35,6 +37,12 @@ export function mergeDetectedVariables(
       }
     );
   });
+  for (const v of existing) {
+    if (!usedNames.has(v.name)) {
+      result.push({ ...v, sortOrder: result.length });
+    }
+  }
+  return result;
 }
 
 export function normalizeVariablesForCompare(vars: VariableDefinition[]) {

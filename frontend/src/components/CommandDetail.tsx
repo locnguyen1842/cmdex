@@ -112,15 +112,14 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
       <Textarea
         ref={textareaRef}
         className="highlighted-textarea-input"
+        value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
         onScroll={syncScroll}
         autoFocus={autoFocus}
         placeholder={placeholder}
-      >
-        {value}
-      </Textarea>
+      />
     </div>
   );
 };
@@ -283,6 +282,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [confirmDeletePresetId, setConfirmDeletePresetId] = useState<string | null>(null);
   const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null);
   const [newlyCreatedPresetId, setNewlyCreatedPresetId] = useState<string | null>(null);
+  const preAddPresetIdRef = useRef<string>('');
   const [scriptEditDraft, setScriptEditDraft] = useState('');
   const [showScriptDiscardConfirm, setShowScriptDiscardConfirm] = useState(false);
   const [pendingRemovedVars, setPendingRemovedVars] = useState<string[]>([]);
@@ -400,7 +400,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     if (!trimmed) {
       if (renamingChipId === newlyCreatedPresetId) {
         await onDeletePreset(renamingChipId);
-        if (selectedPresetId === renamingChipId) setSelectedPresetId('');
+        setSelectedPresetId(preAddPresetIdRef.current);
         setNewlyCreatedPresetId(null);
       }
       setRenamingChipId(null);
@@ -769,13 +769,27 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 </TooltipTrigger>
                 <TooltipContent>{t('commandDetail.descriptionTooltip')}</TooltipContent>
               </Tooltip>
-              <Textarea
-                className="detail-description-textarea"
-                onBlur={(e) => onDraftChange({ description: e.target.value })}
-                placeholder={t('commandEditor.descriptionPlaceholder')}
-              >
-                {draft?.description}
-              </Textarea>
+            <Textarea
+              className="detail-description-textarea"
+              value={draft?.description}
+              onChange={(e) => {
+                onDraftChange({ description: e.target.value });
+                const el = e.target;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 400) + 'px';
+              }}
+              onFocus={(e) => {
+                const el = e.target;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 450) + 'px';
+              }}
+              onBlur={(e) => {
+                onDraftChange({ description: e.target.value });
+                e.target.style.height = '';
+                e.target.setSelectionRange(0, 0); 
+              }}
+              placeholder={t('commandEditor.descriptionPlaceholder')}
+            />
             </div>
           )}
 
@@ -820,7 +834,16 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         {isExecuting ? (
                           <Loader2 className="size-3.5 animate-spin" />
                         ) : (
-                          <Play className="size-3.5" />
+                          <Play 
+                            className="size-3.5" 
+                            style={{
+                              filter: `
+                                drop-shadow(0 0 2px #007acc) 
+                                drop-shadow(0 0 10px #007acc) 
+                                drop-shadow(0 0 20px rgba(0, 122, 204, 0.5))
+                              `
+                            }}
+                          />
                         )}
                       </Button>
                     </TooltipTrigger>
@@ -999,6 +1022,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   type="button"
                   className="preset-chip preset-chip-add"
                   onClick={async () => {
+                    preAddPresetIdRef.current = selectedPresetId;
                     const hasValues = Object.values(resolvedValues).some((v) => v.trim());
                     const newId = await onAddPreset(hasValues ? resolvedValues : undefined);
                     setSelectedPresetId(newId);
@@ -1024,7 +1048,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        className="text-primary hover:text-primary"
+                        className={cn("execute-btn-glow", isExecuting && "execute-btn-running")}
                         disabled={isExecuting}
                         onClick={() => {
                           const hasEmpty = variables.some((v) => !resolvedValues[v.name]);

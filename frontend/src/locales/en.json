@@ -206,5 +206,20 @@
     "expandPanel": "Expand panel",
     "resizeHandle": "Resize handle",
     "resizeHandleTooltip": "Drag to resize · Click to collapse"
+  },
+  "welcome": {
+    "title": "Cmdex",
+    "subtitle": "Save, organize, and run CLI commands",
+    "shortcutsTitle": "Keyboard Shortcuts",
+    "newCommand": "+ New Command",
+    "shortcutNewTab": "New command tab",
+    "shortcutPalette": "Command palette",
+    "shortcutSearch": "Search commands",
+    "shortcutRun": "Run command",
+    "shortcutSave": "Save command",
+    "shortcutSwitchTab": "Switch to tab 1–6",
+    "shortcutLastTab": "Switch to last tab",
+    "shortcutSettings": "Settings",
+    "shortcutCloseTab": "Close tab"
   }
 }

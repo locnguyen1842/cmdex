@@ -93,7 +93,7 @@ type OutputChunk struct {
 
 // ExecuteScript runs a resolved script (all {{var}} already replaced) and streams output via callback.
 func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)) ExecutionResult {
-	tmpPath, err := writeTempScript(appendBackslashToLines(scriptContent))
+	tmpPath, err := writeTempScript(scriptContent)
 	if err != nil {
 		return ExecutionResult{Error: err.Error(), ExitCode: -1}
 	}
@@ -333,18 +333,18 @@ tell application "System Events" to key code 36`, asEscaped)
 				return exec.Command("alacritty", "-e", ex.shell, "-c", body).Start()
 			},
 		},
-		{
-			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("kitty", ex.shell, "-c", body).Start()
-			},
+	{
+		ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
+		LaunchFn: func(ex *Executor, body string) error {
+			return exec.Command("kitty", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
 		},
-		{
-			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("ghostty", "-e", ex.shell, "-c", body).Start()
-			},
+	},
+	{
+		ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
+		LaunchFn: func(ex *Executor, body string) error {
+			return exec.Command("ghostty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
 		},
+	},
 		{
 			ID: "hyper", Name: "Hyper", Paths: []string{"/Applications/Hyper.app"}, IsApp: true,
 			LaunchFn: func(_ *Executor, body string) error {

@@ -18,10 +18,10 @@ const MAX_HEIGHT = 600;
 const DEFAULT_HEIGHT = 200;
 const STORAGE_KEY = 'cmdex-output-height';
 
-function formatTime(isoStr: string): string {
+function formatTime(isoStr: string, locale?: string): string {
   try {
     const d = new Date(isoStr);
-    return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toLocaleTimeString(locale || undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } catch {
     return '';
   }
@@ -45,7 +45,7 @@ interface OutputPaneProps {
 }
 
 const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecuting, isOpen, onToggle }) => {
-  const { t } = useTranslation();
+  const { t, i18n: i18nInstance } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const [copiedOutput, setCopiedOutput] = useState(false);
@@ -136,7 +136,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
   const handleCopy = useCallback(() => {
     if (!allOutputText) return;
-    navigator.clipboard.writeText(allOutputText.trim()).then(() => {
+    navigator.clipboard.writeText(allOutputText).then(() => {
       setCopiedOutput(true);
       setTimeout(() => setCopiedOutput(false), 1500);
     });
@@ -152,7 +152,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
   const cmdPrefix = useMemo(() => {
     if (!showRecord) return null;
-    const time = formatTime(record.executedAt);
+    const time = formatTime(record.executedAt, i18nInstance.language);
     const dir = shortenDir(record.workingDir || '');
     return `[${time}] ${dir} ➤ `;
   }, [showRecord, record?.executedAt, record?.workingDir]);

@@ -45,10 +45,9 @@ export interface Command {
 
 /** Returns a display title for a command, using script body as fallback */
 export function getCommandDisplayTitle(cmd: Command | null | undefined): string {
-  if (!cmd) return 'Untitled';
+  if (!cmd) return '';
   if (cmd.title?.Valid && cmd.title.String.trim()) return cmd.title.String.trim();
   
-  // Extract body from script content (remove shebang if present)
   let body = cmd.scriptContent;
   if (body.startsWith('#!/bin/bash\n')) {
     body = body.slice('#!/bin/bash\n'.length);
@@ -56,10 +55,9 @@ export function getCommandDisplayTitle(cmd: Command | null | undefined): string 
     body = body.slice('#!/bin/bash'.length);
   }
   
-  // Replace newlines with spaces and trim
   body = body.replace(/\n/g, ' ').trim();
   
-  if (body.length === 0) return 'Untitled';
+  if (body.length === 0) return '';
   if (body.length <= 50) return body;
   return body.slice(0, 50) + '...';
 }
