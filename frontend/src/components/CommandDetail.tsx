@@ -785,8 +785,12 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               }}
               onBlur={(e) => {
                 onDraftChange({ description: e.target.value });
-                e.target.style.height = '';
-                e.target.setSelectionRange(0, 0); 
+                const el = e.target;
+                el.style.height = '';
+                requestAnimationFrame(() => {
+                  el.scrollTop = 0;
+                  el.setSelectionRange(0, 0);
+                });
               }}
               placeholder={t('commandEditor.descriptionPlaceholder')}
             />

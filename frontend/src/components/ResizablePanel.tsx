@@ -28,7 +28,8 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     return saved ? parseInt(saved, 10) : defaultWidth;
   });
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem(`${storageKey}-collapsed`) ? localStorage.getItem(`${storageKey}-collapsed`) === 'true' : defaultCollapsed;
+    const stored = localStorage.getItem(`${storageKey}-collapsed`);
+    return stored ? stored === 'true' : !!defaultCollapsed;
   });
   const [dragging, setDragging] = useState(false);
   const startXRef = useRef(0);

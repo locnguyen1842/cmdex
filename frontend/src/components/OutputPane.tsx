@@ -122,7 +122,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const showRecord = record && !isStreaming;
 
   const allOutputText = useMemo(() => {
-    if (isStreaming || (isExecuting && streamLines.length > 0)) {
+    if (isStreaming) {
       return streamLines.map((l) => l.startsWith(STDERR_PREFIX) ? l.slice(STDERR_PREFIX.length) : l).join('');
     }
     if (showRecord) {
@@ -132,13 +132,15 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
       return parts.join('\n');
     }
     return '';
-  }, [streamLines, record, isStreaming, isExecuting, showRecord]);
+  }, [streamLines, record, isStreaming, showRecord]);
 
   const handleCopy = useCallback(() => {
     if (!allOutputText) return;
     navigator.clipboard.writeText(allOutputText).then(() => {
       setCopiedOutput(true);
       setTimeout(() => setCopiedOutput(false), 1500);
+    }).catch((err) => {
+      console.error('Failed to copy output:', err);
     });
   }, [allOutputText]);
 
@@ -147,6 +149,8 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
     navigator.clipboard.writeText(record.finalCmd).then(() => {
       setCopiedCommand(true);
       setTimeout(() => setCopiedCommand(false), 1500);
+    }).catch((err) => {
+      console.error('Failed to copy command:', err);
     });
   }, [record?.finalCmd]);
 

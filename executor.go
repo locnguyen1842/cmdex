@@ -81,7 +81,6 @@ func BuildDisplayCommand(scriptContent string, variables map[string]string) stri
 		resolved = strings.TrimPrefix(resolved, "\n")
 	}
 	resolved = strings.TrimSpace(resolved)
-	resolved = appendBackslashToLines(resolved)
 	return resolved
 }
 
@@ -196,7 +195,6 @@ func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error
 		}
 	}
 	body = strings.TrimSpace(body)
-	body = appendBackslashToLines(body)
 	defs := e.terminalDefs()
 
 	if terminalID != "" {
@@ -287,7 +285,6 @@ func (e *Executor) terminalDefs() []terminalDef {
 }
 
 func (e *Executor) darwinTerminals() []terminalDef {
-	// osa builds a LaunchFn that escapes body for AppleScript and runs via osascript.
 	osa := func(appName, script string) func(*Executor, string) error {
 		return func(_ *Executor, body string) error {
 			asEscaped := strings.ReplaceAll(body, `\`, `\\`)
@@ -330,21 +327,21 @@ tell application "System Events" to key code 36`, asEscaped)
 		{
 			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("alacritty", "-e", ex.shell, "-c", body).Start()
+				return exec.Command("alacritty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
 			},
 		},
-	{
-		ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
-		LaunchFn: func(ex *Executor, body string) error {
-			return exec.Command("kitty", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+		{
+			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
+			LaunchFn: func(ex *Executor, body string) error {
+				return exec.Command("kitty", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+			},
 		},
-	},
-	{
-		ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
-		LaunchFn: func(ex *Executor, body string) error {
-			return exec.Command("ghostty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+		{
+			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
+			LaunchFn: func(ex *Executor, body string) error {
+				return exec.Command("ghostty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+			},
 		},
-	},
 		{
 			ID: "hyper", Name: "Hyper", Paths: []string{"/Applications/Hyper.app"}, IsApp: true,
 			LaunchFn: func(_ *Executor, body string) error {
@@ -355,7 +352,6 @@ tell application "System Events" to key code 36`, asEscaped)
 }
 
 func (e *Executor) linuxTerminals() []terminalDef {
-	// shellExec builds a LaunchFn that receives the raw body.
 	shellExec := func(bin string, buildArgs func(shell, body string) []string) func(*Executor, string) error {
 		return func(ex *Executor, body string) error {
 			args := buildArgs(ex.shell, body)

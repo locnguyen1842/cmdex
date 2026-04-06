@@ -122,6 +122,14 @@ function App() {
     // Per-tab pane visibility (history + output); new tabs default to both closed
     const tabPaneStateRef = useRef<Record<string, { outputOpen: boolean; historyOpen: boolean }>>({});
     const [historyPaneOpen, setHistoryPaneOpen] = useState(false);
+    const selectedRecordRef = useRef<ExecutionRecord | null>(null);
+    selectedRecordRef.current = selectedRecord;
+    const streamLinesRef = useRef<string[]>([]);
+    streamLinesRef.current = streamLines;
+    const outputPaneOpenRef = useRef(false);
+    outputPaneOpenRef.current = outputPaneOpen;
+    const historyPaneOpenRef = useRef(false);
+    historyPaneOpenRef.current = historyPaneOpen;
 
     const [openTabs, setOpenTabs] = useState<Tab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -351,8 +359,19 @@ function App() {
     );
 
     const openTab = useCallback((cmd: Command) => {
+        // Save current tab's output + pane state before switching
+        const prevTabId = activeTabIdRef.current;
+        if (prevTabId && prevTabId !== cmd.id) {
+            tabOutputRef.current[prevTabId] = {
+                record: selectedRecordRef.current,
+                streamLines: [...streamLinesRef.current],
+            };
+            tabPaneStateRef.current[prevTabId] = {
+                outputOpen: outputPaneOpenRef.current,
+                historyOpen: historyPaneOpenRef.current,
+            };
+        }
         setSelectedCommand(cmd);
-        setSelectedRecord(null);
         setActiveTabId(cmd.id);
         const isExisting = !!tabBaselinesRef.current[cmd.id];
         setOpenTabs((prev) => {
@@ -364,9 +383,19 @@ function App() {
             return [...prev, { id: cmd.id, title: tabTitle }];
         });
         if (isExisting) {
+            const savedOutput = tabOutputRef.current[cmd.id];
+            if (savedOutput) {
+                setSelectedRecord(savedOutput.record);
+                setStreamLines(savedOutput.streamLines);
+            } else {
+                setSelectedRecord(null);
+                setStreamLines([]);
+            }
             applyPaneState(cmd.id);
             return;
         }
+        setSelectedRecord(null);
+        setStreamLines([]);
         tabPaneStateRef.current[cmd.id] = { outputOpen: false, historyOpen: false };
         applyPaneState(cmd.id);
         void GetScriptBody(cmd.id)
@@ -389,7 +418,7 @@ function App() {
             const title = d.title.trim();
             const description = d.description.trim();
             const body = d.scriptBody.replace(/^\s+|\s+$/g, '');
-            const tags = d.tags.map((t) => t.trim()).filter(Boolean);
+            const tags = d.tags.map((tag) => tag.trim()).filter(Boolean);
             try {
                 if (isNewCommandTabId(tabId)) {
                     const cmd = await CreateCommand(
@@ -825,7 +854,7 @@ function App() {
         const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
         const vars = mergeDetectedVariables(strippedBody, d.variables);
         try {
-            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(t => t.trim()).filter(Boolean), vars);
+            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars);
             await loadData();
             const cmd = allCommandsRef.current.find(c => c.id === activeTabId);
             if (cmd) {
@@ -953,13 +982,7 @@ function App() {
             }
         },
 
-        'shift+`': () => {
-            setOutputPaneOpen((prev) => !prev);
-        },
         'shift+~': () => {
-            setOutputPaneOpen((prev) => !prev);
-        },
-        'shift+backquote': () => {
             setOutputPaneOpen((prev) => !prev);
         },
 
