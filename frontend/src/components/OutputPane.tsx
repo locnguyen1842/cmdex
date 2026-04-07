@@ -254,7 +254,12 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
                 {record.finalCmd}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" className="output-copy-inline output-copy-cmd" onClick={handleCopyCommand}>
+                    <button
+                      type="button"
+                      className="output-copy-inline output-copy-cmd"
+                      onClick={handleCopyCommand}
+                      aria-label={t('outputPane.copyCommand')}
+                    >
                       {copiedCommand ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
                     </button>
                   </TooltipTrigger>

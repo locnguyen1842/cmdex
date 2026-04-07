@@ -132,6 +132,9 @@ function App() {
     historyPaneOpenRef.current = historyPaneOpen;
 
     const [openTabs, setOpenTabs] = useState<Tab[]>([]);
+    const openTabsRef = useRef<Tab[]>([]);
+    openTabsRef.current = openTabs;
+    const scriptFetchGenRef = useRef<Record<string, number>>({});
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const activeTabIdRef = useRef<string | null>(null);
     activeTabIdRef.current = activeTabId;
@@ -215,7 +218,7 @@ function App() {
             } else {
                 displayTitle = isNewCommandTabId(activeTabId)
                     ? t('commandEditor.newCommand')
-                    : 'Untitled';
+                    : t('common.untitled');
             }
         }
         setOpenTabs((prev) =>
@@ -298,27 +301,37 @@ function App() {
 
     const finalizeCloseTab = useCallback(
         (tabId: string) => {
-            setOpenTabs((prevTabs) => {
-                const newTabs = prevTabs.filter((t) => t.id !== tabId);
-                if (activeTabId === tabId) {
-                    const idx = prevTabs.findIndex((t) => t.id === tabId);
-                    const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
-                    if (nextTab) {
-                        if (isNewCommandTabId(nextTab.id)) {
-                            const d = tabDraftsRef.current[nextTab.id];
-                            setSelectedCommand(makePlaceholderCommand(nextTab.id, d?.categoryId));
-                        } else {
-                            const cmd = allCommandsRef.current.find((c) => c.id === nextTab.id);
-                            setSelectedCommand(cmd ?? null);
-                        }
-                        setActiveTabId(nextTab.id);
+            const prevTabs = openTabsRef.current;
+            const newTabs = prevTabs.filter((t) => t.id !== tabId);
+            if (activeTabId === tabId) {
+                const idx = prevTabs.findIndex((t) => t.id === tabId);
+                const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
+                if (nextTab) {
+                    const saved = tabOutputRef.current[nextTab.id];
+                    if (saved) {
+                        setSelectedRecord(saved.record);
+                        setStreamLines(saved.streamLines);
                     } else {
-                        setSelectedCommand(null);
-                        setActiveTabId(null);
+                        setSelectedRecord(null);
+                        setStreamLines([]);
                     }
+                    applyPaneState(nextTab.id);
+                    if (isNewCommandTabId(nextTab.id)) {
+                        const d = tabDraftsRef.current[nextTab.id];
+                        setSelectedCommand(makePlaceholderCommand(nextTab.id, d?.categoryId));
+                    } else {
+                        const cmd = allCommandsRef.current.find((c) => c.id === nextTab.id);
+                        setSelectedCommand(cmd ?? null);
+                    }
+                    setActiveTabId(nextTab.id);
+                } else {
+                    setSelectedCommand(null);
+                    setActiveTabId(null);
+                    setSelectedRecord(null);
+                    setStreamLines([]);
                 }
-                return newTabs;
-            });
+            }
+            setOpenTabs(newTabs);
             setTabDrafts((prev) => {
                 const n = { ...prev };
                 delete n[tabId];
@@ -331,6 +344,7 @@ function App() {
             });
             delete tabPaneStateRef.current[tabId];
             delete tabOutputRef.current[tabId];
+            delete scriptFetchGenRef.current[tabId];
         },
         [activeTabId],
     );
@@ -343,6 +357,17 @@ function App() {
 
     const openNewCommandTab = useCallback(
         (defaultCategoryId?: string) => {
+            const prevTabId = activeTabIdRef.current;
+            if (prevTabId) {
+                tabOutputRef.current[prevTabId] = {
+                    record: selectedRecordRef.current,
+                    streamLines: [...streamLinesRef.current],
+                };
+                tabPaneStateRef.current[prevTabId] = {
+                    outputOpen: outputPaneOpenRef.current,
+                    historyOpen: historyPaneOpenRef.current,
+                };
+            }
             const id = createNewTabId();
             const initial = emptyDraft(defaultCategoryId);
             const baseline = cloneDraft(initial);
@@ -350,6 +375,7 @@ function App() {
             setTabBaselines((prev) => ({ ...prev, [id]: baseline }));
             setSelectedCommand(makePlaceholderCommand(id, defaultCategoryId));
             setSelectedRecord(null);
+            setStreamLines([]);
             setActiveTabId(id);
             setOpenTabs((prev) => [...prev, { id, title: t('commandEditor.newCommand') }]);
             tabPaneStateRef.current[id] = { outputOpen: false, historyOpen: false };
@@ -398,13 +424,16 @@ function App() {
         setStreamLines([]);
         tabPaneStateRef.current[cmd.id] = { outputOpen: false, historyOpen: false };
         applyPaneState(cmd.id);
+        const g = (scriptFetchGenRef.current[cmd.id] = (scriptFetchGenRef.current[cmd.id] ?? 0) + 1);
         void GetScriptBody(cmd.id)
             .then((body) => {
+                if (scriptFetchGenRef.current[cmd.id] !== g) return;
                 const d = draftFromCommand(cmd, body);
                 setTabDrafts((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: d });
                 setTabBaselines((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: cloneDraft(d) });
             })
             .catch(() => {
+                if (scriptFetchGenRef.current[cmd.id] !== g) return;
                 const d = draftFromCommand(cmd, '');
                 setTabDrafts((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: d });
                 setTabBaselines((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: cloneDraft(d) });
@@ -596,13 +625,27 @@ function App() {
         }
     };
 
+    const isSavedCommandDraftDirty = useCallback((commandId: string) => {
+        const d = tabDraftsRef.current[commandId];
+        const b = tabBaselinesRef.current[commandId];
+        return !!(d && b && !draftsEqual(d, b));
+    }, []);
+
     const handleExecute = async (values: Record<string, string>) => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
         runCommandDirect(selectedCommand.id, values);
     };
 
     const handleRunInTerminal = async (values: Record<string, string>) => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
         try {
             await RunInTerminal(selectedCommand.id, values);
         } catch (err) {
@@ -656,6 +699,10 @@ function App() {
 
     const handleVariableSubmit = async (values: Record<string, string>) => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
         setModal({ type: 'none' });
         runCommandDirect(selectedCommand.id, values);
     };
@@ -795,7 +842,7 @@ function App() {
 
     const handleAddPresetFromDetail = async (initialValues?: Record<string, string>): Promise<string> => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return '';
-        const created = await SavePreset(selectedCommand.id, 'New Preset', initialValues ?? {});
+        const created = await SavePreset(selectedCommand.id, t('commandDetail.newPresetName'), initialValues ?? {});
         await refreshSelectedCommand();
         return created.id;
     };
@@ -1102,7 +1149,7 @@ function App() {
                                     </div>
                                 ) : selectedCommand && !activeDraft ? (
                                     <div className="main-body">
-                                        <p className="text-muted-foreground text-sm p-4">Loading…</p>
+                                        <p className="text-muted-foreground text-sm p-4">{t('common.loading')}</p>
                                     </div>
                                 ) : (
                                     <div className="main-body">

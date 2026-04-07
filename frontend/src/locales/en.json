@@ -1,4 +1,8 @@
 {
+  "common": {
+    "untitled": "Untitled",
+    "loading": "Loading…"
+  },
   "sidebar": {
     "searchPlaceholder": "Search commands...",
     "addCommand": "Add command",
@@ -186,7 +190,8 @@
     "presetCreated": "Preset created",
     "presetSaved": "Preset saved",
     "commandSuccess": "Command completed successfully",
-    "commandFailed": "Command failed (exit {{code}})"
+    "commandFailed": "Command failed (exit {{code}})",
+    "saveBeforeExecute": "Save your changes before running the command."
   },
   "settings": {
     "title": "Settings",

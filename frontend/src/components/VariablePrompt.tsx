@@ -265,7 +265,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.presets')}</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" onClick={() => handleCreatePreset('New Preset')}>
+                    <Button variant="ghost" size="icon-xs" onClick={() => handleCreatePreset(t('commandDetail.newPresetName'))}>
                       <Plus />
                     </Button>
                   </TooltipTrigger>
@@ -374,7 +374,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
 
               <DialogFooter className="px-4 py-4">
                 {!isCreatingNew && (
-                  <Button variant="outline" className="group gap-0 overflow-hidden" onClick={() => handleCreatePreset('New Preset')}>
+                  <Button variant="outline" className="group gap-0 overflow-hidden" onClick={() => handleCreatePreset(t('commandDetail.newPresetName'))}>
                     <span className="max-w-0 opacity-0 group-hover:max-w-40 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap overflow-hidden">
                       {t('variablePrompt.saveAsNew')}
                     </span>
