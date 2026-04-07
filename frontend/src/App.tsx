@@ -13,7 +13,7 @@ import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
 import WelcomeTab from './components/WelcomeTab';
 import FloatingSaveBar from './components/FloatingSaveBar';
-import { useKeyboardShortcuts, cmdOrCtrl } from './hooks/useKeyboardShortcuts';
+import { useKeyboardShortcuts, cmdOrCtrl, SHORTCUTS } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -1031,7 +1031,7 @@ function App() {
             }
         },
 
-        'ctrl+`': () => {
+        [SHORTCUTS.toggleOutput.keys.join('+')]: () => {
             setOutputPaneOpen((prev) => !prev);
         },
 

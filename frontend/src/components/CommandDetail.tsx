@@ -59,7 +59,6 @@ import {
   Hash,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { isCmdOrCtrl } from '@/lib/shortcuts';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
 import { mergeDetectedVariables, extractTemplateVarNames } from '../utils/templateVars';
@@ -957,18 +956,14 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       <span>{t('commandDetail.scriptEditHintNewLine')}</span>
                       <ShortcutLabel id="scriptNewLine" />
                     </div>
-                    {!isNewCommand && (
-                      <>
-                        <div className="script-edit-tooltip-row">
-                          <span>{t('commandDetail.scriptEditHintSave')}</span>
-                          <ShortcutLabel id="scriptSave" />
-                        </div>
-                        <div className="script-edit-tooltip-row">
-                          <span>{t('commandDetail.scriptEditHintDiscard')}</span>
-                          <ShortcutLabel id="escape" />
-                        </div>
-                      </>
-                    )}
+                    <div className="script-edit-tooltip-row">
+                      <span>{t('commandDetail.scriptEditHintSave')}</span>
+                      <ShortcutLabel id="scriptSave" />
+                    </div>
+                    <div className="script-edit-tooltip-row">
+                      <span>{t('commandDetail.scriptEditHintDiscard')}</span>
+                      <ShortcutLabel id="escape" />
+                    </div>
                   </div>
                 </TooltipContent>)}
               </Tooltip>
