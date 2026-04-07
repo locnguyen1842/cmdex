@@ -38,7 +38,8 @@ export function shortcutLabelParts(parts: readonly string[]): string[] {
 }
 
 export function shortcutLabelString(parts: readonly string[]): string {
-  return shortcutLabelParts(parts).join('');
+  const labels = shortcutLabelParts(parts);
+  return isMac ? labels.join('') : labels.join('+');
 }
 
 // ---------------------------------------------------------------------------
@@ -57,8 +58,8 @@ export const SHORTCUTS = {
   search:         { keys: ['cmd', 'f'] },
   settings:       { keys: ['cmd', ','] },
   toggleOutput:   { keys: ['ctrl', '`'] },
-  discardDraft:   { keys: ['cmd', 'shift', 'backspace'] },
-  discardScript:  { keys: ['escape'] },
+  escape:         { keys: ['escape'] },
+  discardScript:  { keys: ['cmd', 'shift', 'backspace'] },
   scriptNewLine:  { keys: ['shift', 'enter'] },
   scriptSave:     { keys: ['enter'] },
   switchTab:      { keys: ['cmd', '1-6'] },

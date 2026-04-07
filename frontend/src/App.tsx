@@ -360,6 +360,7 @@ function App() {
         (defaultCategoryId?: string) => {
             const prevTabId = activeTabIdRef.current;
             if (prevTabId) {
+                prevTabIdRef.current = prevTabId;
                 tabOutputRef.current[prevTabId] = {
                     record: selectedRecordRef.current,
                     streamLines: [...streamLinesRef.current],
@@ -389,6 +390,7 @@ function App() {
         // Save current tab's output + pane state before switching
         const prevTabId = activeTabIdRef.current;
         if (prevTabId && prevTabId !== cmd.id) {
+            prevTabIdRef.current = prevTabId;
             tabOutputRef.current[prevTabId] = {
                 record: selectedRecordRef.current,
                 streamLines: [...streamLinesRef.current],

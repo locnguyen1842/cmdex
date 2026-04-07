@@ -932,11 +932,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       onFocus={() => setScriptHintOpen(true)}
                       onBlur={() => setScriptHintOpen(false)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Backspace' && isCmdOrCtrl(e) && e.shiftKey && !isNewCommand) {
-                          e.preventDefault();
-                          discardScriptEdit();
-                          return;
-                        }
                         if (e.key === 'Escape' && !isNewCommand) {
                           e.preventDefault();
                           discardScriptEdit();
@@ -970,7 +965,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         </div>
                         <div className="script-edit-tooltip-row">
                           <span>{t('commandDetail.scriptEditHintDiscard')}</span>
-                          <ShortcutLabel id="discardScript" />
+                          <ShortcutLabel id="escape" />
                         </div>
                       </>
                     )}
