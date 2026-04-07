@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { ShortcutLabel } from './ui/kbd';
 
 const STDERR_PREFIX = '\x1b[stderr]';
 const MAX_DISPLAY_LINES = 100;
@@ -206,7 +207,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
               {isOpen ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{t('outputPane.toggleShortcut')}</TooltipContent>
+          <TooltipContent>{t('outputPane.toggleShortcut')} <ShortcutLabel id="toggleOutput" /></TooltipContent>
         </Tooltip>
       </div>
       <CollapsibleContent>

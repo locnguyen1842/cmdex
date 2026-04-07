@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
-import { isMac, cmdSymbol as cmd } from '../hooks/useKeyboardShortcuts';
+import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
 
 interface WelcomeTabProps {
   onNewCommand: () => void;
@@ -12,15 +12,16 @@ const WelcomeTab: React.FC<WelcomeTabProps> = ({ onNewCommand }) => {
   const { t } = useTranslation();
 
   const shortcuts = [
-    { keys: `${cmd}T / ${cmd}N`, descKey: 'welcome.shortcutNewTab' },
-    { keys: `${cmd}P`, descKey: 'welcome.shortcutPalette' },
-    { keys: `${cmd}F`, descKey: 'welcome.shortcutSearch' },
-    { keys: `${cmd}↩`, descKey: 'welcome.shortcutRun' },
-    { keys: `${cmd}S`, descKey: 'welcome.shortcutSave' },
-    { keys: `${cmd}1-6`, descKey: 'welcome.shortcutSwitchTab' },
-    { keys: `${cmd}0`, descKey: 'welcome.shortcutLastTab' },
-    { keys: `${cmd},`, descKey: 'welcome.shortcutSettings' },
-    { keys: isMac ? '⌘W' : 'Ctrl+W', descKey: 'welcome.shortcutCloseTab' },
+    { keys: `${shortcutLabel('newTab')} / ${shortcutLabel('newCommand')}`, descKey: 'welcome.shortcutNewTab' },
+    { keys: shortcutLabel('palette'), descKey: 'welcome.shortcutPalette' },
+    { keys: shortcutLabel('search'), descKey: 'welcome.shortcutSearch' },
+    { keys: shortcutLabel('execute'), descKey: 'welcome.shortcutRun' },
+    { keys: shortcutLabel('save'), descKey: 'welcome.shortcutSave' },
+    { keys: shortcutLabel('switchTab'), descKey: 'welcome.shortcutSwitchTab' },
+    { keys: shortcutLabel('prevOpenedTab'), descKey: 'welcome.shortcutPrevOpenedTab' },
+    { keys: shortcutLabel('lastTab'), descKey: 'welcome.shortcutLastTab' },
+    { keys: shortcutLabel('settings'), descKey: 'welcome.shortcutSettings' },
+    { keys: shortcutLabel('closeTab'), descKey: 'welcome.shortcutCloseTab' },
   ];
 
   return (
@@ -35,7 +36,7 @@ const WelcomeTab: React.FC<WelcomeTabProps> = ({ onNewCommand }) => {
         <p className="welcome-tab-subtitle">{t('welcome.subtitle')}</p>
 
         <div className="welcome-shortcuts-card">
-          <div className="welcome-shortcuts-title">{t('welcome.shortcutsTitle')}</div>
+          <div className="welcome-shortcuts-title">{t('common.keyboardShortcuts')}</div>
           {shortcuts.map((s) => (
             <div key={s.descKey} className="welcome-shortcut-row">
               <span className="welcome-shortcut-desc">{t(s.descKey)}</span>

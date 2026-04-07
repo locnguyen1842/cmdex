@@ -59,8 +59,8 @@ import {
   Hash,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cmdSymbol as cmdKey } from '../hooks/useKeyboardShortcuts';
-import { Kbd } from '@/components/ui/kbd';
+import { isCmdOrCtrl } from '@/lib/shortcuts';
+import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
 import { mergeDetectedVariables, extractTemplateVarNames } from '../utils/templateVars';
 import { cn } from '@/lib/utils';
@@ -70,6 +70,7 @@ interface HighlightedTextareaProps {
   onChange: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onBlur?: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
+  onFocus?: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
   autoFocus?: boolean;
   placeholder?: string;
   className?: string;
@@ -80,6 +81,7 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
   onChange,
   onKeyDown,
   onBlur,
+  onFocus,
   autoFocus,
   placeholder,
   className = '',
@@ -116,6 +118,7 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
+        onFocus={onFocus}
         onScroll={syncScroll}
         autoFocus={autoFocus}
         placeholder={placeholder}
@@ -123,14 +126,6 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
     </div>
   );
 };
-
-function ShortcutHint({ label, shortcut }: { label: string; shortcut: string }) {
-  return (
-    <span className="tooltip-with-shortcut">
-      {label} <Kbd>{shortcut}</Kbd>
-    </span>
-  );
-}
 
 interface SortablePresetChipProps {
   id: string;
@@ -277,6 +272,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [editingTagDraft, setEditingTagDraft] = useState('');
   const [addingTag, setAddingTag] = useState(false);
   const [scriptEditor, setScriptEditor] = useState(() => isNewCommand);
+  const [scriptHintOpen, setScriptHintOpen] = useState(false);
   const [renamingChipId, setRenamingChipId] = useState<string | null>(null);
   const [renamingChipDraft, setRenamingChipDraft] = useState('');
   const [confirmDeletePresetId, setConfirmDeletePresetId] = useState<string | null>(null);
@@ -855,7 +851,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       {isExecuting ? (
                         t('commandDetail.running')
                       ) : (
-                        <ShortcutHint label={t('commandDetail.execute')} shortcut={`${cmdKey}↩`} />
+                        <ShortcutHint label={t('commandDetail.execute')} id="execute" />
                       )}
                     </TooltipContent>
                   </Tooltip>
@@ -919,7 +915,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </div>
             </div>
             {scriptEditor ? (
-              <Tooltip>
+              <Tooltip open={scriptHintOpen}>
                 <TooltipTrigger asChild>
                   <div className="script-edit-wrap">
                     <HighlightedTextarea
@@ -933,8 +929,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                           setScriptEditDraft(val);
                         }
                       }}
+                      onFocus={() => setScriptHintOpen(true)}
+                      onBlur={() => setScriptHintOpen(false)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && e.shiftKey && !isNewCommand) {
+                        if (e.key === 'Backspace' && isCmdOrCtrl(e) && e.shiftKey && !isNewCommand) {
                           e.preventDefault();
                           discardScriptEdit();
                           return;
@@ -957,25 +955,27 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     />
                   </div>
                 </TooltipTrigger>
-                {!isNewCommand && (
-                  <TooltipContent side="right" sideOffset={5} className="script-edit-tooltip-content p-0">
-                    <div className="script-edit-tooltip-card">
-                      <div className="script-edit-tooltip-title">{t('commandDetail.scriptEditHintTitle')}</div>
-                      <div className="script-edit-tooltip-row">
-                        <span>{t('commandDetail.scriptEditHintNewLine')}</span>
-                        <Kbd className="ml-2">⇧↩</Kbd>
-                      </div>
-                      <div className="script-edit-tooltip-row">
-                        <span>{t('commandDetail.scriptEditHintSave')}</span>
-                        <Kbd className="ml-2">↩</Kbd>
-                      </div>
-                      <div className="script-edit-tooltip-row">
-                        <span>{t('commandDetail.scriptEditHintDiscard')}</span>
-                        <Kbd className="ml-2">{cmdKey}⇧⌫</Kbd>
-                      </div>
+                {!isNewCommand && (<TooltipContent side="right" sideOffset={5} className="script-edit-tooltip-content p-0">
+                  <div className="script-edit-tooltip-card">
+                    <div className="script-edit-tooltip-title">{t('common.keyboardShortcuts')}</div>
+                    <div className="script-edit-tooltip-row">
+                      <span>{t('commandDetail.scriptEditHintNewLine')}</span>
+                      <ShortcutLabel id="scriptNewLine" />
                     </div>
-                  </TooltipContent>
-                )}
+                    {!isNewCommand && (
+                      <>
+                        <div className="script-edit-tooltip-row">
+                          <span>{t('commandDetail.scriptEditHintSave')}</span>
+                          <ShortcutLabel id="scriptSave" />
+                        </div>
+                        <div className="script-edit-tooltip-row">
+                          <span>{t('commandDetail.scriptEditHintDiscard')}</span>
+                          <ShortcutLabel id="discardScript" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </TooltipContent>)}
               </Tooltip>
             ) : (
               <div className="command-text-box script-preview-compact">
@@ -1083,7 +1083,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       {isExecuting ? (
                         t('commandDetail.running')
                       ) : (
-                        <ShortcutHint label={t('commandDetail.execute')} shortcut={`${cmdKey}↩`} />
+                        <ShortcutHint label={t('commandDetail.execute')} id="execute" />
                       )}
                     </TooltipContent>
                   </Tooltip>
