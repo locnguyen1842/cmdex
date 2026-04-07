@@ -842,9 +842,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                             className="size-3.5" 
                             style={{
                               filter: `
-                                drop-shadow(0 0 2px #007acc) 
-                                drop-shadow(0 0 10px #007acc) 
-                                drop-shadow(0 0 20px rgba(0, 122, 204, 0.5))
+                                drop-shadow(0 0  4px rgb(from var(--primary) r g b / 1))
+                                drop-shadow(0 0 16px rgb(from var(--primary) r g b / 0.9))
+                                drop-shadow(0 0 32px rgb(from var(--primary) r g b / 0.5))
                               `
                             }}
                           />
@@ -1052,7 +1052,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        className={cn("execute-btn-glow", isExecuting && "execute-btn-running")}
+                        className={cn("text-primary hover:text-primary", isExecuting && "execute-btn-running")}
                         disabled={isExecuting}
                         onClick={() => {
                           const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
@@ -1066,7 +1066,16 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         {isExecuting ? (
                           <Loader2 className="size-3.5 animate-spin" />
                         ) : (
-                          <Play className="size-3.5" />
+                          <Play 
+                            className="size-3.5" 
+                            style={{
+                              filter: `
+                                drop-shadow(0 0  4px rgb(from var(--primary) r g b / 1))
+                                drop-shadow(0 0 16px rgb(from var(--primary) r g b / 0.9))
+                                drop-shadow(0 0 32px rgb(from var(--primary) r g b / 0.5))
+                              `
+                            }}
+                          />
                         )}
                       </Button>
                     </TooltipTrigger>
