@@ -43,7 +43,7 @@ cd frontend && pnpm install
 The `App` struct in `app.go` exposes methods to the frontend. Wails auto-generates TypeScript bindings at `frontend/wailsjs/go/main/App.ts`. To add a backend feature:
 1. Add a method to `App` in `app.go`
 2. Run `wails dev` or `wails generate module` to regenerate bindings
-3. Import the generated function in React: `import { MyMethod } from '../wailsjs/go/main/App'`
+3. Import the generated function in React — path is depth-relative: `'../wailsjs/go/main/App'` from `src/`, `'../../wailsjs/go/main/App'` from `src/components/`
 
 ### Backend (Go)
 
@@ -63,7 +63,7 @@ Platform-aware shell: uses `$SHELL -lc` on Unix (falls back to `/bin/sh`), `cmd 
 - **`App.tsx`** - Central state management; all modals controlled via discriminated union `ModalState` type
 - **`types.ts`** - TypeScript interfaces mirroring Go models in `models.go`
 - **`i18n.ts`** - i18next setup; translations in `src/locales/en.json`
-- **UI components** in `src/components/`: `Sidebar`, `CommandDetail`, `CommandEditorTab`, `TabBar`, `CategoryEditor`, `VariablePrompt`, `HistoryPane`, `OutputPane`, `SettingsDialog`
+- **UI components** in `src/components/`: `Sidebar`, `CommandDetail`, `TabBar`, `CategoryEditor`, `VariablePrompt`, `HistoryPane`, `OutputPane`, `SettingsDialog`, plus inline-edit helpers (`InlineEditField`, `HoverActionButton`, `FloatingSaveBar`)
 - **Tab system**: Editor uses tab-based interface (not modals). Each command opens in a tab with dirty state tracking. See **Tab-Based Editor Architecture** below
 - **shadcn/ui components** in `src/components/ui/` (Radix UI + Tailwind CSS + CVA)
 - Styling: Tailwind CSS v4 with custom CSS variables in `style.css` for the dark theme (`--bg-primary`, `--accent-primary`, etc.)
@@ -77,16 +77,17 @@ Streaming output: Go emits `cmd-output` Wails events -> frontend buffers with `r
 3. Update method signatures in `app.go`
 4. Run `wails generate module` to regenerate bindings
 5. Update TypeScript interfaces in `frontend/src/types.ts`
-6. Update the relevant editor component (`CommandEditor.tsx` or `CategoryEditor.tsx`)
+6. Update the relevant UI (`CommandDetail.tsx` or `CategoryEditor.tsx`)
 7. Update calls in `App.tsx`
 
 ### Tab-Based Editor Architecture
 
 The editor uses a tab-based interface (replaced modal `CommandEditor`):
-- **Tab types**: `TabKind = 'welcome' | 'detail' | 'edit'` — discriminated union tracks tab purpose
+- **Tab identification**: Welcome tab uses `'__welcome__'` literal ID; new-command tabs use a generated prefix checked by `isNewCommandTabId()` from `types.ts`; saved commands use their DB ID
 - **Dirty state**: Each tab tracks `isDirty` for unsaved changes; visual indicator shows dot on tab
-- **State management**: Tabs stored in array; `activeTabId` controls focus; `CommandEditorTab` handles editor UI
-- **Adding features**: Extend `TabKind` for new tab types; maintain dirty tracking via `onDirtyChange` callback with ref pattern (not direct state to avoid re-render loops)
+- **State management**: Tabs stored in array; `activeTabId` controls focus; each command tab holds draft + baseline in `App` for inline editing and batch save
+- **Per-tab output + pane state**: `tabOutputRef` and `tabPaneStateRef` are refs (not state) that persist each tab's output record, stream lines, and pane visibility across tab switches — use `applyPaneState(tabId)` to restore them; never replace with React state or re-renders will loop
+- **Adding a new tab type**: Add an ID pattern/constant, handle it in `handleSelectTab`, `openTab`, and tab rendering logic; initialize its `tabPaneStateRef` entry on open; clean up in `finalizeCloseTab`
 
 ### Preset & Variable UX Patterns
 
@@ -157,6 +158,7 @@ if version < 2 {
 
 **Key rules:**
 - Always wrap in transactions (`BEGIN`/`COMMIT`/`ROLLBACK`)
+- After recreating `commands` table, rebuild the FTS index: `INSERT INTO commands_fts(commands_fts) VALUES('rebuild')` — skipping this leaves FTS out of sync
 - Recreate FTS triggers after table changes
 - Update `schemaVersion` constant at top of file
 - Handle data transformation (e.g., empty string → NULL) in migration

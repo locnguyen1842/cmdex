@@ -16,7 +16,7 @@ type DB struct {
 	dataDir string
 }
 
-const schemaVersion = 3
+const schemaVersion = 7
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS categories (
 
 CREATE TABLE IF NOT EXISTS commands (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
+    title TEXT,
+    description TEXT,
     script_content TEXT NOT NULL,
     category_id TEXT DEFAULT NULL,
     position INTEGER NOT NULL DEFAULT 0,
@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS variable_presets (
     id TEXT PRIMARY KEY,
     command_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE
 );
 
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS executions (
     output TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
     exit_code INTEGER NOT NULL DEFAULT 0,
+    working_dir TEXT DEFAULT '',
     executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -106,19 +108,19 @@ CREATE VIRTUAL TABLE IF NOT EXISTS commands_fts USING fts5(
 -- Triggers to keep FTS in sync
 CREATE TRIGGER IF NOT EXISTS commands_ai AFTER INSERT ON commands BEGIN
     INSERT INTO commands_fts(rowid, title, description, script_content)
-    VALUES (new.rowid, new.title, new.description, new.script_content);
+    VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
 END;
 
 CREATE TRIGGER IF NOT EXISTS commands_ad AFTER DELETE ON commands BEGIN
     INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-    VALUES ('delete', old.rowid, old.title, old.description, old.script_content);
+    VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
 END;
 
 CREATE TRIGGER IF NOT EXISTS commands_au AFTER UPDATE ON commands BEGIN
     INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-    VALUES ('delete', old.rowid, old.title, old.description, old.script_content);
+    VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
     INSERT INTO commands_fts(rowid, title, description, script_content)
-    VALUES (new.rowid, new.title, new.description, new.script_content);
+    VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
 END;
 `
 
@@ -190,11 +192,13 @@ func (db *DB) migrate() error {
 			)`,
 			`INSERT INTO commands_new SELECT * FROM commands`,
 			`DROP TABLE commands`,
-			`ALTER TABLE commands_new RENAME TO commands`,
-			// Update empty strings to NULL
-			`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
-			// Recreate FTS triggers
-			`DROP TRIGGER IF EXISTS commands_ai`,
+		`ALTER TABLE commands_new RENAME TO commands`,
+		// Update empty strings to NULL
+		`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
+		// Rebuild FTS index to match new rowids after table recreation
+		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+		// Recreate FTS triggers
+		`DROP TRIGGER IF EXISTS commands_ai`,
 			`DROP TRIGGER IF EXISTS commands_ad`,
 			`DROP TRIGGER IF EXISTS commands_au`,
 			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
@@ -247,6 +251,108 @@ func (db *DB) migrate() error {
 		}
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration v3: %w", err)
+		}
+	}
+
+	// Migration v3 -> v5: make title and description nullable
+	// Combined into single migration; disables FK enforcement to prevent
+	// ON DELETE CASCADE from wiping child tables (variable_definitions,
+	// variable_presets, command_tags, executions) when commands is recreated.
+	if version < 5 {
+		if _, err := db.conn.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+			return fmt.Errorf("disable FK for migration: %w", err)
+		}
+		defer db.conn.Exec("PRAGMA foreign_keys = ON")
+
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v5 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		migrations := []string{
+			`CREATE TABLE IF NOT EXISTS commands_new (
+				id TEXT PRIMARY KEY,
+				title TEXT,
+				description TEXT,
+				script_content TEXT NOT NULL,
+				category_id TEXT DEFAULT NULL,
+				position INTEGER NOT NULL DEFAULT 0,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+			)`,
+			`INSERT INTO commands_new SELECT id, title,
+				CASE WHEN description = '' THEN NULL ELSE description END,
+				script_content, category_id, position, created_at, updated_at
+				FROM commands`,
+			`DROP TABLE commands`,
+		`ALTER TABLE commands_new RENAME TO commands`,
+		// Rebuild FTS index to match new rowids after table recreation
+		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+		`DROP TRIGGER IF EXISTS commands_ai`,
+		`DROP TRIGGER IF EXISTS commands_ad`,
+		`DROP TRIGGER IF EXISTS commands_au`,
+		`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
+			INSERT INTO commands_fts(rowid, title, description, script_content)
+			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
+		END`,
+		`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
+			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
+			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
+		END`,
+		`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
+			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
+			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
+			INSERT INTO commands_fts(rowid, title, description, script_content)
+			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
+		END`,
+	}
+	for _, m := range migrations {
+		if _, err := tx.Exec(m); err != nil {
+			return fmt.Errorf("migration v5: %w", err)
+			}
+		}
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 5); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v5: %w", err)
+		}
+		if _, err := db.conn.Exec("PRAGMA foreign_keys = ON"); err != nil {
+			return fmt.Errorf("re-enable FK after migration: %w", err)
+		}
+	}
+
+	// Migration v5 -> v6: add position column to variable_presets
+	if version < 6 {
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v6 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		migrations := []string{
+			`ALTER TABLE variable_presets ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
+			`UPDATE variable_presets SET position = rowid`,
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v6: %w", err)
+			}
+		}
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 6); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v6: %w", err)
+		}
+	}
+
+	if version < 7 {
+		_, err := db.conn.Exec(`ALTER TABLE executions ADD COLUMN working_dir TEXT DEFAULT ''`)
+		if err != nil {
+			return fmt.Errorf("migration v7: %w", err)
 		}
 	}
 
@@ -442,9 +548,9 @@ func (db *DB) loadCommandRelations(cmd *Command) error {
 		return err
 	}
 
-	// Presets
+	// Presets — ORDER BY position must match GetPresets / ReorderPresets
 	presetRows, err := db.conn.Query(
-		"SELECT id, name FROM variable_presets WHERE command_id = ? ORDER BY name",
+		"SELECT id, name, position FROM variable_presets WHERE command_id = ? ORDER BY position, name",
 		cmd.ID,
 	)
 	if err != nil {
@@ -455,7 +561,7 @@ func (db *DB) loadCommandRelations(cmd *Command) error {
 	cmd.Presets = []VariablePreset{}
 	for presetRows.Next() {
 		var p VariablePreset
-		if err := presetRows.Scan(&p.ID, &p.Name); err != nil {
+		if err := presetRows.Scan(&p.ID, &p.Name, &p.Position); err != nil {
 			return fmt.Errorf("scan preset: %w", err)
 		}
 		p.Values = map[string]string{}
@@ -491,6 +597,13 @@ func nullableString(s string) interface{} {
 	return s
 }
 
+func nullableNullString(ns sql.NullString) interface{} {
+	if !ns.Valid || ns.String == "" {
+		return nil
+	}
+	return ns.String
+}
+
 func (db *DB) CreateCommand(cmd Command) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -501,7 +614,7 @@ func (db *DB) CreateCommand(cmd Command) error {
 	_, err = tx.Exec(
 		`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, COALESCE((SELECT MAX(position)+1 FROM commands WHERE category_id IS ?), 0), ?, ?)`,
-		cmd.ID, cmd.Title, cmd.Description, cmd.ScriptContent,
+		cmd.ID, nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent,
 		nullableString(cmd.CategoryID), nullableString(cmd.CategoryID),
 		cmd.CreatedAt, cmd.UpdatedAt,
 	)
@@ -563,13 +676,13 @@ func (db *DB) UpdateCommand(cmd Command) error {
 		// Category already updated by UpdateCommandPosition, so skip it
 		_, updateErr = tx.Exec(
 			"UPDATE commands SET title = ?, description = ?, script_content = ?, updated_at = ? WHERE id = ?",
-			cmd.Title, cmd.Description, cmd.ScriptContent, cmd.UpdatedAt, cmd.ID,
+			nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent, cmd.UpdatedAt, cmd.ID,
 		)
 	} else {
 		// Category didn't change, safe to update everything
 		_, updateErr = tx.Exec(
 			"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
-			cmd.Title, cmd.Description, cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
+			nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
 		)
 	}
 	if updateErr != nil {
@@ -598,7 +711,7 @@ func (db *DB) UpdateCommand(cmd Command) error {
 func (db *DB) RenameCommand(id string, title string) error {
 	res, err := db.conn.Exec(
 		"UPDATE commands SET title = ?, updated_at = ? WHERE id = ?",
-		title, time.Now(), id,
+		nullableString(title), time.Now(), id,
 	)
 	if err != nil {
 		return fmt.Errorf("rename command: %w", err)
@@ -738,7 +851,7 @@ func (db *DB) saveVariables(tx *sql.Tx, commandID string, vars []VariableDefinit
 // ---------------------------------------------------------------------------
 
 func (db *DB) GetPresets(commandID string) ([]VariablePreset, error) {
-	rows, err := db.conn.Query("SELECT id, name FROM variable_presets WHERE command_id = ? ORDER BY name", commandID)
+	rows, err := db.conn.Query("SELECT id, name, position FROM variable_presets WHERE command_id = ? ORDER BY position, name", commandID)
 	if err != nil {
 		return nil, fmt.Errorf("query presets: %w", err)
 	}
@@ -747,7 +860,7 @@ func (db *DB) GetPresets(commandID string) ([]VariablePreset, error) {
 	presets := []VariablePreset{}
 	for rows.Next() {
 		var p VariablePreset
-		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Position); err != nil {
 			return nil, fmt.Errorf("scan preset: %w", err)
 		}
 		p.Values = map[string]string{}
@@ -781,8 +894,11 @@ func (db *DB) SavePreset(commandID string, preset VariablePreset) error {
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("INSERT INTO variable_presets (id, command_id, name) VALUES (?, ?, ?)",
-		preset.ID, commandID, preset.Name,
+	var maxPos int
+	_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM variable_presets WHERE command_id = ?", commandID).Scan(&maxPos)
+
+	_, err = tx.Exec("INSERT INTO variable_presets (id, command_id, name, position) VALUES (?, ?, ?, ?)",
+		preset.ID, commandID, preset.Name, maxPos+1,
 	)
 	if err != nil {
 		return fmt.Errorf("insert preset: %w", err)
@@ -844,13 +960,29 @@ func (db *DB) DeletePreset(presetID string) error {
 	return nil
 }
 
+func (db *DB) ReorderPresets(commandID string, presetIDs []string) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	for i, id := range presetIDs {
+		if _, err := tx.Exec("UPDATE variable_presets SET position = ? WHERE id = ? AND command_id = ?", i, id, commandID); err != nil {
+			return fmt.Errorf("reorder preset: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 // ---------------------------------------------------------------------------
 // Executions
 // ---------------------------------------------------------------------------
 
 func (db *DB) GetExecutions() ([]ExecutionRecord, error) {
 	rows, err := db.conn.Query(
-		"SELECT id, command_id, script_content, final_cmd, output, error, exit_code, executed_at FROM executions ORDER BY executed_at DESC",
+		"SELECT id, command_id, script_content, final_cmd, output, error, exit_code, working_dir, executed_at FROM executions ORDER BY executed_at DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query executions: %w", err)
@@ -860,7 +992,7 @@ func (db *DB) GetExecutions() ([]ExecutionRecord, error) {
 	records := []ExecutionRecord{}
 	for rows.Next() {
 		var r ExecutionRecord
-		if err := rows.Scan(&r.ID, &r.CommandID, &r.ScriptContent, &r.FinalCmd, &r.Output, &r.Error, &r.ExitCode, &r.ExecutedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.CommandID, &r.ScriptContent, &r.FinalCmd, &r.Output, &r.Error, &r.ExitCode, &r.WorkingDir, &r.ExecutedAt); err != nil {
 			return nil, fmt.Errorf("scan execution: %w", err)
 		}
 		records = append(records, r)
@@ -870,8 +1002,8 @@ func (db *DB) GetExecutions() ([]ExecutionRecord, error) {
 
 func (db *DB) AddExecution(record ExecutionRecord) error {
 	_, err := db.conn.Exec(
-		"INSERT INTO executions (id, command_id, script_content, final_cmd, output, error, exit_code, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		record.ID, record.CommandID, record.ScriptContent, record.FinalCmd, record.Output, record.Error, record.ExitCode, record.ExecutedAt,
+		"INSERT INTO executions (id, command_id, script_content, final_cmd, output, error, exit_code, working_dir, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		record.ID, record.CommandID, record.ScriptContent, record.FinalCmd, record.Output, record.Error, record.ExitCode, record.WorkingDir, record.ExecutedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert execution: %w", err)
@@ -997,6 +1129,43 @@ func (db *DB) SetSettings(s AppSettings) error {
 	if err != nil {
 		return fmt.Errorf("update settings: %w", err)
 	}
+	return nil
+}
+
+// ResetAll deletes all user data and recreates the default settings row.
+func (db *DB) ResetAll() error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	tables := []string{
+		"preset_values",
+		"variable_presets",
+		"variable_definitions",
+		"command_tags",
+		"executions",
+		"commands",
+		"tags",
+		"categories",
+		"app_settings",
+	}
+	for _, t := range tables {
+		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
+			return fmt.Errorf("clear %s: %w", t, err)
+		}
+	}
+
+	if _, err := tx.Exec("INSERT INTO app_settings (locale, terminal) VALUES ('en', '')"); err != nil {
+		return fmt.Errorf("insert default settings: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reset: %w", err)
+	}
+
+	_, _ = db.conn.Exec("VACUUM")
 	return nil
 }
 

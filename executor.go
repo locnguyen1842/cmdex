@@ -195,7 +195,6 @@ func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error
 		}
 	}
 	body = strings.TrimSpace(body)
-
 	defs := e.terminalDefs()
 
 	if terminalID != "" {
@@ -211,7 +210,27 @@ func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error
 			return d.LaunchFn(e, body)
 		}
 	}
+
 	return fmt.Errorf("no terminal emulator found")
+}
+
+func appendBackslashToLines(s string) string {
+	lines := strings.Split(s, "\n")
+	last := len(lines) - 1
+	for last >= 0 && strings.TrimSpace(lines[last]) == "" {
+		last--
+	}
+	for i := 0; i < last; i++ {
+		line := lines[i]
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if strings.HasSuffix(strings.TrimRight(line, " \t"), `\`) {
+			continue
+		}
+		lines[i] = line + ` \`
+	}
+	return strings.Join(lines, "\n")
 }
 
 // terminalDef defines how to detect and launch a terminal emulator
@@ -266,13 +285,9 @@ func (e *Executor) terminalDefs() []terminalDef {
 }
 
 func (e *Executor) darwinTerminals() []terminalDef {
-	// osa builds a LaunchFn that wraps raw body in a shell invocation,
-	// escapes for AppleScript, and runs via osascript.
 	osa := func(appName, script string) func(*Executor, string) error {
-		return func(ex *Executor, body string) error {
-			escapedBody := strings.ReplaceAll(body, "'", `'\''`)
-			shellCmd := ex.shell + " -lc '" + escapedBody + "'"
-			asEscaped := strings.ReplaceAll(shellCmd, `\`, `\\`)
+		return func(_ *Executor, body string) error {
+			asEscaped := strings.ReplaceAll(body, `\`, `\\`)
 			asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
 			s := fmt.Sprintf(script, asEscaped)
 			return exec.Command("osascript", "-e", s).Start()
@@ -299,10 +314,8 @@ end tell`),
 		},
 		{
 			ID: "warp", Name: "Warp", Paths: []string{"/Applications/Warp.app"}, IsApp: true,
-			LaunchFn: func(ex *Executor, body string) error {
-				escapedBody := strings.ReplaceAll(body, "'", `'\''`)
-				shellCmd := ex.shell + " -lc '" + escapedBody + "'"
-				asEscaped := strings.ReplaceAll(shellCmd, `\`, `\\`)
+			LaunchFn: func(_ *Executor, body string) error {
+				asEscaped := strings.ReplaceAll(body, `\`, `\\`)
 				asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
 				s := fmt.Sprintf(`tell application "Warp" to activate
 delay 0.5
@@ -314,19 +327,19 @@ tell application "System Events" to key code 36`, asEscaped)
 		{
 			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("alacritty", "-e", ex.shell, "-c", body+"; exec "+ex.shell).Start()
+				return exec.Command("alacritty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
 			},
 		},
 		{
 			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("kitty", ex.shell, "-c", body+"; exec "+ex.shell).Start()
+				return exec.Command("kitty", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
 			},
 		},
 		{
 			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("ghostty", "-e", ex.shell, "-c", body+"; exec "+ex.shell).Start()
+				return exec.Command("ghostty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
 			},
 		},
 		{
@@ -339,7 +352,6 @@ tell application "System Events" to key code 36`, asEscaped)
 }
 
 func (e *Executor) linuxTerminals() []terminalDef {
-	// shellExec builds a LaunchFn that receives the raw body.
 	shellExec := func(bin string, buildArgs func(shell, body string) []string) func(*Executor, string) error {
 		return func(ex *Executor, body string) error {
 			args := buildArgs(ex.shell, body)

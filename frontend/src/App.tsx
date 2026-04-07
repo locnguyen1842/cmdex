@@ -11,7 +11,8 @@ import SettingsDialog from './components/SettingsDialog';
 import ResizablePanel from './components/ResizablePanel';
 import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
-import CommandEditorTab from './components/CommandEditorTab';
+import WelcomeTab from './components/WelcomeTab';
+import FloatingSaveBar from './components/FloatingSaveBar';
 import { useKeyboardShortcuts, isMac } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -28,7 +29,17 @@ import {
     AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { EventsOn } from '../wailsjs/runtime/runtime';
-import { Category, Command, VariableDefinition, VariablePrompt as VarPromptType, VariablePreset, ExecutionRecord } from './types';
+import {
+    Category,
+    Command,
+    VariablePrompt as VarPromptType,
+    VariablePreset,
+    ExecutionRecord,
+    TabDraft,
+    createNewTabId,
+    isNewCommandTabId,
+    getCommandDisplayTitle,
+} from './types';
 
 import {
     GetCategories,
@@ -39,8 +50,6 @@ import {
     CreateCommand,
     UpdateCommand,
     DeleteCommand,
-    RenameCommand,
-    SearchCommands,
     GetVariables,
     RunCommand,
     GetExecutionHistory,
@@ -52,8 +61,19 @@ import {
     GetSettings,
     RunInTerminal,
     ReorderCommand,
+    GetScriptBody,
+    ResetAllData,
+    ReorderPresets,
 } from '../wailsjs/go/main/App';
 import i18n from './i18n';
+import {
+    emptyDraft,
+    draftFromCommand,
+    draftsEqual,
+    cloneDraft,
+    makePlaceholderCommand,
+} from './utils/tabDraft';
+import { mergeDetectedVariables, variableDefinitionsToPrompts } from './utils/templateVars';
 
 type ModalState =
     | { type: 'none' }
@@ -62,10 +82,10 @@ type ModalState =
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
     | { type: 'confirmDiscard' }
+    | { type: 'confirmClearHistory' }
     | { type: 'settings' };
 
 const THEME_STORAGE_KEY = 'cmdex-theme';
-const EDITOR_TAB_ID = '__editor__';
 
 export const THEMES = [
     { id: 'vscode-dark', label: 'VS Code Dark+' },
@@ -80,37 +100,54 @@ function App() {
     const { t } = useTranslation();
     const [categories, setCategories] = useState<Category[]>([]);
     const [commands, setCommands] = useState<Command[]>([]);
-    // Unfiltered command list — safe to use in tab operations even when search is active
     const allCommandsRef = useRef<Command[]>([]);
     const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
     const [modal, setModal] = useState<ModalState>({ type: 'none' });
     const [isExecuting, setIsExecuting] = useState(false);
 
     const [executionHistory, setExecutionHistory] = useState<ExecutionRecord[]>([]);
     const [selectedRecord, setSelectedRecord] = useState<ExecutionRecord | null>(null);
-    const [outputPaneOpen, setOutputPaneOpen] = useState(true);
-    const [resolvedVariables, setResolvedVariables] = useState<VarPromptType[]>([]);
+    const [outputPaneOpen, setOutputPaneOpen] = useState(false);
+    const [serverVariables, setServerVariables] = useState<VarPromptType[]>([]);
     const [currentResolvedValues, setCurrentResolvedValues] = useState<Record<string, string>>({});
     const [lastSelectedPresetId, setLastSelectedPresetId] = useState<string>('');
     const [streamLines, setStreamLines] = useState<string[]>([]);
     const streamBufferRef = useRef<string[]>([]);
     const streamFlushRef = useRef<number | null>(null);
+    const executingTabIdRef = useRef<string | null>(null);
 
-    // Tab management
+    // Per-tab output state persistence
+    const tabOutputRef = useRef<Record<string, { record: ExecutionRecord | null; streamLines: string[] }>>({});
+
+    // Per-tab pane visibility (history + output); new tabs default to both closed
+    const tabPaneStateRef = useRef<Record<string, { outputOpen: boolean; historyOpen: boolean }>>({});
+    const [historyPaneOpen, setHistoryPaneOpen] = useState(false);
+    const selectedRecordRef = useRef<ExecutionRecord | null>(null);
+    selectedRecordRef.current = selectedRecord;
+    const streamLinesRef = useRef<string[]>([]);
+    streamLinesRef.current = streamLines;
+    const outputPaneOpenRef = useRef(false);
+    outputPaneOpenRef.current = outputPaneOpen;
+    const historyPaneOpenRef = useRef(false);
+    historyPaneOpenRef.current = historyPaneOpen;
+
     const [openTabs, setOpenTabs] = useState<Tab[]>([]);
+    const openTabsRef = useRef<Tab[]>([]);
+    openTabsRef.current = openTabs;
+    const scriptFetchGenRef = useRef<Record<string, number>>({});
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
+    const activeTabIdRef = useRef<string | null>(null);
+    activeTabIdRef.current = activeTabId;
+    const [tabDrafts, setTabDrafts] = useState<Record<string, TabDraft>>({});
+    const [tabBaselines, setTabBaselines] = useState<Record<string, TabDraft>>({});
+    const tabDraftsRef = useRef<Record<string, TabDraft>>({});
+    tabDraftsRef.current = tabDrafts;
+    const tabBaselinesRef = useRef<Record<string, TabDraft>>({});
+    tabBaselinesRef.current = tabBaselines;
 
-    // Command palette
     const [paletteOpen, setPaletteOpen] = useState(false);
+    const pendingCloseTabIdRef = useRef<string | null>(null);
 
-    interface EditorTabData {
-        command?: Command;
-        defaultCategoryId?: string;
-    }
-    const [editorTabData, setEditorTabData] = useState<EditorTabData | null>(null);
-
-    // Theme
     const [theme, setTheme] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) || 'vscode-dark');
 
     useEffect(() => {
@@ -118,14 +155,87 @@ function App() {
         localStorage.setItem(THEME_STORAGE_KEY, theme);
     }, [theme]);
 
-    // Keep tab titles in sync when commands are renamed
-    useEffect(() => {
-        if (selectedCommand) {
-            setOpenTabs(prev => prev.map(t =>
-                t.id === selectedCommand.id ? { ...t, title: selectedCommand.title } : t
-            ));
+    const resolvedVariables = useMemo(() => {
+        if (!selectedCommand) return [];
+        if (isNewCommandTabId(selectedCommand.id)) {
+            const d = tabDrafts[selectedCommand.id];
+            if (!d) return [];
+            return variableDefinitionsToPrompts(d.variables);
         }
-    }, [selectedCommand?.title]);
+        const d = tabDrafts[selectedCommand.id];
+        if (d) {
+            const serverMap = new Map(serverVariables.map(v => [v.name, v]));
+            return d.variables.map(dv => {
+                const sv = serverMap.get(dv.name);
+                if (sv) return sv;
+                return {
+                    name: dv.name,
+                    placeholder: dv.name,
+                    description: dv.description,
+                    example: dv.example,
+                    defaultExpr: dv.default,
+                    defaultValue: dv.default ?? '',
+                };
+            });
+        }
+        return serverVariables;
+    }, [selectedCommand?.id, tabDrafts, serverVariables]);
+
+    const variablesRequestIdRef = useRef(0);
+    useEffect(() => {
+        if (!selectedCommand) {
+            setServerVariables([]);
+            return;
+        }
+        if (isNewCommandTabId(selectedCommand.id)) {
+            setServerVariables([]);
+            return;
+        }
+        const requestId = ++variablesRequestIdRef.current;
+        GetVariables(selectedCommand.id)
+            .then((v) => {
+                if (variablesRequestIdRef.current === requestId) {
+                    setServerVariables(v || []);
+                }
+            })
+            .catch(() => {
+                if (variablesRequestIdRef.current === requestId) {
+                    setServerVariables([]);
+                }
+            });
+    }, [selectedCommand?.id]);
+
+    useEffect(() => {
+        if (!activeTabId || !tabDrafts[activeTabId]) return;
+        const draft = tabDrafts[activeTabId];
+        const title = draft.title.trim();
+        // If title is empty, use script body as fallback (trimmed to 50 chars)
+        let displayTitle = title;
+        if (!displayTitle) {
+            const body = draft.scriptBody.replace(/\n/g, ' ').trim();
+            if (body.length > 0) {
+                displayTitle = body.length > 50 ? body.slice(0, 50) + '...' : body;
+            } else {
+                displayTitle = isNewCommandTabId(activeTabId)
+                    ? t('commandEditor.newCommand')
+                    : t('common.untitled');
+            }
+        }
+        setOpenTabs((prev) =>
+            prev.map((tt) =>
+                tt.id === activeTabId ? { ...tt, title: displayTitle } : tt,
+            ),
+        );
+    }, [activeTabId, tabDrafts, t]);
+
+    useEffect(() => {
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        const d = tabDrafts[selectedCommand.id];
+        const b = tabBaselines[selectedCommand.id];
+        if (d && b && !draftsEqual(d, b)) return;
+        const fresh = commands.find((c) => c.id === selectedCommand.id);
+        if (fresh) setSelectedCommand(fresh);
+    }, [commands, selectedCommand?.id, tabDrafts, tabBaselines]);
 
     const loadData = useCallback(async () => {
         try {
@@ -133,7 +243,7 @@ function App() {
             setCategories(cats || []);
             setCommands(cmds || []);
             allCommandsRef.current = cmds || [];
-            return cmds as Command[] || [];
+            return (cmds as Command[]) || [];
         } catch (err) {
             console.error('Failed to load data:', err);
             return [] as Command[];
@@ -152,11 +262,15 @@ function App() {
     useEffect(() => {
         loadData();
         loadHistory();
-        GetSettings().then(s => {
-            if (s?.locale && s.locale !== i18n.language) {
-                i18n.changeLanguage(s.locale);
-            }
-        }).catch(() => {});
+        GetSettings()
+            .then((s) => {
+                if (s?.locale && s.locale !== i18n.language) {
+                    i18n.changeLanguage(s.locale);
+                }
+            })
+            .catch(() => {});
+        setOpenTabs([]);
+        setActiveTabId(null);
     }, [loadData, loadHistory]);
 
     useEffect(() => {
@@ -164,25 +278,300 @@ function App() {
         return cleanup;
     }, []);
 
-    useEffect(() => {
-        if (!searchQuery.trim()) {
-            setCommands(allCommandsRef.current);
-        } else {
-            SearchCommands(searchQuery).then(cmds => setCommands(cmds || []));
-        }
-    }, [searchQuery]);
 
-    useEffect(() => {
-        if (selectedCommand) {
-            GetVariables(selectedCommand.id)
-                .then(vars => setResolvedVariables(vars || []))
-                .catch(() => setResolvedVariables([]));
-        } else {
-            setResolvedVariables([]);
-        }
-    }, [selectedCommand]);
+    const updateDraft = useCallback((tabId: string, partial: Partial<TabDraft>) => {
+        setTabDrafts((prev) => {
+            const cur = prev[tabId];
+            if (!cur) return prev;
+            const next: TabDraft = { ...cur, ...partial };
+            if (partial.scriptBody !== undefined && partial.variables === undefined) {
+                next.variables = mergeDetectedVariables(partial.scriptBody, cur.variables);
+            }
+            return { ...prev, [tabId]: next };
+        });
+    }, []);
 
-    // ========== Category handlers ==========
+    const handleDiscardTab = useCallback(
+        (tabId: string) => {
+            const b = tabBaselines[tabId];
+            if (b) setTabDrafts((prev) => ({ ...prev, [tabId]: cloneDraft(b) }));
+        },
+        [tabBaselines],
+    );
+
+    const finalizeCloseTab = useCallback(
+        (tabId: string) => {
+            const prevTabs = openTabsRef.current;
+            const newTabs = prevTabs.filter((t) => t.id !== tabId);
+            if (activeTabId === tabId) {
+                const idx = prevTabs.findIndex((t) => t.id === tabId);
+                const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
+                if (nextTab) {
+                    const saved = tabOutputRef.current[nextTab.id];
+                    if (saved) {
+                        setSelectedRecord(saved.record);
+                        setStreamLines(saved.streamLines);
+                    } else {
+                        setSelectedRecord(null);
+                        setStreamLines([]);
+                    }
+                    applyPaneState(nextTab.id);
+                    if (isNewCommandTabId(nextTab.id)) {
+                        const d = tabDraftsRef.current[nextTab.id];
+                        setSelectedCommand(makePlaceholderCommand(nextTab.id, d?.categoryId));
+                    } else {
+                        const cmd = allCommandsRef.current.find((c) => c.id === nextTab.id);
+                        setSelectedCommand(cmd ?? null);
+                    }
+                    setActiveTabId(nextTab.id);
+                } else {
+                    setSelectedCommand(null);
+                    setActiveTabId(null);
+                    setSelectedRecord(null);
+                    setStreamLines([]);
+                }
+            }
+            setOpenTabs(newTabs);
+            setTabDrafts((prev) => {
+                const n = { ...prev };
+                delete n[tabId];
+                return n;
+            });
+            setTabBaselines((prev) => {
+                const n = { ...prev };
+                delete n[tabId];
+                return n;
+            });
+            delete tabPaneStateRef.current[tabId];
+            delete tabOutputRef.current[tabId];
+            delete scriptFetchGenRef.current[tabId];
+        },
+        [activeTabId],
+    );
+
+    const applyPaneState = (tabId: string) => {
+        const saved = tabPaneStateRef.current[tabId];
+        setOutputPaneOpen(saved?.outputOpen ?? false);
+        setHistoryPaneOpen(saved?.historyOpen ?? false);
+    };
+
+    const openNewCommandTab = useCallback(
+        (defaultCategoryId?: string) => {
+            const prevTabId = activeTabIdRef.current;
+            if (prevTabId) {
+                tabOutputRef.current[prevTabId] = {
+                    record: selectedRecordRef.current,
+                    streamLines: [...streamLinesRef.current],
+                };
+                tabPaneStateRef.current[prevTabId] = {
+                    outputOpen: outputPaneOpenRef.current,
+                    historyOpen: historyPaneOpenRef.current,
+                };
+            }
+            const id = createNewTabId();
+            const initial = emptyDraft(defaultCategoryId);
+            const baseline = cloneDraft(initial);
+            setTabDrafts((prev) => ({ ...prev, [id]: initial }));
+            setTabBaselines((prev) => ({ ...prev, [id]: baseline }));
+            setSelectedCommand(makePlaceholderCommand(id, defaultCategoryId));
+            setSelectedRecord(null);
+            setStreamLines([]);
+            setActiveTabId(id);
+            setOpenTabs((prev) => [...prev, { id, title: t('commandEditor.newCommand') }]);
+            tabPaneStateRef.current[id] = { outputOpen: false, historyOpen: false };
+            applyPaneState(id);
+        },
+        [t],
+    );
+
+    const openTab = useCallback((cmd: Command) => {
+        // Save current tab's output + pane state before switching
+        const prevTabId = activeTabIdRef.current;
+        if (prevTabId && prevTabId !== cmd.id) {
+            tabOutputRef.current[prevTabId] = {
+                record: selectedRecordRef.current,
+                streamLines: [...streamLinesRef.current],
+            };
+            tabPaneStateRef.current[prevTabId] = {
+                outputOpen: outputPaneOpenRef.current,
+                historyOpen: historyPaneOpenRef.current,
+            };
+        }
+        setSelectedCommand(cmd);
+        setActiveTabId(cmd.id);
+        const isExisting = !!tabBaselinesRef.current[cmd.id];
+        setOpenTabs((prev) => {
+            const tabTitle = getCommandDisplayTitle(cmd);
+            const exists = prev.find((t) => t.id === cmd.id);
+            if (exists) {
+                return prev.map((t) => (t.id === cmd.id ? { ...t, title: tabTitle } : t));
+            }
+            return [...prev, { id: cmd.id, title: tabTitle }];
+        });
+        if (isExisting) {
+            const savedOutput = tabOutputRef.current[cmd.id];
+            if (savedOutput) {
+                setSelectedRecord(savedOutput.record);
+                setStreamLines(savedOutput.streamLines);
+            } else {
+                setSelectedRecord(null);
+                setStreamLines([]);
+            }
+            applyPaneState(cmd.id);
+            return;
+        }
+        setSelectedRecord(null);
+        setStreamLines([]);
+        tabPaneStateRef.current[cmd.id] = { outputOpen: false, historyOpen: false };
+        applyPaneState(cmd.id);
+        const g = (scriptFetchGenRef.current[cmd.id] = (scriptFetchGenRef.current[cmd.id] ?? 0) + 1);
+        void GetScriptBody(cmd.id)
+            .then((body) => {
+                if (scriptFetchGenRef.current[cmd.id] !== g) return;
+                const d = draftFromCommand(cmd, body);
+                setTabDrafts((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: d });
+                setTabBaselines((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: cloneDraft(d) });
+            })
+            .catch(() => {
+                if (scriptFetchGenRef.current[cmd.id] !== g) return;
+                const d = draftFromCommand(cmd, '');
+                setTabDrafts((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: d });
+                setTabBaselines((prev) => prev[cmd.id] ? prev : { ...prev, [cmd.id]: cloneDraft(d) });
+            });
+    }, []);
+
+    const handleSaveTab = useCallback(
+        async (tabId: string) => {
+            const d = tabDraftsRef.current[tabId];
+            if (!d || !d.scriptBody.trim()) return;
+            const title = d.title.trim();
+            const description = d.description.trim();
+            const body = d.scriptBody.replace(/^\s+|\s+$/g, '');
+            const tags = d.tags.map((tag) => tag.trim()).filter(Boolean);
+            try {
+                if (isNewCommandTabId(tabId)) {
+                    const cmd = await CreateCommand(
+                        title,
+                        description,
+                        body,
+                        d.categoryId,
+                        tags,
+                        d.variables,
+                    );
+                    await loadData();
+                    const savedBody = await GetScriptBody(cmd.id);
+                    const saved = draftFromCommand(cmd, savedBody);
+                    setTabDrafts((prev) => {
+                        const next = { ...prev };
+                        delete next[tabId];
+                        next[cmd.id] = saved;
+                        return next;
+                    });
+                    setTabBaselines((prev) => {
+                        const next = { ...prev };
+                        delete next[tabId];
+                        next[cmd.id] = cloneDraft(saved);
+                        return next;
+                    });
+                    setOpenTabs((prev) =>
+                        prev.map((tt) =>
+                            tt.id === tabId ? { id: cmd.id, title: getCommandDisplayTitle(cmd) } : tt,
+                        ),
+                    );
+                    setActiveTabId(cmd.id);
+                    setSelectedCommand(cmd);
+                    toast.success(t('toast.commandCreated'));
+                } else {
+                    await UpdateCommand(
+                        tabId,
+                        title,
+                        description,
+                        body,
+                        d.categoryId,
+                        tags,
+                        d.variables,
+                    );
+                    await loadData();
+                    const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+                    if (cmd) {
+                        const body = await GetScriptBody(cmd.id);
+                        const saved = draftFromCommand(cmd, body);
+                        setTabDrafts((prev) => ({ ...prev, [tabId]: saved }));
+                        setTabBaselines((prev) => ({ ...prev, [tabId]: cloneDraft(saved) }));
+                        setSelectedCommand(cmd);
+                    }
+                    toast.success(t('toast.commandSaved'));
+                }
+            } catch (err) {
+                console.error('Failed to save command:', err);
+            }
+        },
+        [loadData, t],
+    );
+
+    const closeTab = (tabId: string) => {
+        const d = tabDrafts[tabId];
+        const b = tabBaselines[tabId];
+        const dirty = d && b && !draftsEqual(d, b);
+        if (dirty) {
+            pendingCloseTabIdRef.current = tabId;
+            setModal({ type: 'confirmDiscard' });
+            return;
+        }
+        finalizeCloseTab(tabId);
+    };
+
+    const handleSelectTab = (tabId: string) => {
+        if (tabId === activeTabId) return;
+        // Save current tab's output + pane state
+        if (activeTabId) {
+            tabOutputRef.current[activeTabId] = {
+                record: selectedRecord,
+                streamLines: [...streamLines],
+            };
+            tabPaneStateRef.current[activeTabId] = {
+                outputOpen: outputPaneOpen,
+                historyOpen: historyPaneOpen,
+            };
+        }
+        setActiveTabId(tabId);
+        // Restore target tab's output state
+        const savedOutput = tabOutputRef.current[tabId];
+        if (savedOutput) {
+            setSelectedRecord(savedOutput.record);
+            setStreamLines(savedOutput.streamLines);
+        } else {
+            setSelectedRecord(null);
+            setStreamLines([]);
+        }
+        applyPaneState(tabId);
+        if (isNewCommandTabId(tabId)) {
+            const d = tabDraftsRef.current[tabId];
+            setSelectedCommand(makePlaceholderCommand(tabId, d?.categoryId));
+        } else {
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            if (cmd) setSelectedCommand(cmd);
+        }
+    };
+
+    const tabsForBar = useMemo(
+        () =>
+            openTabs
+                .filter((tab) => tab.id !== '__welcome__')
+                .map((tab) => {
+                    const d = tabDrafts[tab.id];
+                    const b = tabBaselines[tab.id];
+                    const dirty = !!(d && b && !draftsEqual(d, b));
+                    return { ...tab, isDirty: dirty };
+                }),
+        [openTabs, tabDrafts, tabBaselines],
+    );
+
+    const activeDraft = activeTabId ? tabDrafts[activeTabId] : null;
+    const activeDirty =
+        activeTabId && activeDraft && tabBaselines[activeTabId]
+            ? !draftsEqual(activeDraft, tabBaselines[activeTabId])
+            : false;
 
     const handleCreateCategory = async (data: { name: string; color: string }) => {
         try {
@@ -208,7 +597,7 @@ function App() {
     };
 
     const handleDeleteCategory = async (catId: string) => {
-        const cat = categories.find(c => c.id === catId);
+        const cat = categories.find((c) => c.id === catId);
         if (!cat) return;
         setModal({ type: 'confirmDelete', itemType: 'category', id: catId, name: cat.name });
     };
@@ -236,160 +625,27 @@ function App() {
         }
     };
 
-    // ========== Command handlers ==========
-
-    const handleCreateCommand = async (data: {
-        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
-    }) => {
-        try {
-            const cmd = await CreateCommand(data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
-            await loadData();
-            closeEditorTab();
-            openTab(cmd);
-            toast.success(t('toast.commandCreated'));
-        } catch (err) {
-            console.error('Failed to create command:', err);
-        }
-    };
-
-    const handleUpdateCommand = async (data: {
-        title: string; description: string; scriptBody: string; categoryId: string; tags: string[]; variables: VariableDefinition[];
-    }) => {
-        if (!editorTabData?.command) return;
-        try {
-            const cmd = await UpdateCommand(editorTabData.command.id, data.title, data.description, data.scriptBody, data.categoryId, data.tags, data.variables);
-            await loadData();
-            closeEditorTab();
-            openTab(cmd);
-            toast.success(t('toast.commandSaved'));
-        } catch (err) {
-            console.error('Failed to update command:', err);
-        }
-    };
-
-    const handleRenameCommand = async (newTitle: string) => {
-        if (!selectedCommand) return;
-        try {
-            const cmd = await RenameCommand(selectedCommand.id, newTitle);
-            await loadData();
-            openTab(cmd);
-        } catch (err) {
-            console.error('Failed to rename command:', err);
-        }
-    };
-
-    // ========== Tab management ==========
-
-    const openTab = (cmd: Command) => {
-        setSelectedCommand(cmd);
-        setSelectedRecord(null);
-        setActiveTabId(cmd.id);
-        setOpenTabs(prev => {
-            const exists = prev.find(t => t.id === cmd.id);
-            if (exists) {
-                return prev.map(t => t.id === cmd.id ? { ...t, title: cmd.title, kind: 'command' as const } : t);
-            }
-            return [...prev, { id: cmd.id, title: cmd.title, kind: 'command' as const }];
-        });
-    };
-
-    const pendingEditorDataRef = useRef<EditorTabData | null>(null);
-
-    const openEditorTab = useCallback((data: EditorTabData) => {
-        setOpenTabs(prev => {
-            const existing = prev.find(t => t.id === EDITOR_TAB_ID);
-            if (existing?.isDirty) {
-                pendingEditorDataRef.current = data;
-                setModal({ type: 'confirmDiscard' });
-                return prev;
-            }
-            const title = data.command ? `Edit: ${data.command.title}` : t('commandEditor.newCommand');
-            setEditorTabData(data);
-            setActiveTabId(EDITOR_TAB_ID);
-            if (existing) return prev.map(tab => tab.id === EDITOR_TAB_ID ? { ...tab, title, isDirty: false } : tab);
-            return [...prev, { id: EDITOR_TAB_ID, title, kind: 'editor' as const, isDirty: false }];
-        });
-    }, [t]);
-
-    const closeEditorTab = useCallback(() => {
-        setEditorTabData(null);
-        setOpenTabs(prev => {
-            const newTabs = prev.filter(t => t.id !== EDITOR_TAB_ID);
-            if (activeTabId === EDITOR_TAB_ID) {
-                const lastCmd = [...newTabs].reverse().find(t => t.kind === 'command');
-                if (lastCmd) {
-                    const cmd = allCommandsRef.current.find(c => c.id === lastCmd.id);
-                    if (cmd) { setSelectedCommand(cmd); setActiveTabId(lastCmd.id); }
-                } else {
-                    setSelectedCommand(null);
-                    setActiveTabId(null);
-                }
-            }
-            return newTabs;
-        });
-    }, [activeTabId]);
-
-    const closeTab = (commandId: string) => {
-        if (commandId === EDITOR_TAB_ID) {
-            const editorTab = openTabs.find(t => t.id === EDITOR_TAB_ID);
-            if (editorTab?.isDirty) {
-                setModal({ type: 'confirmDiscard' });
-                return;
-            }
-            closeEditorTab();
-            return;
-        }
-        setOpenTabs(prev => {
-            const newTabs = prev.filter(t => t.id !== commandId);
-            if (activeTabId === commandId) {
-                const idx = prev.findIndex(t => t.id === commandId);
-                const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
-                if (nextTab) {
-                    if (nextTab.id === EDITOR_TAB_ID) {
-                        setSelectedCommand(null);
-                        setActiveTabId(EDITOR_TAB_ID);
-                    } else {
-                        const nextCmd = allCommandsRef.current.find(c => c.id === nextTab.id);
-                        if (nextCmd) {
-                            setSelectedCommand(nextCmd);
-                            setActiveTabId(nextTab.id);
-                        } else {
-                            setSelectedCommand(null);
-                            setActiveTabId(null);
-                        }
-                    }
-                } else {
-                    setSelectedCommand(null);
-                    setActiveTabId(null);
-                }
-            }
-            return newTabs;
-        });
-    };
-
-    const handleSelectTab = (commandId: string) => {
-        if (commandId === activeTabId) return;
-        if (commandId === EDITOR_TAB_ID) {
-            setActiveTabId(EDITOR_TAB_ID);
-            return;
-        }
-        const cmd = allCommandsRef.current.find(c => c.id === commandId);
-        if (cmd) {
-            setSelectedCommand(cmd);
-            setActiveTabId(commandId);
-            setSelectedRecord(null);
-        }
-    };
-
-    // ========== Execution handlers ==========
+    const isSavedCommandDraftDirty = useCallback((commandId: string) => {
+        const d = tabDraftsRef.current[commandId];
+        const b = tabBaselinesRef.current[commandId];
+        return !!(d && b && !draftsEqual(d, b));
+    }, []);
 
     const handleExecute = async (values: Record<string, string>) => {
-        if (!selectedCommand) return;
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
         runCommandDirect(selectedCommand.id, values);
     };
 
     const handleRunInTerminal = async (values: Record<string, string>) => {
-        if (!selectedCommand) return;
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
         try {
             await RunInTerminal(selectedCommand.id, values);
         } catch (err) {
@@ -398,14 +654,17 @@ function App() {
     };
 
     const handleManagePresets = async () => {
-        if (!selectedCommand) return;
-        const [vars, presets] = await Promise.all([GetVariables(selectedCommand.id), GetPresets(selectedCommand.id)]);
-        setModal({ type: 'managePresets', variables: vars || [], commandId: selectedCommand.id, presets: presets || [] });
-    };
-
-    const handleManagePresetsForCommand = async (cmd: Command) => {
-        const [vars, presets] = await Promise.all([GetVariables(cmd.id), GetPresets(cmd.id)]);
-        setModal({ type: 'managePresets', variables: vars || [], commandId: cmd.id, presets: presets || [] });
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        const [vars, presets] = await Promise.all([
+            GetVariables(selectedCommand.id),
+            GetPresets(selectedCommand.id),
+        ]);
+        setModal({
+            type: 'managePresets',
+            variables: vars || [],
+            commandId: selectedCommand.id,
+            presets: presets || [],
+        });
     };
 
     const handleDeleteCommand = (cmd: Command) => {
@@ -413,26 +672,22 @@ function App() {
             type: 'confirmDelete',
             itemType: 'command',
             id: cmd.id,
-            name: cmd.title,
+            name: getCommandDisplayTitle(cmd),
         });
     };
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         try {
             const updated = await ReorderCommand(id, newPosition, newCategoryId);
-            if (searchQuery.trim()) {
-                const filtered = await SearchCommands(searchQuery);
-                setCommands(filtered || []);
-            } else {
-                setCommands(updated || []);
-            }
+            allCommandsRef.current = updated || [];
+            setCommands(updated || []);
         } catch (err) {
             console.error('Failed to reorder command:', err);
         }
     };
 
     const handleFillVariables = async (initialValues: Record<string, string>) => {
-        if (!selectedCommand) return;
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
         const vars = await GetVariables(selectedCommand.id);
         setModal({
             type: 'fillVariables',
@@ -443,7 +698,11 @@ function App() {
     };
 
     const handleVariableSubmit = async (values: Record<string, string>) => {
-        if (!selectedCommand) return;
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
         setModal({ type: 'none' });
         runCommandDirect(selectedCommand.id, values);
     };
@@ -451,23 +710,43 @@ function App() {
     const MAX_STREAM_LINES = 5000;
 
     const flushStreamBuffer = useCallback(() => {
-        setStreamLines(prev => {
-            const combined = [...prev, ...streamBufferRef.current];
-            streamBufferRef.current = [];
-            if (combined.length > MAX_STREAM_LINES) {
-                return combined.slice(combined.length - MAX_STREAM_LINES);
-            }
-            return combined;
-        });
+        const execTabId = executingTabIdRef.current;
+        const newLines = streamBufferRef.current;
+        streamBufferRef.current = [];
         streamFlushRef.current = null;
+
+        if (execTabId) {
+            const slot = tabOutputRef.current[execTabId] || { record: null, streamLines: [] };
+            const combined = [...slot.streamLines, ...newLines];
+            slot.streamLines = combined.length > MAX_STREAM_LINES
+                ? combined.slice(combined.length - MAX_STREAM_LINES)
+                : combined;
+            tabOutputRef.current[execTabId] = slot;
+        }
+
+        if (execTabId === activeTabIdRef.current) {
+            setStreamLines((prev) => {
+                const combined = [...prev, ...newLines];
+                if (combined.length > MAX_STREAM_LINES) {
+                    return combined.slice(combined.length - MAX_STREAM_LINES);
+                }
+                return combined;
+            });
+        }
     }, []);
 
     const runCommandDirect = async (commandId: string, variables: Record<string, string>) => {
+        const execTabId = activeTabIdRef.current;
+        executingTabIdRef.current = execTabId;
         setIsExecuting(true);
         setSelectedRecord(null);
         setStreamLines([]);
         streamBufferRef.current = [];
+        if (execTabId) {
+            tabOutputRef.current[execTabId] = { record: null, streamLines: [] };
+        }
         setOutputPaneOpen(true);
+        setHistoryPaneOpen(true);
 
         const cleanup = EventsOn('cmd-output', (chunk: { stream: string; data: string }) => {
             const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
@@ -486,7 +765,16 @@ function App() {
             if (streamBufferRef.current.length > 0) {
                 flushStreamBuffer();
             }
-            setSelectedRecord(record);
+            if (execTabId) {
+                const cached = tabOutputRef.current[execTabId];
+                tabOutputRef.current[execTabId] = {
+                    record,
+                    streamLines: cached?.streamLines || [],
+                };
+            }
+            if (execTabId === activeTabIdRef.current) {
+                setSelectedRecord(record);
+            }
             await loadHistory();
             if (record.exitCode === 0) {
                 toast.success(t('toast.commandSuccess'));
@@ -494,7 +782,7 @@ function App() {
                 toast.error(t('toast.commandFailed', { code: record.exitCode }));
             }
         } catch (err) {
-            setSelectedRecord({
+            const errRecord: ExecutionRecord = {
                 id: '',
                 commandId: commandId,
                 scriptContent: '',
@@ -502,11 +790,19 @@ function App() {
                 output: '',
                 error: String(err),
                 exitCode: -1,
+                workingDir: '',
                 executedAt: new Date().toISOString(),
-            });
+            };
+            if (execTabId) {
+                tabOutputRef.current[execTabId] = { record: errRecord, streamLines: [] };
+            }
+            if (execTabId === activeTabIdRef.current) {
+                setSelectedRecord(errRecord);
+            }
             toast.error(t('toast.commandFailed', { code: -1 }));
         } finally {
             cleanup();
+            executingTabIdRef.current = null;
             setIsExecuting(false);
         }
     };
@@ -538,35 +834,51 @@ function App() {
         const cmds = await GetCommands();
         allCommandsRef.current = cmds || [];
         setCommands(cmds || []);
-        const refreshed = (cmds || []).find((c: Command) => c.id === selectedCommand?.id) ?? null;
+        const refreshed =
+            (cmds || []).find((c: Command) => c.id === selectedCommand?.id) ?? null;
         if (refreshed) setSelectedCommand(refreshed);
         return refreshed;
     };
 
-    const handleAddPresetFromDetail = async (): Promise<string> => {
-        if (!selectedCommand) return '';
-        const created = await SavePreset(selectedCommand.id, 'New Preset', {});
+    const handleAddPresetFromDetail = async (initialValues?: Record<string, string>): Promise<string> => {
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return '';
+        const created = await SavePreset(selectedCommand.id, t('commandDetail.newPresetName'), initialValues ?? {});
         await refreshSelectedCommand();
         return created.id;
     };
 
     const handleRenamePresetFromDetail = async (presetId: string, newName: string) => {
-        if (!selectedCommand) return;
-        const preset = selectedCommand.presets.find(p => p.id === presetId);
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        const preset = selectedCommand.presets.find((p) => p.id === presetId);
         if (!preset) return;
         await UpdatePreset(selectedCommand.id, presetId, newName, preset.values);
         await refreshSelectedCommand();
     };
 
     const handleDeletePresetFromDetail = async (presetId: string) => {
-        if (!selectedCommand) return;
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
         await DeletePreset(selectedCommand.id, presetId);
         await refreshSelectedCommand();
     };
 
+    const handleReorderPresetsFromDetail = async (presetIds: string[]) => {
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        const reordered = presetIds
+            .map((id) => selectedCommand.presets.find((p) => p.id === id))
+            .filter(Boolean) as typeof selectedCommand.presets;
+        setSelectedCommand((prev) => prev ? { ...prev, presets: reordered } : prev);
+        try {
+            await ReorderPresets(selectedCommand.id, presetIds);
+            await refreshSelectedCommand();
+        } catch (err) {
+            console.error('Failed to reorder presets:', err);
+            await refreshSelectedCommand();
+        }
+    };
+
     const handleSavePresetValuesFromDetail = async (presetId: string, values: Record<string, string>) => {
-        if (!selectedCommand) return;
-        const preset = selectedCommand.presets.find(p => p.id === presetId);
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        const preset = selectedCommand.presets.find((p) => p.id === presetId);
         if (!preset) return;
         await UpdatePreset(selectedCommand.id, presetId, preset.name, values);
         await refreshSelectedCommand();
@@ -582,6 +894,47 @@ function App() {
         }
     };
 
+    const handleSaveScriptDirect = useCallback(async (scriptBody: string) => {
+        if (!activeTabId || isNewCommandTabId(activeTabId)) return;
+        const d = tabDraftsRef.current[activeTabId];
+        if (!d) return;
+        const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
+        const vars = mergeDetectedVariables(strippedBody, d.variables);
+        try {
+            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars);
+            await loadData();
+            const cmd = allCommandsRef.current.find(c => c.id === activeTabId);
+            if (cmd) {
+                const body = await GetScriptBody(cmd.id);
+                const saved = draftFromCommand(cmd, body);
+                setTabDrafts(prev => ({ ...prev, [activeTabId]: saved }));
+                setTabBaselines(prev => ({ ...prev, [activeTabId]: cloneDraft(saved) }));
+                setSelectedCommand(cmd);
+            }
+            toast.success(t('toast.commandSaved'));
+        } catch (err) {
+            console.error('Failed to save script:', err);
+        }
+    }, [activeTabId, loadData, t]);
+
+    const handleResetAllData = useCallback(async () => {
+        try {
+            await ResetAllData();
+            await loadData();
+            await loadHistory();
+            setSelectedCommand(null);
+            setTabDrafts({});
+            setTabBaselines({});
+            setOpenTabs([]);
+            setActiveTabId(null);
+            setStreamLines([]);
+            tabOutputRef.current = {};
+            setModal({ type: 'none' });
+        } catch (err) {
+            console.error('Failed to reset data:', err);
+        }
+    }, [loadData, loadHistory]);
+
     const handleSelectCommand = (cmd: Command) => {
         openTab(cmd);
     };
@@ -590,34 +943,48 @@ function App() {
         setSelectedRecord(record);
         setStreamLines([]);
         setOutputPaneOpen(true);
+        setHistoryPaneOpen(true);
+        if (activeTabId) {
+            tabOutputRef.current[activeTabId] = { record, streamLines: [] };
+        }
     };
 
-    const handleClearHistory = async () => {
+    const handleClearHistory = () => {
+        setModal({ type: 'confirmClearHistory' });
+    };
+
+    const confirmClearHistory = async () => {
         try {
             await ClearExecutionHistory();
             setExecutionHistory([]);
             setSelectedRecord(null);
+            setStreamLines([]);
+            tabOutputRef.current = {};
+            setModal({ type: 'none' });
         } catch (err) {
             console.error('Failed to clear history:', err);
         }
     };
 
-    // ========== Keyboard shortcuts ==========
-
     const cmdOrCtrl = isMac ? 'meta' : 'ctrl';
 
     useKeyboardShortcuts({
-        // Command palette
         [`${cmdOrCtrl}+p`]: () => setPaletteOpen(true),
-        'ctrl+p': () => setPaletteOpen(true), // also catch ctrl+p on mac
+        'ctrl+p': () => setPaletteOpen(true),
 
-        // Run active command
+        [`${cmdOrCtrl}+s`]: () => {
+            if (modal.type !== 'none' || !activeTabId || !activeDirty) return;
+            void handleSaveTab(activeTabId);
+        },
+
         [`${cmdOrCtrl}+enter`]: () => {
-            if (!selectedCommand || modal.type !== 'none' || activeTabId === EDITOR_TAB_ID) return;
+            const el = document.activeElement;
+            if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
+            if (!selectedCommand || modal.type !== 'none' || isNewCommandTabId(selectedCommand.id)) return;
             if (resolvedVariables.length === 0) {
                 handleExecute({});
             } else {
-                const hasEmpty = resolvedVariables.some(v => !currentResolvedValues[v.name]);
+                const hasEmpty = resolvedVariables.some((v) => !currentResolvedValues[v.name]);
                 if (hasEmpty) {
                     handleFillVariables(currentResolvedValues);
                 } else {
@@ -626,27 +993,15 @@ function App() {
             }
         },
 
-        // Edit active command
-        [`${cmdOrCtrl}+e`]: () => {
-            if (selectedCommand && activeTabId !== EDITOR_TAB_ID) {
-                openEditorTab({ command: selectedCommand });
-            }
-        },
+        [`${cmdOrCtrl}+n`]: () => openNewCommandTab(),
+        [`${cmdOrCtrl}+t`]: () => openNewCommandTab(),
 
-        // New command (Cmd/Ctrl+N or Cmd/Ctrl+T)
-        [`${cmdOrCtrl}+n`]: () => {
-            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
-        },
-        [`${cmdOrCtrl}+t`]: () => {
-            if (activeTabId !== EDITOR_TAB_ID) openEditorTab({});
-        },
+        [`${cmdOrCtrl}+f`]: () => setPaletteOpen(true),
 
-        // Settings
         [`${cmdOrCtrl}+,`]: () => {
             if (modal.type === 'none') setModal({ type: 'settings' });
         },
 
-        // Close active tab
         'ctrl+w': () => {
             if (activeTabId) closeTab(activeTabId);
         },
@@ -654,30 +1009,60 @@ function App() {
             if (activeTabId) closeTab(activeTabId);
         },
 
-        // Next tab
         'ctrl+tab': () => {
             if (openTabs.length < 2) return;
-            const idx = openTabs.findIndex(t => t.id === activeTabId);
+            const idx = openTabs.findIndex((t) => t.id === activeTabId);
             const next = openTabs[(idx + 1) % openTabs.length];
             if (next) handleSelectTab(next.id);
         },
 
-        // Previous tab
         'ctrl+shift+tab': () => {
             if (openTabs.length < 2) return;
-            const idx = openTabs.findIndex(t => t.id === activeTabId);
+            const idx = openTabs.findIndex((t) => t.id === activeTabId);
             const prev = openTabs[(idx - 1 + openTabs.length) % openTabs.length];
             if (prev) handleSelectTab(prev.id);
         },
 
-        // Close palette — only registered when open so it doesn't block Radix dialogs
-        ...(paletteOpen ? { 'escape': () => setPaletteOpen(false) } : {}),
+        [`${cmdOrCtrl}+shift+backspace`]: () => {
+            if (activeTabId && activeDirty) {
+                handleDiscardTab(activeTabId);
+            }
+        },
+
+        'shift+~': () => {
+            setOutputPaneOpen((prev) => !prev);
+        },
+
+        // Cmd+1-6: jump to nth tab
+        ...Object.fromEntries(
+            [1, 2, 3, 4, 5, 6].map((n) => [
+                `${cmdOrCtrl}+${n}`,
+                () => {
+                    const tabs = openTabs.filter((tt) => tt.id !== '__welcome__');
+                    if (tabs.length >= n) handleSelectTab(tabs[n - 1].id);
+                },
+            ]),
+        ),
+        // Cmd+0: jump to last tab
+        [`${cmdOrCtrl}+0`]: () => {
+            const tabs = openTabs.filter((tt) => tt.id !== '__welcome__');
+            if (tabs.length > 0) handleSelectTab(tabs[tabs.length - 1].id);
+        },
+
+        ...(paletteOpen ? { escape: () => setPaletteOpen(false) } : {}),
     });
 
     const commandHistory = useMemo(
-        () => selectedCommand ? executionHistory.filter(r => r.commandId === selectedCommand.id) : executionHistory,
-        [selectedCommand?.id, executionHistory]
+        () =>
+            selectedCommand && !isNewCommandTabId(selectedCommand.id)
+                ? executionHistory.filter((r) => r.commandId === selectedCommand.id)
+                : executionHistory,
+        [selectedCommand?.id, executionHistory],
     );
+
+    const isNew = !!(activeTabId && isNewCommandTabId(activeTabId));
+    const saveDisabled = !activeDraft || !activeDraft.scriptBody.trim();
+    const isWelcome = !selectedCommand && !activeDraft;
 
     return (
         <TooltipProvider>
@@ -692,9 +1077,9 @@ function App() {
                         collapsedIcon={
                             <div className="logo-icon" style={{ width: 22, height: 22 }}>
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="22" height="22">
-                                  <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.1"/>
-                                  <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
-                                  <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
+                                    <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.1" />
+                                    <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
+                                    <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
                                 </svg>
                             </div>
                         }
@@ -703,25 +1088,20 @@ function App() {
                             categories={categories}
                             commands={commands}
                             selectedCommandId={selectedCommand?.id || null}
-                            searchQuery={searchQuery}
-                            onSearchChange={setSearchQuery}
                             onSelectCommand={handleSelectCommand}
                             onAddCategory={() => setModal({ type: 'categoryEditor' })}
                             onEditCategory={(cat) => setModal({ type: 'categoryEditor', category: cat })}
                             onDeleteCategory={handleDeleteCategory}
-                            onAddCommand={(catId) => openEditorTab({ defaultCategoryId: catId })}
-                            onEditCommand={(cmd) => openEditorTab({ command: cmd })}
+                            onAddCommand={(catId) => openNewCommandTab(catId)}
                             onDeleteCommand={handleDeleteCommand}
-                            onManagePresets={handleManagePresetsForCommand}
                             onReorderCommand={handleReorderCommand}
                             onOpenSettings={() => setModal({ type: 'settings' })}
                         />
                     </ResizablePanel>
 
                     <div className="center-area">
-                        {/* Tab bar */}
                         <TabBar
-                            tabs={openTabs}
+                            tabs={tabsForBar}
                             activeTabId={activeTabId}
                             onSelectTab={handleSelectTab}
                             onCloseTab={closeTab}
@@ -729,90 +1109,78 @@ function App() {
 
                         <div className="top-area">
                             <div className="main-content">
-                                {activeTabId === EDITOR_TAB_ID && editorTabData !== null ? (
-                                    <CommandEditorTab
-                                        command={editorTabData.command}
-                                        categories={categories}
-                                        defaultCategoryId={editorTabData.defaultCategoryId}
-                                        onSave={editorTabData.command ? handleUpdateCommand : handleCreateCommand}
-                                        onDiscard={() => {
-                                            const editorTab = openTabs.find(t => t.id === EDITOR_TAB_ID);
-                                            if (editorTab?.isDirty) {
-                                                setModal({ type: 'confirmDiscard' });
-                                            } else {
-                                                closeEditorTab();
-                                            }
-                                        }}
-                                        onDirtyChange={(dirty) => {
-                                            setOpenTabs(prev => prev.map(t =>
-                                                t.id === EDITOR_TAB_ID ? { ...t, isDirty: dirty } : t
-                                            ));
-                                        }}
-                                    />
-                                ) : selectedCommand ? (
-                                    <div className="main-body">
+                                {selectedCommand && activeDraft ? (
+                                    <div className="main-body command-tab-shell">
                                         <CommandDetail
                                             command={selectedCommand}
+                                            draft={activeDraft}
+                                            baselineScriptBody={activeTabId && tabBaselines[activeTabId] ? tabBaselines[activeTabId].scriptBody : ''}
+                                            onDraftChange={(partial) =>
+                                                activeTabId && updateDraft(activeTabId, partial)
+                                            }
+                                            isNewCommand={isNew}
                                             isExecuting={isExecuting}
                                             variables={resolvedVariables}
                                             onExecute={handleExecute}
                                             onRunInTerminal={handleRunInTerminal}
-                                            onManagePresets={handleManagePresets}
                                             onFillVariables={handleFillVariables}
-                                            onEdit={() => openEditorTab({ command: selectedCommand })}
                                             onDelete={() =>
                                                 setModal({
                                                     type: 'confirmDelete',
                                                     itemType: 'command',
                                                     id: selectedCommand.id,
-                                                    name: selectedCommand.title,
+                                                    name: getCommandDisplayTitle(selectedCommand) || activeDraft.title,
                                                 })
                                             }
-                                            onRename={handleRenameCommand}
-                                            onAddPreset={handleAddPresetFromDetail as () => Promise<string>}
                                             onRenamePreset={handleRenamePresetFromDetail}
                                             onDeletePreset={handleDeletePresetFromDetail}
+                                            onAddPreset={handleAddPresetFromDetail}
                                             onSavePresetValues={handleSavePresetValuesFromDetail}
+                                            onReorderPresets={handleReorderPresetsFromDetail}
                                             onResolvedValuesChange={setCurrentResolvedValues}
+                                            onSaveScript={handleSaveScriptDirect}
+                                        />
+                                        <FloatingSaveBar
+                                            visible={activeDirty}
+                                            saveDisabled={saveDisabled}
+                                            onSave={() => activeTabId && void handleSaveTab(activeTabId)}
+                                            onDiscard={() => activeTabId && handleDiscardTab(activeTabId)}
                                         />
                                     </div>
+                                ) : selectedCommand && !activeDraft ? (
+                                    <div className="main-body">
+                                        <p className="text-muted-foreground text-sm p-4">{t('common.loading')}</p>
+                                    </div>
                                 ) : (
-                                    <div className="empty-state">
-                                        <div className="empty-icon">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="64" height="64">
-                                              <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.05"/>
-                                              <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
-                                              <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
-                                            </svg>
-                                        </div>
-                                        <h2>{t('app.welcomeTitle')}</h2>
-                                        <p>{t('app.welcomeDescription')}</p>
-                                        <Button onClick={() => openEditorTab({})}>
-                                            {t('app.newCommand')}
-                                        </Button>
+                                    <div className="main-body">
+                                        <WelcomeTab onNewCommand={() => openNewCommandTab()} />
                                     </div>
                                 )}
                             </div>
 
-                            <HistoryPane
-                                records={commandHistory}
-                                selectedRecordId={selectedRecord?.id || null}
-                                onSelectRecord={handleSelectRecord}
-                                onClearHistory={handleClearHistory}
-                            />
+                            {!isWelcome && (
+                                <HistoryPane
+                                    records={commandHistory}
+                                    selectedRecordId={selectedRecord?.id || null}
+                                    onSelectRecord={handleSelectRecord}
+                                    onClearHistory={handleClearHistory}
+                                    defaultCollapsed={!historyPaneOpen}
+                                />
+                            )}
                         </div>
 
-                        <OutputPane
-                            record={selectedRecord}
-                            streamLines={streamLines}
-                            isExecuting={isExecuting}
-                            isOpen={outputPaneOpen}
-                            onToggle={() => setOutputPaneOpen(prev => !prev)}
-                        />
+                        {!isWelcome && (
+                            <OutputPane
+                                record={selectedRecord}
+                                streamLines={streamLines}
+                                isExecuting={isExecuting}
+                                isOpen={outputPaneOpen}
+                                onToggle={() => setOutputPaneOpen((prev) => !prev)}
+                            />
+                        )}
                     </div>
                 </div>
 
-                {/* Modals */}
                 {modal.type === 'categoryEditor' && (
                     <CategoryEditor
                         category={modal.category}
@@ -873,7 +1241,15 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <AlertDialog open={modal.type === 'confirmDiscard'} onOpenChange={(open) => { if (!open) { pendingEditorDataRef.current = null; setModal({ type: 'none' }); } }}>
+                <AlertDialog
+                    open={modal.type === 'confirmDiscard'}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            pendingCloseTabIdRef.current = null;
+                            setModal({ type: 'none' });
+                        }
+                    }}
+                >
                     <AlertDialogContent>
                         <AlertDialogHeader>
                             <AlertDialogTitle>{t('app.discardTitle')}</AlertDialogTitle>
@@ -885,15 +1261,26 @@ function App() {
                                 variant="destructive"
                                 onClick={() => {
                                     setModal({ type: 'none' });
-                                    const pending = pendingEditorDataRef.current;
-                                    pendingEditorDataRef.current = null;
-                                    closeEditorTab();
-                                    if (pending) {
-                                        setTimeout(() => openEditorTab(pending), 0);
-                                    }
+                                    const tabId = pendingCloseTabIdRef.current;
+                                    pendingCloseTabIdRef.current = null;
+                                    if (tabId) finalizeCloseTab(tabId);
                                 }}
                             >
                                 {t('app.discard')}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog open={modal.type === 'confirmClearHistory'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{t('app.clearHistoryTitle')}</AlertDialogTitle>
+                            <AlertDialogDescription>{t('app.clearHistoryDescription')}</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
+                            <AlertDialogAction onClick={confirmClearHistory} variant="destructive">
+                                {t('app.delete')}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -903,6 +1290,7 @@ function App() {
                     onClose={() => setModal({ type: 'none' })}
                     theme={theme}
                     onThemeChange={setTheme}
+                    onResetAllData={handleResetAllData}
                 />
                 <CommandPalette
                     open={paletteOpen}

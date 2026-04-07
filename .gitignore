@@ -7,3 +7,4 @@ cmdex
 .cursor/hooks.json
 
 todos/
+.cursor/rules/claude-mem-context.mdc

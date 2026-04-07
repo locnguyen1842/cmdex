@@ -13,6 +13,7 @@ interface HistoryPaneProps {
   selectedRecordId: string | null;
   onSelectRecord: (record: ExecutionRecord) => void;
   onClearHistory: () => void;
+  defaultCollapsed?: boolean;
 }
 
 const HistoryPane: React.FC<HistoryPaneProps> = ({
@@ -20,6 +21,7 @@ const HistoryPane: React.FC<HistoryPaneProps> = ({
   selectedRecordId,
   onSelectRecord,
   onClearHistory,
+  defaultCollapsed,
 }) => {
   const { t } = useTranslation();
 
@@ -44,6 +46,7 @@ const HistoryPane: React.FC<HistoryPaneProps> = ({
       maxWidth={400}
       storageKey="cmdex-history"
       collapsedIcon={<History className="size-5 text-muted-foreground" />}
+      defaultCollapsed={defaultCollapsed}
     >
       <div className="history-pane">
         <div className="history-pane-header">

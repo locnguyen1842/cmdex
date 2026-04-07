@@ -9,6 +9,7 @@ interface ResizablePanelProps {
   collapsedIcon: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  defaultCollapsed?: boolean;
 }
 
 const ResizablePanel: React.FC<ResizablePanelProps> = ({
@@ -20,13 +21,15 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   collapsedIcon,
   children,
   className,
+  defaultCollapsed,
 }) => {
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(`${storageKey}-width`);
     return saved ? parseInt(saved, 10) : defaultWidth;
   });
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem(`${storageKey}-collapsed`) === 'true';
+    const stored = localStorage.getItem(`${storageKey}-collapsed`);
+    return stored ? stored === 'true' : !!defaultCollapsed;
   });
   const [dragging, setDragging] = useState(false);
   const startXRef = useRef(0);

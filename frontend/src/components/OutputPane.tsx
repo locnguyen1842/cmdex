@@ -3,8 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 
 const STDERR_PREFIX = '\x1b[stderr]';
 const MAX_DISPLAY_LINES = 100;
@@ -12,6 +17,24 @@ const MIN_HEIGHT = 80;
 const MAX_HEIGHT = 600;
 const DEFAULT_HEIGHT = 200;
 const STORAGE_KEY = 'cmdex-output-height';
+
+function formatTime(isoStr: string, locale?: string): string {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleTimeString(locale || undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+function shortenDir(dir: string): string {
+  if (!dir) return '~';
+  const home = dir.match(/^\/Users\/[^/]+|^\/home\/[^/]+|^C:\\Users\\[^\\]+/)?.[0];
+  if (home && dir.startsWith(home)) {
+    return '~' + dir.slice(home.length);
+  }
+  return dir;
+}
 
 interface OutputPaneProps {
   record: ExecutionRecord | null;
@@ -22,9 +45,11 @@ interface OutputPaneProps {
 }
 
 const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecuting, isOpen, onToggle }) => {
-  const { t } = useTranslation();
+  const { t, i18n: i18nInstance } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [copiedOutput, setCopiedOutput] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState(false);
   const [height, setHeight] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     const parsed = saved ? Number(saved) : NaN;
@@ -45,7 +70,6 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
     setIsDragging(true);
   }, []);
 
-  // Manage window listeners with proper cleanup on unmount or drag stop
   useEffect(() => {
     if (!isDragging) return;
 
@@ -97,12 +121,52 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const isStreaming = isExecuting && streamLines.length > 0;
   const showRecord = record && !isStreaming;
 
+  const allOutputText = useMemo(() => {
+    if (isStreaming) {
+      return streamLines.map((l) => l.startsWith(STDERR_PREFIX) ? l.slice(STDERR_PREFIX.length) : l).join('');
+    }
+    if (showRecord) {
+      const parts: string[] = [];
+      if (record.output) parts.push(record.output);
+      if (record.error) parts.push(record.error);
+      return parts.join('\n');
+    }
+    return '';
+  }, [streamLines, record, isStreaming, showRecord]);
+
+  const handleCopy = useCallback(() => {
+    if (!allOutputText) return;
+    navigator.clipboard.writeText(allOutputText).then(() => {
+      setCopiedOutput(true);
+      setTimeout(() => setCopiedOutput(false), 1500);
+    }).catch((err) => {
+      console.error('Failed to copy output:', err);
+    });
+  }, [allOutputText]);
+
+  const handleCopyCommand = useCallback(() => {
+    if (!record?.finalCmd) return;
+    navigator.clipboard.writeText(record.finalCmd).then(() => {
+      setCopiedCommand(true);
+      setTimeout(() => setCopiedCommand(false), 1500);
+    }).catch((err) => {
+      console.error('Failed to copy command:', err);
+    });
+  }, [record?.finalCmd]);
+
+  const cmdPrefix = useMemo(() => {
+    if (!showRecord) return null;
+    const time = formatTime(record.executedAt, i18nInstance.language);
+    const dir = shortenDir(record.workingDir || '');
+    return `[${time}] ${dir} ➤ `;
+  }, [showRecord, record?.executedAt, record?.workingDir]);
+
   return (
-    <Collapsible open={isOpen} onOpenChange={onToggle} className="output-pane">
+    <Collapsible open={isOpen} className="output-pane">
       {isOpen && (
         <div className="output-resize-handle" onMouseDown={handleResizeStart} />
       )}
-      <div className="output-pane-header" onClick={onToggle}>
+      <div className="output-pane-header">
         <div className="output-pane-title">
           <span className="terminal-dots">
             <span className="terminal-dot" style={{ background: '#ff5f56' }} />
@@ -129,17 +193,21 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
             </span>
           )}
         </div>
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={isOpen ? t("outputPane.collapse") : t("outputPane.expand")}
-            aria-expanded={isOpen}
-            onClick={(e) => { e.stopPropagation(); }}
-          >
-            {isOpen ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-          </Button>
-        </CollapsibleTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="output-collapse-btn"
+              aria-label={isOpen ? t("outputPane.collapse") : t("outputPane.expand")}
+              aria-expanded={isOpen}
+              onClick={onToggle}
+            >
+              {isOpen ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('outputPane.toggleShortcut')}</TooltipContent>
+        </Tooltip>
       </div>
       <CollapsibleContent>
         <div
@@ -159,9 +227,16 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
               {displayLines.map((line, i) => {
                 const isErr = line.startsWith(STDERR_PREFIX);
                 const text = isErr ? line.slice(STDERR_PREFIX.length) : line;
+                const isLast = i === displayLines.length - 1;
                 return (
                   <div key={i} className={`output-line${isErr ? ' output-error' : ''}`}>
                     {text}
+                    {isLast && (
+                      <button type="button" className="output-copy-inline ml-0!" onClick={handleCopy}>
+                        {copiedOutput ? <Check className="size-3 text-success mr-2" /> : <Copy className="size-3 mr-2" />}
+                        {t('outputPane.copyOutput')}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -171,10 +246,57 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
           {showRecord && (
             <>
-              <div className="output-cmd">$ {record.finalCmd}</div>
-              {record.output && <div className="output-line">{record.output}</div>}
-              {record.error && <div className="output-line output-error">{record.error}</div>}
-              {record.exitCode !== 0 && (
+              <div className="output-cmd">
+                <span className="output-cmd-prefix">{cmdPrefix}</span>
+                {record.finalCmd}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="output-copy-inline output-copy-cmd"
+                      onClick={handleCopyCommand}
+                      aria-label={t('outputPane.copyCommand')}
+                    >
+                      {copiedCommand ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('outputPane.copyCommand')}</TooltipContent>
+                </Tooltip>
+              </div>
+              {/* Show output lines or empty state */}
+              {record.output ? (
+                record.output.split('\n').map((line, i, arr) => {
+                  const isLast = i === arr.length - 1 && !record.error;
+                  return (
+                    <div key={`o-${i}`} className="output-line">
+                      {line}
+                      {isLast && (
+                        <button type="button" className="output-copy-inline ml-0!" onClick={handleCopy}>
+                          {copiedOutput ? <Check className="size-3 text-success mr-2" /> : <Copy className="size-3 mr-2" />}
+                          {t('outputPane.copyOutput')}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              ) : !record.error ? (
+                <div className="output-empty-response">{t('outputPane.emptyResponse')}</div>
+              ) : null}
+              {record.error && record.error.split('\n').map((line, i, arr) => {
+                const isLast = i === arr.length - 1;
+                return (
+                  <div key={`e-${i}`} className="output-line output-error">
+                    {line}
+                    {isLast && (
+                      <button type="button" className="output-copy-inline ml-0!" onClick={handleCopy}>
+                        {copiedOutput ? <Check className="size-3 text-success mr-2" /> :  <Copy className="size-3 mr-2" />}
+                        {t('outputPane.copyOutput')}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {record.exitCode !== 0 && !record.error && (
                 <div className="output-line output-error">
                   {t('outputPane.processExited', { code: record.exitCode })}
                 </div>
