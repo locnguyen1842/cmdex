@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 
+export { isMac, cmdSymbol, cmdOrCtrl, isCmdOrCtrl, shortcutLabelParts, shortcutLabelString, SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
+
 type Handler = (e: KeyboardEvent) => void;
 export type ShortcutMap = Record<string, Handler>;
 
@@ -13,35 +15,6 @@ function buildKey(e: KeyboardEvent): string {
   return mods.join('+');
 }
 
-export const isMac =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
-
-export const cmdSymbol = isMac ? '⌘' : 'Ctrl';
-
-/** Human-readable label for a shortcut combo.
- *  Parts: 'cmd' | 'ctrl' | 'alt' | 'shift' | 'enter' | 'tab' | 'escape' | any char
- */
-export function shortcutLabel(parts: string[]): string {
-  return parts
-    .map((p) => {
-      switch (p) {
-        case 'cmd':    return isMac ? '⌘' : 'Ctrl';
-        case 'ctrl':   return isMac ? '^'  : 'Ctrl';
-        case 'alt':    return isMac ? '⌥'  : 'Alt';
-        case 'shift':  return '⇧';
-        case 'enter':  return '↩';
-        case 'tab':    return 'Tab';
-        case 'escape': return 'Esc';
-        case 'arrowup':    return '↑';
-        case 'arrowdown':  return '↓';
-        case 'arrowleft':  return '←';
-        case 'arrowright': return '→';
-        default:       return p.length === 1 ? p.toUpperCase() : p;
-      }
-    })
-    .join('');
-}
-
 /**
  * Register global keyboard shortcuts. Pass a stable object (or let the hook
  * track the latest via ref so callers don't need to memoize).
@@ -51,7 +24,6 @@ export function shortcutLabel(parts: string[]): string {
  */
 export function useKeyboardShortcuts(shortcuts: ShortcutMap): void {
   const ref = useRef<ShortcutMap>(shortcuts);
-  // Always keep ref in sync without re-registering the listener
   useEffect(() => { ref.current = shortcuts; });
 
   useEffect(() => {
@@ -74,7 +46,6 @@ export function useKeyboardShortcuts(shortcuts: ShortcutMap): void {
       }
     };
 
-    // capture phase: fires before React synthetic events (lets us intercept Cmd+W etc.)
     window.addEventListener('keydown', handle, { capture: true });
     return () => window.removeEventListener('keydown', handle, { capture: true });
   }, []);

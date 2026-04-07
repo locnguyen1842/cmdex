@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Pencil } from 'lucide-react';
+import { isCmdOrCtrl } from '@/lib/shortcuts';
 
 export interface InlineEditFieldProps {
   value: string;
@@ -72,7 +73,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
         e.preventDefault();
         commit();
       }
-      if (multiline && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      if (multiline && isCmdOrCtrl(e) && e.key === 'Enter') {
         e.preventDefault();
         commit();
       }

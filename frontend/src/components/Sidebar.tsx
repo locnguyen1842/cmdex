@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/context-menu';
 import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { isMac, cmdSymbol as cmd } from '../hooks/useKeyboardShortcuts';
+import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 
@@ -42,24 +42,25 @@ const SHORTCUT_GROUPS = [
   {
     label: 'Navigation',
     items: [
-      { keys: [`${cmd}P`],               description: 'Command Palette' },
-      { keys: ['Ctrl+Tab'],              description: 'Next tab' },
-      { keys: ['Ctrl+Shift+Tab'],        description: 'Previous tab' },
-      { keys: [isMac ? '⌘W' : 'Ctrl+W'], description: 'Close tab' },
+      { keys: [shortcutLabel('palette')],  description: 'Command Palette' },
+      { keys: [shortcutLabel('nextTab')],  description: 'Next tab' },
+      { keys: [shortcutLabel('prevTab')],  description: 'Previous tab' },
+      { keys: [shortcutLabel('prevOpenedTab')], description: 'Previous opened tab' },
+      { keys: [shortcutLabel('closeTab')], description: 'Close tab' },
     ],
   },
   {
     label: 'Commands',
     items: [
-      { keys: [`${cmd}↩`],  description: 'Run command' },
-      { keys: [`${cmd}S`],  description: 'Save command' },
-      { keys: [`${cmd}N`],  description: 'New command' },
+      { keys: [shortcutLabel('execute')],    description: 'Run command' },
+      { keys: [shortcutLabel('save')],       description: 'Save command' },
+      { keys: [shortcutLabel('newCommand')], description: 'New command' },
     ],
   },
   {
     label: 'App',
     items: [
-      { keys: [`${cmd},`], description: 'Settings' },
+      { keys: [shortcutLabel('settings')], description: 'Settings' },
     ],
   },
 ];
@@ -339,10 +340,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </Button>
                 </PopoverTrigger>
               </TooltipTrigger>
-              <TooltipContent>Keyboard Shortcuts</TooltipContent>
+              <TooltipContent>{t('common.keyboardShortcuts')}</TooltipContent>
             </Tooltip>
             <PopoverContent side="bottom" align="end" className="shortcuts-popup w-64 p-3">
-              <div className="shortcuts-popup-title">Keyboard Shortcuts</div>
+              <div className="shortcuts-popup-title">{t('common.keyboardShortcuts')}</div>
               {SHORTCUT_GROUPS.map((group) => (
                 <div key={group.label} className="shortcuts-group">
                   <div className="shortcuts-group-label">{group.label}</div>

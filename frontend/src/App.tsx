@@ -13,7 +13,7 @@ import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
 import WelcomeTab from './components/WelcomeTab';
 import FloatingSaveBar from './components/FloatingSaveBar';
-import { useKeyboardShortcuts, isMac } from './hooks/useKeyboardShortcuts';
+import { useKeyboardShortcuts, cmdOrCtrl, SHORTCUTS } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -138,6 +138,7 @@ function App() {
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const activeTabIdRef = useRef<string | null>(null);
     activeTabIdRef.current = activeTabId;
+    const prevTabIdRef = useRef<string | null>(null);
     const [tabDrafts, setTabDrafts] = useState<Record<string, TabDraft>>({});
     const [tabBaselines, setTabBaselines] = useState<Record<string, TabDraft>>({});
     const tabDraftsRef = useRef<Record<string, TabDraft>>({});
@@ -359,6 +360,7 @@ function App() {
         (defaultCategoryId?: string) => {
             const prevTabId = activeTabIdRef.current;
             if (prevTabId) {
+                prevTabIdRef.current = prevTabId;
                 tabOutputRef.current[prevTabId] = {
                     record: selectedRecordRef.current,
                     streamLines: [...streamLinesRef.current],
@@ -388,6 +390,7 @@ function App() {
         // Save current tab's output + pane state before switching
         const prevTabId = activeTabIdRef.current;
         if (prevTabId && prevTabId !== cmd.id) {
+            prevTabIdRef.current = prevTabId;
             tabOutputRef.current[prevTabId] = {
                 record: selectedRecordRef.current,
                 streamLines: [...streamLinesRef.current],
@@ -525,6 +528,7 @@ function App() {
         if (tabId === activeTabId) return;
         // Save current tab's output + pane state
         if (activeTabId) {
+            prevTabIdRef.current = activeTabId;
             tabOutputRef.current[activeTabId] = {
                 record: selectedRecord,
                 streamLines: [...streamLines],
@@ -966,8 +970,6 @@ function App() {
         }
     };
 
-    const cmdOrCtrl = isMac ? 'meta' : 'ctrl';
-
     useKeyboardShortcuts({
         [`${cmdOrCtrl}+p`]: () => setPaletteOpen(true),
         'ctrl+p': () => setPaletteOpen(true),
@@ -1029,7 +1031,7 @@ function App() {
             }
         },
 
-        'shift+~': () => {
+        [SHORTCUTS.toggleOutput.keys.join('+')]: () => {
             setOutputPaneOpen((prev) => !prev);
         },
 
@@ -1043,6 +1045,13 @@ function App() {
                 },
             ]),
         ),
+        // Cmd+9: toggle between current and previous tab
+        [`${cmdOrCtrl}+9`]: () => {
+            const prev = prevTabIdRef.current;
+            if (prev && openTabs.some((t) => t.id === prev)) {
+                handleSelectTab(prev);
+            }
+        },
         // Cmd+0: jump to last tab
         [`${cmdOrCtrl}+0`]: () => {
             const tabs = openTabs.filter((tt) => tt.id !== '__welcome__');

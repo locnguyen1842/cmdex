@@ -1,7 +1,8 @@
 {
   "common": {
     "untitled": "Untitled",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "keyboardShortcuts": "Keyboard Shortcuts"
   },
   "sidebar": {
     "searchPlaceholder": "Search commands...",
@@ -68,7 +69,6 @@
     "addTag": "Add tag",
     "tagNamePlaceholder": "name",
     "scriptEditHint": "Shift+Enter: new line · Enter: save · {{cmdKey}}⇧⌫: discard",
-    "scriptEditHintTitle": "Keyboard Shortcuts",
     "scriptEditHintNewLine": "New line",
     "scriptEditHintSave": "Save changes",
     "scriptEditHintDiscard": "Discard changes",
@@ -159,7 +159,7 @@
     "emptyState": "Run a command or select a history entry to see output here.",
     "expand": "Expand pane",
     "collapse": "Collapse pane",
-    "toggleShortcut": "Toggle output (Shift+`)",
+    "toggleShortcut": "Toggle output",
     "copyOutput": "Copy output",
     "copyCommand": "Copy command",
     "emptyResponse": "Empty Response"
@@ -215,7 +215,6 @@
   "welcome": {
     "title": "Cmdex",
     "subtitle": "Save, organize, and run CLI commands",
-    "shortcutsTitle": "Keyboard Shortcuts",
     "newCommand": "+ New Command",
     "shortcutNewTab": "New command tab",
     "shortcutPalette": "Command palette",
@@ -223,6 +222,7 @@
     "shortcutRun": "Run command",
     "shortcutSave": "Save command",
     "shortcutSwitchTab": "Switch to tab 1–6",
+    "shortcutPrevOpenedTab": "Previously opened tab",
     "shortcutLastTab": "Switch to last tab",
     "shortcutSettings": "Settings",
     "shortcutCloseTab": "Close tab"

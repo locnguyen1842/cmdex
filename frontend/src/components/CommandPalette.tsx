@@ -6,9 +6,8 @@ import React, {
   useCallback,
 } from 'react';
 import { Command, Category, getCommandDisplayTitle } from '../types';
-import { cmdSymbol } from '../hooks/useKeyboardShortcuts';
+import { Kbd, ShortcutLabel } from './ui/kbd';
 import { FileText, Search, X } from 'lucide-react';
-import { Kbd } from '@/components/ui/kbd';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -144,7 +143,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             </button>
           )}
           <div className="palette-shortcut-badge">
-            <Kbd>{cmdSymbol}</Kbd><Kbd>P</Kbd>
+            <ShortcutLabel id="palette" />
           </div>
         </div>
 

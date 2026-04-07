@@ -1040,17 +1040,14 @@ textarea.inline-edit-input {
   align-items: center;
   padding: 3px 0;
   font-size: 12px;
+  gap: 4px;
   color: var(--foreground);
 }
 
 .script-edit-tooltip-row span {
   color: var(--foreground);
 }
-
-.script-edit-tooltip-row kbd {
-  font-size: 11px;
-  padding: 1px 4px;
-}
+/* 
 
 /* Highlighted textarea overlay */
 .highlighted-textarea-wrap {
@@ -1792,38 +1789,12 @@ textarea.inline-edit-input {
   border-radius: 4px;
 }
 
-/* ========== Keyboard <kbd> styling ========== */
-
-kbd, .kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1px 5px;
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 16px;
-  color: var(--muted-foreground);
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  white-space: nowrap;
-  user-select: none;
-}
 
 .tooltip-with-shortcut {
   display: flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-}
-
-.tooltip-with-shortcut .kbd {
-  color: var(--foreground);
-  opacity: 0.7;
-  background: color-mix(in srgb, var(--foreground) 10%, transparent);
-  border-color: color-mix(in srgb, var(--foreground) 20%, transparent);
 }
 
 /* ========== Command Palette ========== */
@@ -2035,15 +2006,6 @@ kbd, .kbd {
   align-items: center;
   gap: 3px;
   font-size: 11px;
-  color: var(--muted-foreground);
-}
-
-.palette-hint kbd {
-  font-size: 10px;
-  padding: 0 4px;
-  line-height: 14px;
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
-  border-color: color-mix(in srgb, var(--foreground) 15%, transparent);
   color: var(--muted-foreground);
 }
 
