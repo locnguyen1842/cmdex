@@ -1,0 +1,51 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g. v1.0.0) — used only for naming artifacts'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux/amd64
+
+          - os: macos-latest
+            platform: darwin/universal
+
+          - os: windows-latest
+            platform: windows/amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Build
+        uses: dAppCore/build/actions/build/wails2@v4.0.0
+        with:
+          build-name: cmdex
+          build-platform: ${{ matrix.platform }}
+          node-version: '25.x'
+          go-version: '1.25'
+          wails-version: 'v2.11.0'
+          package: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
