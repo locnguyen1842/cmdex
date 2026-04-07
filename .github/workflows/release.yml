@@ -1,0 +1,122 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g. v1.0.0) — used only for naming artifacts'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux/amd64
+            artifact: cmdex-linux-amd64
+
+          - os: macos-latest
+            platform: darwin/universal
+            artifact: cmdex-macos-universal
+
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: cmdex-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+
+      # Linux requires GTK3 + WebKit2GTK for Wails window rendering
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev
+
+      - name: Build
+        run: wails build -platform ${{ matrix.platform }} -clean -trimpath
+
+      # ── Post-build packaging ──────────────────────────────────────────────
+
+      - name: Package (Linux) — rename binary
+        if: runner.os == 'Linux'
+        run: mv build/bin/cmdex build/bin/${{ matrix.artifact }}
+
+      - name: Package (macOS) — zip .app bundle
+        if: runner.os == 'macOS'
+        run: |
+          cd build/bin
+          zip -r "${{ matrix.artifact }}.zip" cmdex.app
+          rm -rf cmdex.app
+
+      - name: Package (Windows) — rename exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Move-Item build/bin/cmdex.exe build/bin/${{ matrix.artifact }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/bin/
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    # Only publish a release on tag pushes, not manual workflow_dispatch
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -lh dist/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
