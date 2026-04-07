@@ -224,9 +224,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
           {(isStreaming || (isExecuting && streamLines.length > 0)) && (
             <>
-              {displayLines.length === 0 && !isExecuting && (
-                <div className="output-empty-response">{t('outputPane.emptyResponse')}</div>
-              )}
+              {displayLines.map((line, i) => {
               {displayLines.map((line, i) => {
                 const isErr = line.startsWith(STDERR_PREFIX);
                 const text = isErr ? line.slice(STDERR_PREFIX.length) : line;
