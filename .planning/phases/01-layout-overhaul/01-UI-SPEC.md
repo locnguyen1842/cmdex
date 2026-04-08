@@ -37,10 +37,9 @@ Declared values (multiples of 4 only). This phase uses the Tailwind 4px base sca
 | xs | 4px | Icon gaps, inline badge padding, tag chip gaps |
 | sm | 8px | Sidebar content padding, footer padding, section item vertical padding |
 | md | 16px | Default element spacing, sidebar header horizontal padding |
-| lg | 20px | Main body horizontal padding (existing .main-body: 20px 24px) |
-| xl | 24px | Main body horizontal padding outer edge, section breaks |
-| 2xl | 32px | Not used in Phase 1 layout areas |
-| 3xl | 48px | Not used in Phase 1 layout areas |
+| lg | 24px | Main body horizontal padding, section breaks |
+| xl | 32px | Not used in Phase 1 layout areas |
+| 2xl | 48px | Not used in Phase 1 layout areas |
 
 **Phase-specific spacing rules (from codebase audit):**
 
@@ -51,7 +50,8 @@ Declared values (multiples of 4 only). This phase uses the Tailwind 4px base sca
 | Section header row | padding | 4px 8px | style.css `.sidebar-section-header` — tightened from 5px 8px |
 | Command item | padding | 4px 8px | style.css `.command-item` — normalized from 5px 10px |
 | Panel separator | style | 1px `var(--border)` | D-09: border not gap/shadow |
-| Main body | padding | 20px 24px | style.css `.main-body` — preserve |
+| Main body | padding | 24px 24px | style.css `.main-body` — updated from 20px 24px to align with standard scale |
+| OutputPane / HistoryPane header | padding | 8px 16px | Consistent across both panes |
 
 Exceptions:
 - Sidebar auto-collapse icon rail: 44px minimum touch/click width for the collapsed trigger area (accessibility — icon-only clickable region)
@@ -141,14 +141,14 @@ Resize listener: debounced at 100ms to avoid layout thrash.
 | Trigger | Behavior |
 |---------|----------|
 | User selects "Delete" from ContextMenu on command or category | Popover opens anchored to trigger element |
-| Popover open | Shows label "Delete?" + red [Delete] button + [Cancel] button |
+| Popover open | Shows label "Delete?" + red [Delete] button + [Keep it] button |
 | User clicks [Delete] | Calls `onDeleteCommand` / `onDeleteCategory` from App.tsx; Popover closes |
-| User clicks [Cancel] or presses Escape | Popover closes; no action |
+| User clicks [Keep it] or presses Escape | Popover closes; no action |
 | User clicks outside Popover | Popover closes; no action |
 
 Popover positioning: Radix auto-positioning (`side="top"` preferred, falls back automatically). No custom positioning.
 [Delete] button: `variant="destructive"` matching existing `AlertDialogAction variant="destructive"` visual.
-[Cancel] button: `variant="ghost"` or `variant="outline"`.
+[Keep it] button: `variant="ghost"` or `variant="outline"`.
 
 State ownership: Popover open/close state lives in Sidebar component (local state), NOT in App.tsx ModalState. The `confirmDelete` ModalState case in App.tsx is removed after migration.
 
@@ -159,8 +159,8 @@ Spacing pass targets four areas per D-07:
 | Area | Change |
 |------|--------|
 | Sidebar density | Section header row: tighten vertical padding from 5px to 4px. Command item gap: keep 8px. Logo margin-bottom: 8px (from 10px). |
-| CommandDetail controls | Header padding: audit and apply consistent 20px top/sides matching `.main-body`. Control row gaps: 8px between icon buttons. |
-| OutputPane / HistoryPane panel headers | Header padding: 8px 12px. Item row vertical padding: 8px 12px. Consistent across both panes. |
+| CommandDetail controls | Header padding: audit and apply consistent 24px top/sides matching `.main-body`. Control row gaps: 8px between icon buttons. |
+| OutputPane / HistoryPane panel headers | Header padding: 8px 16px. Item row vertical padding: 8px 16px. Consistent across both panes. |
 | Panel gaps (sidebar/content/output) | All panel separators: 1px `var(--border)` solid. No box-shadow. No visible gap. Matches D-09. |
 
 ---
@@ -175,12 +175,12 @@ Spacing pass targets four areas per D-07:
 | Delete confirmation popover label | "Delete?" |
 | Delete command confirmation button | "Delete" |
 | Delete category confirmation button | "Delete" |
-| Cancel delete | "Cancel" |
+| Dismiss delete popover | "Keep it" |
 | Collapsed sidebar tooltip (logo icon hover) | "Expand sidebar" |
 
 **Destructive action confirmation copy (D-04):**
-- Delete command: Popover label "Delete?" + button "Delete" (no further description — command name visible from context)
-- Delete category: Popover label "Delete?" + button "Delete" (category name visible from trigger context)
+- Delete command: Popover label "Delete?" + confirm button "Delete" + dismiss button "Keep it" (no further description — command name visible from context)
+- Delete category: Popover label "Delete?" + confirm button "Delete" + dismiss button "Keep it" (category name visible from trigger context)
 - No secondary warning text inside the popover — consistent with VS Code compact confirmation patterns
 
 Error states in Phase 1 (layout only, no new async operations):
@@ -215,4 +215,5 @@ Source: `frontend/components.json` — `"registries": {}` (empty). No third-part
 *Phase: 01-layout-overhaul*
 *UI-SPEC created: 2026-04-08*
 *UI-SPEC revised: 2026-04-08 — fixed typography weights (4→2) and normalized spacing to 4px multiples*
+*UI-SPEC revised: 2026-04-08 (round 2) — replaced "Cancel" with "Keep it" for delete popover dismiss; replaced lg=20px with 24px; replaced 8px 12px panel header padding with 8px 16px*
 *Sources: 01-CONTEXT.md (7 decisions), REQUIREMENTS.md (UIUX-01, UIUX-02, UIUX-04), style.css tokens, components.json*
