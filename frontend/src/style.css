@@ -1718,8 +1718,8 @@ textarea.inline-edit-input {
 
 /* Collapsed rail — full height, click or Enter/Space to expand */
 .resizable-panel-rail {
-  width: 36px;
-  min-width: 36px;
+  width: 44px;
+  min-width: 44px;
   flex-shrink: 0;
   background: var(--card);
   display: flex;
