@@ -78,24 +78,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UIUX-01 | TBD | Pending |
-| UIUX-02 | TBD | Pending |
-| UIUX-03 | TBD | Pending |
-| UIUX-04 | TBD | Pending |
-| UIUX-05 | TBD | Pending |
-| THME-01 | TBD | Pending |
-| THME-02 | TBD | Pending |
-| THME-03 | TBD | Pending |
-| THME-04 | TBD | Pending |
-| THME-05 | TBD | Pending |
-| IMEX-01 | TBD | Pending |
-| IMEX-02 | TBD | Pending |
+| UIUX-01 | Phase 1 | Pending |
+| UIUX-02 | Phase 1 | Pending |
+| UIUX-03 | Phase 2 | Pending |
+| UIUX-04 | Phase 1 | Pending |
+| UIUX-05 | Phase 2 | Pending |
+| THME-01 | Phase 3 | Pending |
+| THME-02 | Phase 3 | Pending |
+| THME-03 | Phase 3 | Pending |
+| THME-04 | Phase 4 | Pending |
+| THME-05 | Phase 4 | Pending |
+| IMEX-01 | Phase 5 | Pending |
+| IMEX-02 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 ⚠️
+- Mapped to phases: 12
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-08*
-*Last updated: 2026-04-08 after initial definition*
+*Last updated: 2026-04-08 after roadmap creation*
