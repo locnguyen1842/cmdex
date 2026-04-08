@@ -620,6 +620,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const showTags = draft.revealed.tags;
 
   return (
+    // Spacing controlled by .main-body CSS (24px 24px) — no inline padding overrides in this component
     <div className="command-detail">
       {showHeaderBlock && (
         <div className="detail-header">
