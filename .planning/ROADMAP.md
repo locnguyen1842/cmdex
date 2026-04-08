@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Auto-collapse sidebar on window resize (≤600px) via ResizablePanel window.resize listener; 44px rail width
-- [ ] 01-02-PLAN.md — Replace confirmDelete AlertDialog with inline Popover in Sidebar; remove modal path from App.tsx
-- [ ] 01-03-PLAN.md — Spacing normalization pass: sidebar density, pane headers, main-body, panel separators
+- [x] 01-01-PLAN.md — Auto-collapse sidebar on window resize (≤600px) via ResizablePanel window.resize listener; 44px rail width
+- [x] 01-02-PLAN.md — Replace confirmDelete AlertDialog with inline Popover in Sidebar; remove modal path from App.tsx
+- [x] 01-03-PLAN.md — Spacing normalization pass: sidebar density, pane headers, main-body, panel separators
 
 ### Phase 2: Editor & Interactions
 **Goal**: Users interact with a streamlined editor and feel the app respond fluidly to every action
