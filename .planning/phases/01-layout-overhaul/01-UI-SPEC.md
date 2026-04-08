@@ -46,10 +46,10 @@ Declared values (multiples of 4 only). This phase uses the Tailwind 4px base sca
 
 | Area | Property | Value | Source |
 |------|----------|-------|--------|
-| Sidebar header | padding | 14px 14px 10px | style.css `.sidebar-header` — preserve |
-| Sidebar content | padding | 8px 6px | style.css `.sidebar-content` — preserve |
-| Section header row | padding | 5px 8px | style.css `.sidebar-section-header` — tighten to 4px 8px for consistency |
-| Command item | padding | 5px 10px | style.css `.command-item` — acceptable, preserve |
+| Sidebar header | padding | 16px 16px 8px | style.css `.sidebar-header` — normalized from 14px 14px 10px |
+| Sidebar content | padding | 8px 8px | style.css `.sidebar-content` — normalized from 8px 6px |
+| Section header row | padding | 4px 8px | style.css `.sidebar-section-header` — tightened from 5px 8px |
+| Command item | padding | 4px 8px | style.css `.command-item` — normalized from 5px 10px |
 | Panel separator | style | 1px `var(--border)` | D-09: border not gap/shadow |
 | Main body | padding | 20px 24px | style.css `.main-body` — preserve |
 
@@ -67,8 +67,8 @@ All sizes in px. Base font-size declared in style.css `body`: 13px.
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 13px | 400 (regular) | 1.5 | Sidebar command titles, detail descriptions, output lines |
-| Label | 11px | 700 (bold) | 1.2 | Category section headers (uppercase, letter-spacing 0.6px) |
-| UI small | 10px | 500 (medium) | 1.2 | Tag chips, count badges, keyboard shortcut keys |
+| Label | 11px | 600 (semibold) | 1.2 | Category section headers (uppercase, letter-spacing 0.6px) |
+| UI small | 10px | 400 (regular) | 1.2 | Tag chips, count badges, keyboard shortcut keys |
 | Heading | 13px | 600 (semibold) | 1.3 | Command detail title, panel headers |
 
 Font families:
@@ -158,9 +158,9 @@ Spacing pass targets four areas per D-07:
 
 | Area | Change |
 |------|--------|
-| Sidebar density | Section header row: tighten vertical padding from 5px to 4px. Command item gap: keep 6px. Logo margin-bottom: 8px (from 10px). |
+| Sidebar density | Section header row: tighten vertical padding from 5px to 4px. Command item gap: keep 8px. Logo margin-bottom: 8px (from 10px). |
 | CommandDetail controls | Header padding: audit and apply consistent 20px top/sides matching `.main-body`. Control row gaps: 8px between icon buttons. |
-| OutputPane / HistoryPane panel headers | Header padding: 8px 12px. Item row vertical padding: 6px 12px. Consistent across both panes. |
+| OutputPane / HistoryPane panel headers | Header padding: 8px 12px. Item row vertical padding: 8px 12px. Consistent across both panes. |
 | Panel gaps (sidebar/content/output) | All panel separators: 1px `var(--border)` solid. No box-shadow. No visible gap. Matches D-09. |
 
 ---
@@ -214,4 +214,5 @@ Source: `frontend/components.json` — `"registries": {}` (empty). No third-part
 
 *Phase: 01-layout-overhaul*
 *UI-SPEC created: 2026-04-08*
+*UI-SPEC revised: 2026-04-08 — fixed typography weights (4→2) and normalized spacing to 4px multiples*
 *Sources: 01-CONTEXT.md (7 decisions), REQUIREMENTS.md (UIUX-01, UIUX-02, UIUX-04), style.css tokens, components.json*
