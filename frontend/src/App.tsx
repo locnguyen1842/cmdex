@@ -80,7 +80,6 @@ type ModalState =
     | { type: 'categoryEditor'; category?: Category }
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
-    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
     | { type: 'confirmDiscard' }
     | { type: 'confirmClearHistory' }
     | { type: 'settings' };
@@ -601,31 +600,15 @@ function App() {
     };
 
     const handleDeleteCategory = async (catId: string) => {
-        const cat = categories.find((c) => c.id === catId);
-        if (!cat) return;
-        setModal({ type: 'confirmDelete', itemType: 'category', id: catId, name: cat.name });
-    };
-
-    const confirmDelete = async () => {
-        if (modal.type !== 'confirmDelete') return;
-        const { itemType } = modal;
         try {
-            if (itemType === 'category') {
-                await DeleteCategory(modal.id);
-                if (selectedCommand?.categoryId === modal.id) {
-                    setSelectedCommand(null);
-                }
-            } else {
-                await DeleteCommand(modal.id);
-                if (selectedCommand?.id === modal.id) {
-                    closeTab(modal.id);
-                }
+            await DeleteCategory(catId);
+            if (selectedCommand?.categoryId === catId) {
+                setSelectedCommand(null);
             }
             await loadData();
-            setModal({ type: 'none' });
-            toast.success(itemType === 'category' ? t('toast.categoryDeleted') : t('toast.commandDeleted'));
+            toast.success(t('toast.categoryDeleted'));
         } catch (err) {
-            console.error('Failed to delete:', err);
+            console.error('Failed to delete category:', err);
         }
     };
 
@@ -671,13 +654,17 @@ function App() {
         });
     };
 
-    const handleDeleteCommand = (cmd: Command) => {
-        setModal({
-            type: 'confirmDelete',
-            itemType: 'command',
-            id: cmd.id,
-            name: getCommandDisplayTitle(cmd),
-        });
+    const handleDeleteCommand = async (cmd: Command) => {
+        try {
+            await DeleteCommand(cmd.id);
+            if (selectedCommand?.id === cmd.id) {
+                closeTab(cmd.id);
+            }
+            await loadData();
+            toast.success(t('toast.commandDeleted'));
+        } catch (err) {
+            console.error('Failed to delete command:', err);
+        }
     };
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
@@ -1133,14 +1120,7 @@ function App() {
                                             onExecute={handleExecute}
                                             onRunInTerminal={handleRunInTerminal}
                                             onFillVariables={handleFillVariables}
-                                            onDelete={() =>
-                                                setModal({
-                                                    type: 'confirmDelete',
-                                                    itemType: 'command',
-                                                    id: selectedCommand.id,
-                                                    name: getCommandDisplayTitle(selectedCommand) || activeDraft.title,
-                                                })
-                                            }
+                                            onDelete={() => void handleDeleteCommand(selectedCommand)}
                                             onRenamePreset={handleRenamePresetFromDetail}
                                             onDeletePreset={handleDeletePresetFromDetail}
                                             onAddPreset={handleAddPresetFromDetail}
@@ -1227,29 +1207,6 @@ function App() {
                     />
                 )}
 
-                <AlertDialog open={modal.type === 'confirmDelete'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>{t('app.confirmDeleteTitle')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {modal.type === 'confirmDelete' && (
-                                    <>
-                                        {t('app.confirmDeleteMessage', { itemType: modal.itemType, name: modal.name })}
-                                        {modal.itemType === 'category' && ` ${t('app.confirmDeleteCategoryWarning')}`}
-                                        <br /><br />
-                                        {t('app.confirmDeleteUndone')}
-                                    </>
-                                )}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmDelete} variant="destructive">
-                                {t('app.delete')}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
                 <AlertDialog
                     open={modal.type === 'confirmDiscard'}
                     onOpenChange={(open) => {

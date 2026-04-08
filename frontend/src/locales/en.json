@@ -21,6 +21,11 @@
       "delete": "Delete",
       "newCommand": "New Command",
       "newGroup": "New Category"
+    },
+    "deleteConfirm": {
+      "label": "Delete?",
+      "confirm": "Delete",
+      "dismiss": "Keep it"
     }
   },
   "commandDetail": {
