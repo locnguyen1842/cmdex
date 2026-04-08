@@ -87,6 +87,9 @@ interface SortableCommandItemProps {
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  isPendingDelete: boolean;
+  onRequestDelete: () => void;
+  onCancelDelete: () => void;
 }
 
 const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
@@ -94,6 +97,9 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
   isSelected,
   onSelect,
   onDelete,
+  isPendingDelete,
+  onRequestDelete,
+  onCancelDelete,
 }) => {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cmd.id });
@@ -135,10 +141,26 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
+        <ContextMenuItem onSelect={onRequestDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5" /> {t('sidebar.contextMenu.delete')}
         </ContextMenuItem>
       </ContextMenuContent>
+      <Popover open={isPendingDelete} onOpenChange={(open) => { if (!open) onCancelDelete(); }}>
+        <PopoverTrigger asChild>
+          <span style={{ display: 'none' }} aria-hidden />
+        </PopoverTrigger>
+        <PopoverContent side="top" className="w-auto p-3" align="start">
+          <p className="text-sm font-medium mb-2">{t('sidebar.deleteConfirm.label')}</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={onDelete}>
+              {t('sidebar.deleteConfirm.confirm')}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onCancelDelete}>
+              {t('sidebar.deleteConfirm.dismiss')}
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
     </ContextMenu>
   );
 };
@@ -217,6 +239,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const uncategorizedCommands = commands
     .filter(cmd => !cmd.categoryId || cmd.categoryId === '')
     .sort((a, b) => a.position - b.position);
+
+  // Inline delete confirmation state
+  const [pendingDeleteCmd, setPendingDeleteCmd] = useState<string | null>(null);
+  const [pendingDeleteCat, setPendingDeleteCat] = useState<string | null>(null);
 
   // DnD state
   const [activeCommand, setActiveCommand] = useState<Command | null>(null);
@@ -403,14 +429,48 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   </TooltipTrigger>
                                   <TooltipContent>{t('sidebar.editCategory')}</TooltipContent>
                                 </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); onDeleteCategory(cat.id); }}>
-                                      <X />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{t('sidebar.deleteCategory')}</TooltipContent>
-                                </Tooltip>
+                                <Popover
+                                  open={pendingDeleteCat === cat.id}
+                                  onOpenChange={(open) => { if (!open) setPendingDeleteCat(null); }}
+                                >
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon-xs"
+                                          onClick={(e) => { e.stopPropagation(); setPendingDeleteCat(cat.id); }}
+                                        >
+                                          <X />
+                                        </Button>
+                                      </PopoverTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{t('sidebar.deleteCategory')}</TooltipContent>
+                                  </Tooltip>
+                                  <PopoverContent side="top" className="w-auto p-3" align="end">
+                                    <p className="text-sm font-medium mb-2">{t('sidebar.deleteConfirm.label')}</p>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onDeleteCategory(cat.id);
+                                          setPendingDeleteCat(null);
+                                        }}
+                                      >
+                                        {t('sidebar.deleteConfirm.confirm')}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => { e.stopPropagation(); setPendingDeleteCat(null); }}
+                                      >
+                                        {t('sidebar.deleteConfirm.dismiss')}
+                                      </Button>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
                               </div>
                             </div>
                           </CollapsibleTrigger>
@@ -437,7 +497,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 cmd={cmd}
                                 isSelected={selectedCommandId === cmd.id}
                                 onSelect={() => onSelectCommand(cmd)}
-                                onDelete={() => onDeleteCommand(cmd)}
+                                onDelete={() => { onDeleteCommand(cmd); setPendingDeleteCmd(null); }}
+                                isPendingDelete={pendingDeleteCmd === cmd.id}
+                                onRequestDelete={() => setPendingDeleteCmd(cmd.id)}
+                                onCancelDelete={() => setPendingDeleteCmd(null)}
                               />
                             ))}
                             {catCommands.length === 0 && (
@@ -497,7 +560,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                             cmd={cmd}
                             isSelected={selectedCommandId === cmd.id}
                             onSelect={() => onSelectCommand(cmd)}
-                            onDelete={() => onDeleteCommand(cmd)}
+                            onDelete={() => { onDeleteCommand(cmd); setPendingDeleteCmd(null); }}
+                            isPendingDelete={pendingDeleteCmd === cmd.id}
+                            onRequestDelete={() => setPendingDeleteCmd(cmd.id)}
+                            onCancelDelete={() => setPendingDeleteCmd(null)}
                           />
                         ))}
                       </DroppableCategoryZone>
