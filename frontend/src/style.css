@@ -444,7 +444,7 @@ body {
 }
 
 .sidebar-header {
-  padding: 14px 14px 10px;
+  padding: 16px 16px 8px;
   border-bottom: 1px solid var(--border);
   --wails-draggable: drag;
 }
@@ -453,7 +453,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .sidebar-logo .logo-icon {
@@ -477,7 +477,7 @@ body {
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 6px;
+  padding: 8px 8px;
 }
 
 .sidebar-section {
@@ -488,7 +488,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 8px;
+  padding: 4px 8px;
   cursor: pointer;
   border-radius: 4px;
   transition: background var(--transition-fast);
@@ -542,7 +542,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
+  padding: 4px 8px;
   margin: 1px 0;
   cursor: pointer;
   border-radius: 0 4px 4px 0;
@@ -629,7 +629,7 @@ body {
 .main-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 24px 24px;
 }
 
 .main-body.command-tab-shell {
@@ -1326,7 +1326,7 @@ textarea.inline-edit-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px 8px 12px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1396,7 +1396,7 @@ textarea.inline-edit-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 12px;
+  padding: 8px 16px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
   cursor: default;
