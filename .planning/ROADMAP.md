@@ -29,13 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Sidebar collapses to icons or hides entirely at narrow widths
   3. Destructive actions (delete command, delete category) use inline confirmation instead of modal dialogs
   4. Spacing between controls, panels, and sections follows a consistent rhythm with clear visual hierarchy
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Auto-collapse sidebar on window resize (≤600px) via ResizablePanel window.resize listener; 44px rail width
+- [ ] 01-02-PLAN.md — Replace confirmDelete AlertDialog with inline Popover in Sidebar; remove modal path from App.tsx
+- [ ] 01-03-PLAN.md — Spacing normalization pass: sidebar density, pane headers, main-body, panel separators
 
 ### Phase 2: Editor & Interactions
 **Goal**: Users interact with a streamlined editor and feel the app respond fluidly to every action
@@ -47,7 +46,6 @@ Plans:
   3. Sidebar collapse/expand and panel toggles use visible transitions
   4. No layout jumps or flicker during transitions
 **Plans**: TBD
-**UI hint**: yes
 
 Plans:
 - [ ] 02-01: TBD
@@ -63,7 +61,6 @@ Plans:
   3. App respects OS light/dark preference on startup and when the OS setting changes
   4. User can select from at least 5 built-in themes (e.g., Catppuccin, Dracula, Nord, Solarized, One Dark) and the app updates immediately
 **Plans**: TBD
-**UI hint**: yes
 
 Plans:
 - [ ] 03-01: TBD
@@ -79,7 +76,6 @@ Plans:
   2. User can switch between compact, comfortable, and spacious density modes
   3. Density change visibly adjusts padding, margins, and font sizes across all views
 **Plans**: TBD
-**UI hint**: yes
 
 Plans:
 - [ ] 04-01: TBD
