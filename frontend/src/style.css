@@ -578,6 +578,49 @@ body {
   font-weight: 400;
 }
 
+/* Inline delete confirmation — same row as command item */
+.cmd-trash-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.cmd-trash-btn:hover {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+}
+
+.cmd-delete-confirm {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+}
+.cmd-delete-label {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.cmd-delete-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.cmd-delete-btn {
+  height: 20px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  min-width: 0 !important;
+}
+
 .cmd-tags-row {
   display: flex;
   gap: 4px;
