@@ -39,6 +39,7 @@ import {
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
@@ -121,71 +122,62 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
-        <div
-          ref={setNodeRef}
-          style={style}
-          className={`command-item ${isSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
-          onClick={isPendingDelete ? undefined : onSelect}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <span
-            className="drag-handle"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`command-item ${isSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+      onClick={isPendingDelete ? undefined : onSelect}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <span
+        className="drag-handle"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="size-3.5" />
+      </span>
+      <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="cmd-body">
+        <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
+        {cmd.tags && cmd.tags.length > 0 && (
+          <span className="cmd-tags-row">
+            {cmd.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="cmd-tag-chip">#{tag}</span>
+            ))}
+          </span>
+        )}
+      </span>
+      {isPendingDelete ? (
+        <span className="cmd-delete-actions">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="cmd-delete-btn"
+            onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
           >
-            <GripVertical className="size-3.5" />
-          </span>
-          <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="cmd-body">
-            <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
-            {cmd.tags && cmd.tags.length > 0 && (
-              <span className="cmd-tags-row">
-                {cmd.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="cmd-tag-chip">#{tag}</span>
-                ))}
-              </span>
-            )}
-          </span>
-          {isPendingDelete ? (
-            <span className="cmd-delete-actions">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="cmd-delete-btn"
-                onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
-              >
-                {t('sidebar.deleteConfirm.dismiss')}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="cmd-delete-btn cmd-delete-btn--confirm"
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              >
-                {t('sidebar.deleteConfirm.confirm')}
-              </Button>
-            </span>
-          ) : isHovered ? (
-            <button
-              className="cmd-trash-btn"
-              onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
-              title={t('sidebar.contextMenu.delete')}
-            >
-              <Trash2 className="size-3" />
-            </button>
-          ) : null}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={onRequestDelete} className="text-destructive focus:text-destructive">
-          <Trash2 className="size-3.5" /> {t('sidebar.contextMenu.delete')}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+            {t('sidebar.deleteConfirm.dismiss')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="cmd-delete-btn cmd-delete-btn--confirm"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            {t('sidebar.deleteConfirm.confirm')}
+          </Button>
+        </span>
+      ) : isHovered ? (
+        <button
+          className="cmd-trash-btn"
+          onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+          title={t('sidebar.contextMenu.delete')}
+        >
+          <Trash2 className="size-3" />
+        </button>
+      ) : null}
+    </div>
   );
 };
 
@@ -586,27 +578,40 @@ const Sidebar: React.FC<SidebarProps> = ({
       </DndContext>
 
       {/* Category delete — AlertDialog renders as body portal, covers full window */}
-      <AlertDialog open={pendingDeleteCat !== null} onOpenChange={(open) => { if (!open) setPendingDeleteCat(null); }}>
-        <AlertDialogContent className="max-w-xs">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('sidebar.deleteConfirm.label')}</AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingDeleteCat(null)}>
-              {t('sidebar.deleteConfirm.dismiss')}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (pendingDeleteCat) onDeleteCategory(pendingDeleteCat);
-                setPendingDeleteCat(null);
-              }}
-            >
-              {t('sidebar.deleteConfirm.confirm')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {(() => {
+        const catToDelete = categories.find(c => c.id === pendingDeleteCat);
+        return (
+          <AlertDialog open={pendingDeleteCat !== null} onOpenChange={(open) => { if (!open) setPendingDeleteCat(null); }}>
+            <AlertDialogContent className="max-w-xs">
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('sidebar.deleteConfirm.label')}</AlertDialogTitle>
+                {catToDelete && (
+                  <AlertDialogDescription asChild>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="category-dot shrink-0" style={{ backgroundColor: catToDelete.color || '#7c6aef' }} />
+                      <span className="font-medium text-foreground">{catToDelete.name}</span>
+                    </div>
+                  </AlertDialogDescription>
+                )}
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setPendingDeleteCat(null)}>
+                  {t('sidebar.deleteConfirm.dismiss')}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => {
+                    if (pendingDeleteCat) onDeleteCategory(pendingDeleteCat);
+                    setPendingDeleteCat(null);
+                  }}
+                >
+                  {catToDelete ? `${t('sidebar.deleteConfirm.confirm')} "${catToDelete.name}"` : t('sidebar.deleteConfirm.confirm')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
+      })()}
     </div>
   );
 };
