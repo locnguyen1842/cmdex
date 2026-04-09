@@ -12,8 +12,8 @@ This milestone transforms Cmdex from a functional command manager into a polishe
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Layout Overhaul** - Responsive layout, inline actions replacing modals, consistent visual hierarchy
-- [ ] **Phase 2: Editor & Interactions** - Unified script block and smooth transitions throughout the app
+- [x] **Phase 1: Layout Overhaul** - Responsive layout, inline actions replacing modals, consistent visual hierarchy
+- [x] **Phase 2: Editor & Interactions** - Unified script block and smooth transitions throughout the app
 - [ ] **Phase 3: Theme Engine** - Color customization, light/dark mode, and built-in preset themes
 - [ ] **Phase 4: Theme Customization** - Font selection and layout density options
 - [ ] **Phase 5: Import & Export** - Command portability via JSON files
