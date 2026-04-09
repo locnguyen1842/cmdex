@@ -390,7 +390,17 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         setSelectedPresetId(newId);
       }
     }
-  }, [command.id, command.presets, selectedPresetId]);
+    // selectedPresetId intentionally excluded: effect should only re-run when the command
+    // or its presets change, not when the user explicitly deselects a chip.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command.id, command.presets]);
+
+  // Auto-switch to Preview when a preset is selected
+  useEffect(() => {
+    if (selectedPresetId) {
+      setShowPreview(true);
+    }
+  }, [selectedPresetId]);
 
   const commitChipRename = async () => {
     if (!renamingChipId) return;

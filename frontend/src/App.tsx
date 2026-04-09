@@ -1076,7 +1076,7 @@ function App() {
     const isWelcome = !selectedCommand && !activeDraft;
 
     return (
-        <TooltipProvider>
+        <TooltipProvider disableHoverableContent>
             <div className="app-layout">
                 <div className="app-body">
                     <ResizablePanel
