@@ -60,12 +60,12 @@ Plans:
   2. User can toggle between light and dark mode from the UI
   3. App respects OS light/dark preference on startup and when the OS setting changes
   4. User can select from at least 5 built-in themes (e.g., Catppuccin, Dracula, Nord, Solarized, One Dark) and the app updates immediately
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Add Catppuccin Mocha + Dracula CSS blocks to style.css; extend THEMES array with type field on all 8 entries
+- [ ] 03-02-PLAN.md — OS preference sync (startup + runtime matchMedia listener), per-mode lastDark/LightTheme localStorage, customThemes state and handlers in App.tsx
+- [ ] 03-03-PLAN.md — Replace theme Select with visual swatch grid in SettingsDialog; add import/download buttons, OS sync indicator, i18n keys
 
 ### Phase 4: Theme Customization
 **Goal**: Users can fine-tune typography and information density to match their preferences
