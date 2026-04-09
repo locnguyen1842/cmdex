@@ -32,7 +32,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '@/components/ui/context-menu';
-import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2 } from 'lucide-react';
+import { Plus, Pencil, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import {
   AlertDialog,
@@ -140,41 +140,36 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
             <GripVertical className="size-3.5" />
           </span>
           <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-          {isPendingDelete ? (
-            <span className="cmd-body cmd-delete-confirm">
-              <span className="cmd-title cmd-delete-label">{t('sidebar.deleteConfirm.label')}</span>
-              <span className="cmd-delete-actions">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="cmd-delete-btn"
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                >
-                  {t('sidebar.deleteConfirm.confirm')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="cmd-delete-btn"
-                  onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
-                >
-                  {t('sidebar.deleteConfirm.dismiss')}
-                </Button>
+          <span className="cmd-body">
+            <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
+            {cmd.tags && cmd.tags.length > 0 && (
+              <span className="cmd-tags-row">
+                {cmd.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="cmd-tag-chip">#{tag}</span>
+                ))}
               </span>
+            )}
+          </span>
+          {isPendingDelete ? (
+            <span className="cmd-delete-actions">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="cmd-delete-btn"
+                onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
+              >
+                {t('sidebar.deleteConfirm.dismiss')}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="cmd-delete-btn cmd-delete-btn--confirm"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              >
+                {t('sidebar.deleteConfirm.confirm')}
+              </Button>
             </span>
-          ) : (
-            <span className="cmd-body">
-              <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
-              {cmd.tags && cmd.tags.length > 0 && (
-                <span className="cmd-tags-row">
-                  {cmd.tags.slice(0, 3).map((tag) => (
-                    <span key={tag} className="cmd-tag-chip">#{tag}</span>
-                  ))}
-                </span>
-              )}
-            </span>
-          )}
-          {!isPendingDelete && isHovered && (
+          ) : isHovered ? (
             <button
               className="cmd-trash-btn"
               onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
@@ -182,7 +177,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
             >
               <Trash2 className="size-3" />
             </button>
-          )}
+          ) : null}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -458,18 +453,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   </TooltipTrigger>
                                   <TooltipContent>{t('sidebar.editCategory')}</TooltipContent>
                                 </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-xs"
-                                      onClick={(e) => { e.stopPropagation(); setPendingDeleteCat(cat.id); }}
-                                    >
-                                      <X />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{t('sidebar.deleteCategory')}</TooltipContent>
-                                </Tooltip>
                               </div>
                             </div>
                           </CollapsibleTrigger>
@@ -480,6 +463,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                           </ContextMenuItem>
                           <ContextMenuItem onSelect={onAddCategory}>
                             <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+                          </ContextMenuItem>
+                          <ContextMenuItem
+                            onSelect={() => setPendingDeleteCat(cat.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="size-3.5" /> {t('sidebar.contextMenu.delete')}
                           </ContextMenuItem>
                         </ContextMenuContent>
                       </ContextMenu>
@@ -607,6 +596,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               {t('sidebar.deleteConfirm.dismiss')}
             </AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={() => {
                 if (pendingDeleteCat) onDeleteCategory(pendingDeleteCat);
                 setPendingDeleteCat(null);
