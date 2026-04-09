@@ -1,10 +1,13 @@
 ---
 phase: 01-layout-overhaul
 verified: 2026-04-08T13:00:00Z
-status: human_needed
+status: approved
 score: 9/9
 overrides_applied: 0
 re_verification: false
+approved_by: user
+approved_at: 2026-04-09T04:20:03Z
+approval_note: UAT approved — all 8 runtime behaviors confirmed
 human_verification:
   - test: "Resize the window below 600px and observe the sidebar"
     expected: "Sidebar collapses to icon rail (44px wide showing logo icon) within ~100ms of crossing the threshold"
