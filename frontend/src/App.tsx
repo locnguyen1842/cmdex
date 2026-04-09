@@ -147,6 +147,7 @@ function App() {
 
     const [paletteOpen, setPaletteOpen] = useState(false);
     const pendingCloseTabIdRef = useRef<string | null>(null);
+    const mainContentRef = useRef<HTMLDivElement>(null);
 
     const [theme, setTheme] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) || 'vscode-dark');
 
@@ -154,6 +155,20 @@ function App() {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem(THEME_STORAGE_KEY, theme);
     }, [theme]);
+
+    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
+    useEffect(() => {
+        const el = mainContentRef.current;
+        if (!el) return;
+        el.classList.remove('tab-content-fade-in');
+        // Force reflow so the class removal takes effect before re-adding
+        void el.offsetWidth;
+        el.classList.add('tab-content-fade-in');
+        const timer = setTimeout(() => {
+            el.classList.remove('tab-content-fade-in');
+        }, 160);
+        return () => clearTimeout(timer);
+    }, [activeTabId]);
 
     const resolvedVariables = useMemo(() => {
         if (!selectedCommand) return [];
@@ -1104,7 +1119,7 @@ function App() {
                         />
 
                         <div className="top-area">
-                            <div className="main-content">
+                            <div className="main-content" ref={mainContentRef}>
                                 {selectedCommand && activeDraft ? (
                                     <div className="main-body command-tab-shell">
                                         <CommandDetail
