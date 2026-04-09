@@ -1565,6 +1565,42 @@ textarea.inline-edit-input {
 
 @keyframes blink { 50% { opacity: 0; } }
 
+/* CollapsibleContent transition for Output panel */
+/* Radix sets data-state="open"/"closed" on CollapsibleContent */
+.output-pane [data-radix-collapsible-content] {
+  overflow: hidden;
+}
+
+.output-pane [data-radix-collapsible-content][data-state="open"] {
+  animation: output-slide-in var(--transition-fast) ease;
+}
+
+.output-pane [data-radix-collapsible-content][data-state="closed"] {
+  animation: output-slide-out var(--transition-fast) ease;
+}
+
+@keyframes output-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes output-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 /* ========== Variable Prompt (fill mode) ========== */
 
 .vp-fill-vars {
@@ -1692,6 +1728,39 @@ textarea.inline-edit-input {
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
+  transition: width var(--transition-fast), opacity var(--transition-fast);
+}
+
+.resizable-panel.is-collapsed {
+  background: var(--card);
+  overflow: hidden;
+}
+
+.resizable-panel.is-collapsed.left {
+  border-right: 1px solid var(--border);
+}
+
+.resizable-panel.is-collapsed.right {
+  border-left: 1px solid var(--border);
+}
+
+.resizable-panel-rail-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.resizable-panel-rail-inner:hover {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
 }
 
 .resizable-panel > *:not(.resize-handle-wrap) {
