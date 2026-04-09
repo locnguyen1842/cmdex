@@ -57,8 +57,8 @@ import {
   X,
   ALargeSmall,
   Hash,
-  Code2,
-  Eye,
+  LayoutTemplate,
+  ScanEye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
@@ -831,7 +831,28 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       )}
 
       <div className="detail-section">
-        <div className="detail-section-title">{t('commandDetail.command')}</div>
+        <div className="detail-section-title">
+          {t('commandDetail.command')}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="script-mode-toggle"
+                onClick={() => setShowPreview((p) => !p)}
+                aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+              >
+                {showPreview ? (
+                  <ScanEye className="size-3" />
+                ) : (
+                  <LayoutTemplate className="size-3" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <div className="hover-actions-host script-area-hover command-text-box-glow">
           {!draft.revealed.title && scriptBody.trim().length > 0 && (
             <div className="add-title-pill-anchor">
@@ -861,7 +882,12 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         disabled={isExecuting}
                         onClick={() => {
                           if (variables.length > 0) {
-                            onFillVariables({});
+                            const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
+                            if (hasEmpty) {
+                              onFillVariables(resolvedValues);
+                            } else {
+                              onExecute(resolvedValues);
+                            }
                           } else {
                             onExecute({});
                           }
@@ -893,25 +919,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   </Tooltip>
                 )}
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => setShowPreview((p) => !p)}
-                    aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
-                  >
-                    {showPreview ? (
-                      <Code2 className="size-3.5" />
-                    ) : (
-                      <Eye className="size-3.5" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
-                </TooltipContent>
-              </Tooltip>
               <div className="command-text-box-header-actions">
                 {scriptEditor && !isNewCommand && (
                   <Tooltip>
@@ -1047,7 +1054,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     isActive={selectedPresetId === p.id}
                     isRenaming={renamingChipId === p.id}
                     renamingDraft={renamingChipDraft}
-                    onSelect={() => setSelectedPresetId(p.id)}
+                    onSelect={() => setSelectedPresetId((prev) => (prev === p.id ? '' : p.id))}
                     onDoubleClick={() => {
                       setRenamingChipId(p.id);
                       setRenamingChipDraft(p.name);

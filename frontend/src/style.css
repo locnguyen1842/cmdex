@@ -1242,6 +1242,23 @@ textarea.inline-edit-input {
   margin-bottom: 8px;
 }
 
+.script-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+.script-mode-toggle:hover {
+  opacity: 1;
+}
+
 .command-text-box-glow {
   border-radius: 8px;
   padding: 1px;
@@ -1343,14 +1360,19 @@ textarea.inline-edit-input {
 
 /* Unified script block — Preview mode: variable with no resolved value */
 .var-placeholder-muted {
-  color: var(--muted-foreground);
-  opacity: 0.7;
+  background: var(--var-missing-bg);
+  color: var(--var-missing-fg);
+  border: 1px solid var(--var-missing-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-weight: 600;
+  opacity: 0.5;
   font-style: italic;
 }
 .var-placeholder-muted.var-focused {
   outline: 1px solid var(--primary);
-  border-radius: 2px;
-  opacity: 1;
+  border-radius: 3px;
+  opacity: 0.8;
 }
 
 .command-actions {
@@ -1728,7 +1750,7 @@ textarea.inline-edit-input {
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
-  transition: width var(--transition-fast), opacity var(--transition-fast);
+  transition: width var(--transition-fast), min-width var(--transition-fast), max-width var(--transition-fast);
 }
 
 .resizable-panel.is-collapsed {
