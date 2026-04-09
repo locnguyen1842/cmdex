@@ -154,18 +154,18 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
           <Button
             size="sm"
             variant="ghost"
-            className="cmd-delete-btn"
-            onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
+            className="cmd-delete-btn cmd-delete-btn--confirm"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            {t('sidebar.deleteConfirm.dismiss')}
+            {t('common.delete')}
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            className="cmd-delete-btn cmd-delete-btn--confirm"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="cmd-delete-btn"
+            onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
           >
-            {t('sidebar.deleteConfirm.confirm')}
+            {t('common.cancel')}
           </Button>
         </span>
       ) : isHovered ? (
@@ -434,18 +434,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 <ChevronRight className={`size-3.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                                 <span className="category-dot" style={{ backgroundColor: cat.color || '#7c6aef' }} />
                                 <span>{cat.name}</span>
+                                <span className="border rounded-md px-1.5 text-xs/4 font-bold">{catCommands.length}</span>
                               </div>
-                              <div className="section-right">
-                                <span className="cmd-count">{catCommands.length}</span>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); onEditCategory(cat); }}>
-                                      <Pencil />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{t('sidebar.editCategory')}</TooltipContent>
-                                </Tooltip>
-                              </div>
+                              <div className="section-right" />
                             </div>
                           </CollapsibleTrigger>
                         </ContextMenuTrigger>
@@ -455,6 +446,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                           </ContextMenuItem>
                           <ContextMenuItem onSelect={onAddCategory}>
                             <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+                          </ContextMenuItem>
+                          <ContextMenuItem onSelect={() => onEditCategory(cat)}>
+                            <Pencil className="size-3.5" /> {t('sidebar.editCategory')}
                           </ContextMenuItem>
                           <ContextMenuItem
                             onSelect={() => setPendingDeleteCat(cat.id)}
@@ -512,9 +506,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
                             <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
                             <span>{t('sidebar.uncategorized')}</span>
-                          </div>
-                          <div className="section-right">
-                            <span className="cmd-count">{uncategorizedCommands.length}</span>
+                            <span className="border rounded-md px-1.5 text-xs/4 font-bold">{uncategorizedCommands.length}</span>
                           </div>
                         </div>
                       </CollapsibleTrigger>
@@ -584,19 +576,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           <AlertDialog open={pendingDeleteCat !== null} onOpenChange={(open) => { if (!open) setPendingDeleteCat(null); }}>
             <AlertDialogContent className="max-w-xs">
               <AlertDialogHeader>
-                <AlertDialogTitle>{t('sidebar.deleteConfirm.label')}</AlertDialogTitle>
-                {catToDelete && (
-                  <AlertDialogDescription asChild>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="category-dot shrink-0" style={{ backgroundColor: catToDelete.color || '#7c6aef' }} />
-                      <span className="font-medium text-foreground">{catToDelete.name}</span>
-                    </div>
-                  </AlertDialogDescription>
-                )}
+                <AlertDialogTitle>{t('sidebar.deleteCategory')}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('common.deleteCategoryDescription')}
+                </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setPendingDeleteCat(null)}>
-                  {t('sidebar.deleteConfirm.dismiss')}
+                  {t('common.cancel')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
@@ -605,7 +592,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     setPendingDeleteCat(null);
                   }}
                 >
-                  {catToDelete ? `${t('sidebar.deleteConfirm.confirm')} "${catToDelete.name}"` : t('sidebar.deleteConfirm.confirm')}
+                  {catToDelete ? `${t('common.deleteWithName', { name: catToDelete.name })}` : t('common.delete')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
