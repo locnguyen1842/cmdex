@@ -45,6 +45,8 @@
     "manage": "Manage",
     "preview": "Preview",
     "template": "Template",
+    "showPreview": "Show Preview",
+    "showTemplate": "Show Template",
     "doubleClickToRename": "Double-click to rename",
     "addPreset": "Add preset",
     "revertChanges": "Revert changes",

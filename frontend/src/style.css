@@ -1331,6 +1331,18 @@ textarea.inline-edit-input {
   font-weight: 600;
 }
 
+/* Unified script block — Preview mode: variable with no resolved value */
+.var-placeholder-muted {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+  font-style: italic;
+}
+.var-placeholder-muted.var-focused {
+  outline: 1px solid var(--primary);
+  border-radius: 2px;
+  opacity: 1;
+}
+
 .command-actions {
   display: flex;
   gap: 8px;
