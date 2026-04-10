@@ -48,6 +48,8 @@ export function RunInTerminal(arg1:string,arg2:Record<string, string>):Promise<v
 
 export function SavePreset(arg1:string,arg2:string,arg3:Record<string, string>):Promise<main.VariablePreset>;
 
+export function SaveThemeTemplate():Promise<void>;
+
 export function SearchCommands(arg1:string):Promise<Array<main.Command>>;
 
 export function SetSettings(arg1:string,arg2:string):Promise<void>;

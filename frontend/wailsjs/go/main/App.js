@@ -94,6 +94,10 @@ export function SavePreset(arg1, arg2, arg3) {
   return window['go']['main']['App']['SavePreset'](arg1, arg2, arg3);
 }
 
+export function SaveThemeTemplate() {
+  return window['go']['main']['App']['SaveThemeTemplate']();
+}
+
 export function SearchCommands(arg1) {
   return window['go']['main']['App']['SearchCommands'](arg1);
 }

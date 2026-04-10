@@ -410,3 +410,39 @@ func (a *App) SearchCommands(query string) []Command {
 	}
 	return cmds
 }
+
+// ========== Theme ==========
+
+func (a *App) SaveThemeTemplate() error {
+	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		DefaultFilename: "cmdex-theme-template.json",
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil || path == "" {
+		return err
+	}
+	template := `{
+  "name": "My Theme",
+  "type": "dark",
+  "colors": {
+    "background": "#1e1e1e",
+    "foreground": "#d4d4d4",
+    "card": "#252526",
+    "primary": "#007acc",
+    "accent": "#2a2d2e",
+    "border": "rgba(255,255,255,0.1)",
+    "muted": "#3c3c3c",
+    "muted-foreground": "#858585",
+    "ring": "#007acc",
+    "destructive": "#f44747",
+    "success": "#4ec9b0",
+    "tab-bar-bg": "#2d2d2d",
+    "tab-active-bg": "#1e1e1e",
+    "tab-active-indicator": "#007acc",
+    "status-bar-bg": "#007acc"
+  }
+}`
+	return os.WriteFile(path, []byte(template), 0644)
+}

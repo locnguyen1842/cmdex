@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Download, X } from 'lucide-react';
-import { SetSettings, GetSettings, GetAvailableTerminals } from '../../wailsjs/go/main/App';
+import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } from '../../wailsjs/go/main/App';
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';
@@ -198,37 +198,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     reader.readAsText(file);
   }, [onImportTheme, onThemeChange, t]);
 
-  const handleDownloadTemplate = useCallback(() => {
-    const template = {
-      name: 'My Theme',
-      type: 'dark',
-      colors: {
-        background: '#1e1e1e',
-        foreground: '#d4d4d4',
-        card: '#252526',
-        primary: '#007acc',
-        accent: '#2a2d2e',
-        border: 'rgba(255,255,255,0.1)',
-        muted: '#3c3c3c',
-        'muted-foreground': '#858585',
-        ring: '#007acc',
-        destructive: '#f44747',
-        success: '#4ec9b0',
-        'tab-bar-bg': '#2d2d2d',
-        'tab-active-bg': '#1e1e1e',
-        'tab-active-indicator': '#007acc',
-        'status-bar-bg': '#007acc',
-      },
-    };
-    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cmdex-theme-template.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await SaveThemeTemplate();
+    } catch (err) {
+      toast.error(String(err));
+    }
   }, []);
 
   return (
