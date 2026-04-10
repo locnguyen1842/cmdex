@@ -285,6 +285,86 @@
   --var-missing-border: rgba(251, 189, 35, 0.3);
 }
 
+/* ========== Catppuccin Mocha ========== */
+
+[data-theme="catppuccin-mocha"] {
+  --background: #1e1e2e;
+  --foreground: #cdd6f4;
+  --card: #181825;
+  --card-foreground: #cdd6f4;
+  --popover: #313244;
+  --popover-foreground: #cdd6f4;
+  --primary: #cba6f7;
+  --primary-foreground: #1e1e2e;
+  --secondary: #313244;
+  --secondary-foreground: #cdd6f4;
+  --muted: #45475a;
+  --muted-foreground: #6c7086;
+  --accent: #313244;
+  --accent-foreground: #cdd6f4;
+  --destructive: #f38ba8;
+  --destructive-foreground: #1e1e2e;
+  --success: #a6e3a1;
+  --success-foreground: #1e1e2e;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #cba6f7;
+
+  --tab-bar-bg: #11111b;
+  --tab-active-bg: #1e1e2e;
+  --tab-inactive-bg: #11111b;
+  --tab-active-indicator: #cba6f7;
+  --status-bar-bg: #cba6f7;
+  --status-bar-fg: #1e1e2e;
+
+  --var-filled-bg: rgba(166, 227, 161, 0.18);
+  --var-filled-fg: #a6e3a1;
+  --var-filled-border: rgba(166, 227, 161, 0.35);
+  --var-missing-bg: rgba(249, 226, 175, 0.18);
+  --var-missing-fg: #f9e2af;
+  --var-missing-border: rgba(249, 226, 175, 0.35);
+}
+
+/* ========== Dracula ========== */
+
+[data-theme="dracula"] {
+  --background: #282a36;
+  --foreground: #f8f8f2;
+  --card: #21222c;
+  --card-foreground: #f8f8f2;
+  --popover: #44475a;
+  --popover-foreground: #f8f8f2;
+  --primary: #bd93f9;
+  --primary-foreground: #282a36;
+  --secondary: #44475a;
+  --secondary-foreground: #f8f8f2;
+  --muted: #44475a;
+  --muted-foreground: #6272a4;
+  --accent: #44475a;
+  --accent-foreground: #f8f8f2;
+  --destructive: #ff5555;
+  --destructive-foreground: #f8f8f2;
+  --success: #50fa7b;
+  --success-foreground: #282a36;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #bd93f9;
+
+  --tab-bar-bg: #191a21;
+  --tab-active-bg: #282a36;
+  --tab-inactive-bg: #191a21;
+  --tab-active-indicator: #bd93f9;
+  --status-bar-bg: #bd93f9;
+  --status-bar-fg: #282a36;
+
+  --var-filled-bg: rgba(80, 250, 123, 0.15);
+  --var-filled-fg: #50fa7b;
+  --var-filled-border: rgba(80, 250, 123, 0.3);
+  --var-missing-bg: rgba(241, 250, 140, 0.15);
+  --var-missing-fg: #f1fa8c;
+  --var-missing-border: rgba(241, 250, 140, 0.3);
+}
+
 /* ========== Base ========== */
 
 html, body, #root {
