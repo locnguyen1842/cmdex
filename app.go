@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -445,4 +446,98 @@ func (a *App) SaveThemeTemplate() error {
   }
 }`
 	return os.WriteFile(path, []byte(template), 0644)
+}
+
+// ========== Import/Export ==========
+
+// ExportCommandIDs exports selected commands to a JSON file
+func (a *App) ExportCommands(commandIDs []string) error {
+	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		DefaultFilename: "cmdex-commands.json",
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil || path == "" {
+		// User cancelled
+		return nil
+	}
+
+	cmds, err := a.db.GetCommandsByIDs(commandIDs)
+	if err != nil {
+		return fmt.Errorf("get commands: %w", err)
+	}
+
+	// Build export structure
+	type ExportPreset struct {
+		Name   string            `json:"name"`
+		Values map[string]string `json:"values"`
+	}
+
+	type ExportCommand struct {
+		Title         string               `json:"title"`
+		Description   string               `json:"description"`
+		ScriptContent string               `json:"scriptContent"`
+		Tags          []string             `json:"tags"`
+		Variables     []VariableDefinition `json:"variables"`
+		Presets       []ExportPreset       `json:"presets"`
+		CategoryName  string               `json:"categoryName"`
+	}
+
+	exportData := struct {
+		Version    string          `json:"version"`
+		ExportedAt time.Time       `json:"exportedAt"`
+		Commands   []ExportCommand `json:"commands"`
+	}{
+		Version:    "1.0",
+		ExportedAt: time.Now(),
+		Commands:   make([]ExportCommand, 0, len(cmds)),
+	}
+
+	for _, cmd := range cmds {
+		// Get category name
+		categoryName := ""
+		if cmd.CategoryID != "" {
+			cats, _ := a.db.GetCategories()
+			for _, c := range cats {
+				if c.ID == cmd.CategoryID {
+					categoryName = c.Name
+					break
+				}
+			}
+		}
+
+		presets := make([]ExportPreset, 0, len(cmd.Presets))
+		for _, p := range cmd.Presets {
+			presets = append(presets, ExportPreset{
+				Name:   p.Name,
+				Values: p.Values,
+			})
+		}
+
+		var title, description string
+		if cmd.Title.Valid {
+			title = cmd.Title.String
+		}
+		if cmd.Description.Valid {
+			description = cmd.Description.String
+		}
+
+		exportData.Commands = append(exportData.Commands, ExportCommand{
+			Title:         title,
+			Description:   description,
+			ScriptContent: cmd.ScriptContent,
+			Tags:          cmd.Tags,
+			Variables:     cmd.Variables,
+			Presets:       presets,
+			CategoryName:  categoryName,
+		})
+	}
+
+	data, err := json.MarshalIndent(exportData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal JSON: %w", err)
+	}
+
+	return os.WriteFile(path, data, 0644)
 }

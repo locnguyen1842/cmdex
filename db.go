@@ -192,13 +192,13 @@ func (db *DB) migrate() error {
 			)`,
 			`INSERT INTO commands_new SELECT * FROM commands`,
 			`DROP TABLE commands`,
-		`ALTER TABLE commands_new RENAME TO commands`,
-		// Update empty strings to NULL
-		`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
-		// Rebuild FTS index to match new rowids after table recreation
-		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
-		// Recreate FTS triggers
-		`DROP TRIGGER IF EXISTS commands_ai`,
+			`ALTER TABLE commands_new RENAME TO commands`,
+			// Update empty strings to NULL
+			`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
+			// Rebuild FTS index to match new rowids after table recreation
+			`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+			// Recreate FTS triggers
+			`DROP TRIGGER IF EXISTS commands_ai`,
 			`DROP TRIGGER IF EXISTS commands_ad`,
 			`DROP TRIGGER IF EXISTS commands_au`,
 			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
@@ -287,30 +287,30 @@ func (db *DB) migrate() error {
 				script_content, category_id, position, created_at, updated_at
 				FROM commands`,
 			`DROP TABLE commands`,
-		`ALTER TABLE commands_new RENAME TO commands`,
-		// Rebuild FTS index to match new rowids after table recreation
-		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
-		`DROP TRIGGER IF EXISTS commands_ai`,
-		`DROP TRIGGER IF EXISTS commands_ad`,
-		`DROP TRIGGER IF EXISTS commands_au`,
-		`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
+			`ALTER TABLE commands_new RENAME TO commands`,
+			// Rebuild FTS index to match new rowids after table recreation
+			`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+			`DROP TRIGGER IF EXISTS commands_ai`,
+			`DROP TRIGGER IF EXISTS commands_ad`,
+			`DROP TRIGGER IF EXISTS commands_au`,
+			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
 			INSERT INTO commands_fts(rowid, title, description, script_content)
 			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
 		END`,
-		`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
+			`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
 			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
 			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
 		END`,
-		`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
+			`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
 			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
 			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
 			INSERT INTO commands_fts(rowid, title, description, script_content)
 			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
 		END`,
-	}
-	for _, m := range migrations {
-		if _, err := tx.Exec(m); err != nil {
-			return fmt.Errorf("migration v5: %w", err)
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v5: %w", err)
 			}
 		}
 		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 5); err != nil {
@@ -483,6 +483,23 @@ func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 		if err := db.loadCommandRelations(&cmds[i]); err != nil {
 			return nil, err
 		}
+	}
+	return cmds, nil
+}
+
+func (db *DB) GetCommandsByIDs(ids []string) ([]Command, error) {
+	if len(ids) == 0 {
+		return []Command{}, nil
+	}
+
+	cmds := make([]Command, 0, len(ids))
+	for _, id := range ids {
+		cmd, err := db.GetCommand(id)
+		if err != nil {
+			// Skip missing commands, continue with others
+			continue
+		}
+		cmds = append(cmds, cmd)
 	}
 	return cmds, nil
 }
