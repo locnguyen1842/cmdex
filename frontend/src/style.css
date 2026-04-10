@@ -1,4 +1,75 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* ========== Bundled Fonts ========== */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist/Geist-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito';
+  src: url('/fonts/nunito/Nunito-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito';
+  src: url('/fonts/nunito/Nunito-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Fira Code';
+  src: url('/fonts/fira-code/FiraCode-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cascadia Code';
+  src: url('/fonts/cascadia-code/CascadiaCode-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Monaspace Neon';
+  src: url('/fonts/monaspace-neon/MonaspaceNeon-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -83,6 +154,13 @@
   --font-sans: 'Inter', -apple-system, blinkmacsystemfont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --shadow-tooltip: 0 2px 10px rgba(0, 0, 0, 0.35);
+
+  /* Density variables — comfortable baseline (overridden by [data-density] blocks) */
+  --density-font-size-base: 13px;
+  --density-padding-sm: 4px;
+  --density-padding-md: 8px;
+  --density-gap-sm: 4px;
+  --density-gap-md: 8px;
 }
 
 /* ========== VS Code Light+ ========== */
@@ -365,6 +443,24 @@
   --var-missing-border: rgba(241, 250, 140, 0.3);
 }
 
+/* ========== Density Overrides ========== */
+
+[data-density="compact"] {
+  --density-font-size-base: 12px;
+  --density-padding-sm: 4px;
+  --density-padding-md: 4px;
+  --density-gap-sm: 4px;
+  --density-gap-md: 4px;
+}
+
+[data-density="spacious"] {
+  --density-font-size-base: 14px;
+  --density-padding-sm: 8px;
+  --density-padding-md: 12px;
+  --density-gap-sm: 8px;
+  --density-gap-md: 12px;
+}
+
 /* ========== Base ========== */
 
 html, body, #root {
@@ -379,7 +475,7 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-size: 13px;
+  font-size: var(--density-font-size-base, 13px);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
