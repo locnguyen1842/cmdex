@@ -35,6 +35,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
   const widthRef = useRef(width);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined as unknown as ReturnType<typeof setTimeout>);
   useEffect(() => { widthRef.current = width; }, [width]);
 
   const collapse = useCallback(() => {
@@ -53,6 +54,22 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     startWidthRef.current = widthRef.current;
     setDragging(true);
   }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        if (window.innerWidth <= 600) {
+          collapse();
+        }
+      }, 100);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(resizeTimerRef.current);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [collapse, storageKey]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -93,6 +110,10 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
       </button>
     </div>
   );
+
+  const panelStyle: React.CSSProperties = collapsed
+    ? { width: 44, minWidth: 44, maxWidth: 44 }
+    : { width, minWidth: width, maxWidth: width };
 
   return (
     <div

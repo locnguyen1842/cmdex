@@ -57,6 +57,8 @@ import {
   X,
   ALargeSmall,
   Hash,
+  LayoutTemplate,
+  ScanEye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
@@ -261,8 +263,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onSaveScript,
 }) => {
   const { t } = useTranslation();
-  const [copiedTemplate, setCopiedTemplate] = useState(false);
-  const [copiedPreview, setCopiedPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -373,6 +375,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     } else {
       setScriptEditor(false);
     }
+    setShowPreview(false);
   }, [command.id, isNewCommand]);
 
   useEffect(() => {
@@ -387,7 +390,17 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         setSelectedPresetId(newId);
       }
     }
-  }, [command.id, command.presets, selectedPresetId]);
+    // selectedPresetId intentionally excluded: effect should only re-run when the command
+    // or its presets change, not when the user explicitly deselects a chip.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command.id, command.presets]);
+
+  // Auto-switch to Preview when a preset is selected
+  useEffect(() => {
+    if (selectedPresetId) {
+      setShowPreview(true);
+    }
+  }, [selectedPresetId]);
 
   const commitChipRename = async () => {
     if (!renamingChipId) return;
@@ -555,6 +568,46 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [scriptParts, resolvedValues, focusedVarName]);
 
+  const renderScriptUnified = useMemo(() => {
+    if (!scriptParts) return null;
+    if (!showPreview) {
+      // Template mode: same as renderScriptWithVars
+      return scriptParts.map((part, i) => {
+        if (/^\{\{\w+\}\}$/.test(part)) {
+          const varName = part.slice(2, -2);
+          return (
+            <span key={i} className="var-missing" title={varName}>
+              {part}
+            </span>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      });
+    }
+    // Preview mode: resolved values or dimmed placeholder [varName]
+    return scriptParts.map((part, i) => {
+      if (/^\{\{\w+\}\}$/.test(part)) {
+        const varName = part.slice(2, -2);
+        const val = resolvedValues[varName];
+        const isFocused = focusedVarName === varName;
+        if (val) {
+          return (
+            <span key={i} className={`var-filled${isFocused ? ' var-focused' : ''}`} title={`${varName}=${val}`}>
+              {val}
+            </span>
+          );
+        }
+        // No value: show dimmed [varName] placeholder (per D-03)
+        return (
+          <span key={i} className={`var-placeholder-muted${isFocused ? ' var-focused' : ''}`} title={varName}>
+            [{varName}]
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }, [scriptParts, showPreview, resolvedValues, focusedVarName]);
+
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return '';
     return scriptBody.replace(/\{\{(\w+)\}\}/g, (_match, varName) => {
@@ -562,25 +615,16 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [scriptBody, resolvedValues]);
 
-  const handleCopyTemplate = useCallback(() => {
+  const handleCopy = useCallback(() => {
+    const text = showPreview ? getResolvedScript : scriptBody;
     navigator.clipboard
-      .writeText(scriptBody)
+      .writeText(text)
       .then(() => {
-        setCopiedTemplate(true);
-        setTimeout(() => setCopiedTemplate(false), 1500);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
       })
-      .catch(() => setCopiedTemplate(false));
-  }, [scriptBody]);
-
-  const handleCopyPreview = useCallback(() => {
-    navigator.clipboard
-      .writeText(getResolvedScript)
-      .then(() => {
-        setCopiedPreview(true);
-        setTimeout(() => setCopiedPreview(false), 1500);
-      })
-      .catch(() => setCopiedPreview(false));
-  }, [getResolvedScript]);
+      .catch(() => setCopied(false));
+  }, [showPreview, getResolvedScript, scriptBody]);
 
   const TAG_REGEX = /^[a-zA-Z0-9-]+$/;
 
@@ -620,6 +664,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const showTags = draft.revealed.tags;
 
   return (
+    // Spacing controlled by .main-body CSS (24px 24px) — no inline padding overrides in this component
     <div className="command-detail">
       {showHeaderBlock && (
         <div className="detail-header">
@@ -796,7 +841,28 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       )}
 
       <div className="detail-section">
-        <div className="detail-section-title">{t('commandDetail.command')}</div>
+        <div className="detail-section-title">
+          {t('commandDetail.command')}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="script-mode-toggle"
+                onClick={() => setShowPreview((p) => !p)}
+                aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+              >
+                {showPreview ? (
+                  <ScanEye className="size-3" />
+                ) : (
+                  <LayoutTemplate className="size-3" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <div className="hover-actions-host script-area-hover command-text-box-glow">
           {!draft.revealed.title && scriptBody.trim().length > 0 && (
             <div className="add-title-pill-anchor">
@@ -813,7 +879,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           <div className="command-text-box-inner" ref={scriptWrapRef}>
             <div className="command-text-box-header">
               <div className="flex items-center gap-1.5">
-                <span className="command-text-box-label">{t('commandDetail.template')}</span>
+                <span className="command-text-box-label">
+                  {showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
+                </span>
                 {!isNewCommand && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -824,7 +892,12 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         disabled={isExecuting}
                         onClick={() => {
                           if (variables.length > 0) {
-                            onFillVariables({});
+                            const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
+                            if (hasEmpty) {
+                              onFillVariables(resolvedValues);
+                            } else {
+                              onExecute(resolvedValues);
+                            }
                           } else {
                             onExecute({});
                           }
@@ -899,8 +972,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 )}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" onClick={handleCopyTemplate}>
-                      {copiedTemplate ? (
+                    <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
+                      {copied ? (
                         <Check className="size-3.5 text-success" />
                       ) : (
                         <Copy className="size-3.5" />
@@ -908,7 +981,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {copiedTemplate ? t('commandDetail.copied') : t('commandDetail.copyCommand')}
+                    {copied ? t('commandDetail.copied') : t('commandDetail.copyCommand')}
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -969,7 +1042,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </Tooltip>
             ) : (
               <div className="command-text-box script-preview-compact">
-                <code className="whitespace-pre-wrap">{renderScriptWithVars}</code>
+                <code className="whitespace-pre-wrap">{renderScriptUnified}</code>
               </div>
             )}
           </div>
@@ -991,7 +1064,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     isActive={selectedPresetId === p.id}
                     isRenaming={renamingChipId === p.id}
                     renamingDraft={renamingChipDraft}
-                    onSelect={() => setSelectedPresetId(p.id)}
+                    onSelect={() => setSelectedPresetId((prev) => (prev === p.id ? '' : p.id))}
                     onDoubleClick={() => {
                       setRenamingChipId(p.id);
                       setRenamingChipDraft(p.name);
@@ -1034,105 +1107,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 
           <div className="command-text-box-glow mt-3">
             <div className="command-text-box-inner">
-              <div className="command-text-box-header">
-                <div className="flex items-center gap-1.5">
-                  <span className="command-text-box-label">{t('commandDetail.preview')}</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className={cn("text-primary hover:text-primary", isExecuting && "execute-btn-running")}
-                        disabled={isExecuting}
-                        onClick={() => {
-                          const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
-                          if (hasEmpty) {
-                            onFillVariables(resolvedValues);
-                          } else {
-                            onExecute(resolvedValues);
-                          }
-                        }}
-                      >
-                        {isExecuting ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Play 
-                            className="size-3.5" 
-                            style={{
-                              filter: `
-                                drop-shadow(0 0  4px rgb(from var(--primary) r g b / 1))
-                                drop-shadow(0 0 16px rgb(from var(--primary) r g b / 0.9))
-                                drop-shadow(0 0 32px rgb(from var(--primary) r g b / 0.5))
-                              `
-                            }}
-                          />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {isExecuting ? (
-                        t('commandDetail.running')
-                      ) : (
-                        <ShortcutHint label={t('commandDetail.execute')} id="execute" />
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="command-text-box-header-actions">
-                  {hasUnsavedChanges && (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon-xs" onClick={() => setOverrides({})}>
-                            <X className="size-3.5 text-destructive" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{t('commandDetail.revertChanges')}</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={async () => {
-                              await onSavePresetValues(selectedPresetId, resolvedValues);
-                              setOverrides({});
-                            }}
-                          >
-                            <Check className="size-3.5 text-success" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{t('commandDetail.savePresetValues')}</TooltipContent>
-                      </Tooltip>
-                    </>
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" onClick={() => onRunInTerminal(resolvedValues)}>
-                        <SquareTerminal className="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.runInTerminal')}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" onClick={handleCopyPreview}>
-                        {copiedPreview ? (
-                          <Check className="size-3.5 text-success" />
-                        ) : (
-                          <Copy className="size-3.5" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {copiedPreview ? t('commandDetail.copied') : t('commandDetail.copyCommand')}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-              <div className="command-text-box text-xs">
-                <code className="text-xs whitespace-pre-wrap break-all">{renderScriptResolved}</code>
-              </div>
               <div className="preset-vars-panel">
                 <div className="preset-vars-list">
                   {variables.map((v) => {
@@ -1188,6 +1162,33 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   })}
                 </div>
               </div>
+              {hasUnsavedChanges && (
+                <div className="command-text-box-header-actions" style={{ justifyContent: 'flex-end', padding: '4px 8px 8px' }}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-xs" onClick={() => setOverrides({})}>
+                        <X className="size-3.5 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('commandDetail.revertChanges')}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={async () => {
+                          await onSavePresetValues(selectedPresetId, resolvedValues);
+                          setOverrides({});
+                        }}
+                      >
+                        <Check className="size-3.5 text-success" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('commandDetail.savePresetValues')}</TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
             </div>
           </div>
         </div>
