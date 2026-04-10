@@ -88,6 +88,9 @@ const THEME_STORAGE_KEY = 'cmdex-theme';
 const LAST_DARK_THEME_KEY = 'cmdex-last-dark-theme';
 const LAST_LIGHT_THEME_KEY = 'cmdex-last-light-theme';
 const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
+const FONT_SANS_KEY = 'cmdex-ui-font';
+const FONT_MONO_KEY = 'cmdex-mono-font';
+const DENSITY_KEY = 'cmdex-density';
 
 export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
     { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
@@ -180,6 +183,16 @@ function App() {
         }
     });
 
+    const [uiFont, setUiFont] = useState<string>(() =>
+        localStorage.getItem(FONT_SANS_KEY) || 'Inter'
+    );
+    const [monoFont, setMonoFont] = useState<string>(() =>
+        localStorage.getItem(FONT_MONO_KEY) || 'JetBrains Mono'
+    );
+    const [density, setDensity] = useState<string>(() =>
+        localStorage.getItem(DENSITY_KEY) || 'comfortable'
+    );
+
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -195,6 +208,24 @@ function App() {
         mediaQuery.addEventListener('change', handler);
         return () => mediaQuery.removeEventListener('change', handler);
     }, []);
+
+    useEffect(() => {
+        const fontValue = uiFont === 'System Default'
+            ? 'system-ui, -apple-system, sans-serif'
+            : `'${uiFont}', system-ui, sans-serif`;
+        document.documentElement.style.setProperty('--font-sans', fontValue);
+        localStorage.setItem(FONT_SANS_KEY, uiFont);
+    }, [uiFont]);
+
+    useEffect(() => {
+        document.documentElement.style.setProperty('--font-mono', `'${monoFont}', monospace`);
+        localStorage.setItem(FONT_MONO_KEY, monoFont);
+    }, [monoFont]);
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-density', density);
+        localStorage.setItem(DENSITY_KEY, density);
+    }, [density]);
 
     // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
     useEffect(() => {
@@ -1034,6 +1065,18 @@ function App() {
         });
     }, [theme, handleThemeChange]);
 
+    const handleUiFontChange = useCallback((font: string) => {
+        setUiFont(font);
+    }, []);
+
+    const handleMonoFontChange = useCallback((font: string) => {
+        setMonoFont(font);
+    }, []);
+
+    const handleDensityChange = useCallback((d: string) => {
+        setDensity(d);
+    }, []);
+
     const handleSelectCommand = (cmd: Command) => {
         openTab(cmd);
     };
@@ -1368,6 +1411,12 @@ function App() {
                     customThemes={customThemes}
                     onImportTheme={handleImportTheme}
                     onRemoveCustomTheme={handleRemoveCustomTheme}
+                    uiFont={uiFont}
+                    monoFont={monoFont}
+                    density={density}
+                    onUiFontChange={handleUiFontChange}
+                    onMonoFontChange={handleMonoFontChange}
+                    onDensityChange={handleDensityChange}
                 />
                 <CommandPalette
                     open={paletteOpen}

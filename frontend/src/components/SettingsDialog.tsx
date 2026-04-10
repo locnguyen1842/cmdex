@@ -99,6 +99,13 @@ interface SettingsDialogProps {
   customThemes?: CustomTheme[];
   onImportTheme?: (theme: CustomTheme) => void;
   onRemoveCustomTheme?: (themeId: string) => void;
+  // Phase 4 additions
+  uiFont?: string;
+  monoFont?: string;
+  density?: string;
+  onUiFontChange?: (font: string) => void;
+  onMonoFontChange?: (font: string) => void;
+  onDensityChange?: (density: string) => void;
 }
 
 const SettingsDialog: React.FC<SettingsDialogProps> = ({
@@ -110,6 +117,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   customThemes,
   onImportTheme,
   onRemoveCustomTheme,
+  uiFont = 'Inter',
+  monoFont = 'JetBrains Mono',
+  density = 'comfortable',
+  onUiFontChange,
+  onMonoFontChange,
+  onDensityChange,
 }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
