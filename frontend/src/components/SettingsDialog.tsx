@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
@@ -14,14 +14,81 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Upload, Download, X } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../wailsjs/go/main/App';
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
-import { THEMES } from '../App';
+import { THEMES, CustomTheme } from '../App';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
 ];
+
+// Color dots per built-in theme: [bg, card, primary, fg]
+const THEME_DOTS: Record<string, [string, string, string, string]> = {
+  'vscode-dark':        ['#1e1e1e', '#252526', '#007acc', '#d4d4d4'],
+  'vscode-light':       ['#ffffff', '#f3f3f3', '#0078d4', '#1f1f1f'],
+  'monokai':            ['#272822', '#2d2e27', '#a6e22e', '#f8f8f2'],
+  'tokyo-night':        ['#1a1b26', '#16161e', '#7aa2f7', '#a9b1d6'],
+  'one-dark':           ['#282c34', '#21252b', '#61afef', '#abb2bf'],
+  'classic':            ['#0f0f14', '#16161e', '#7c6aef', '#e8e8f0'],
+  'catppuccin-mocha':   ['#1e1e2e', '#181825', '#cba6f7', '#cdd6f4'],
+  'dracula':            ['#282a36', '#21222c', '#bd93f9', '#f8f8f2'],
+};
+
+interface ThemeSwatchProps {
+  id: string;
+  label: string;
+  themeType: 'dark' | 'light';
+  dots: [string, string, string, string];
+  selected: boolean;
+  onSelect: () => void;
+  onRemove?: () => void;
+}
+
+function ThemeSwatch({ label, themeType, dots, selected, onSelect, onRemove }: ThemeSwatchProps) {
+  return (
+    <button
+      type="button"
+      role="button"
+      aria-label={`${label} theme, ${themeType}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={[
+        'relative flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full',
+        selected
+          ? 'ring-2 ring-primary ring-offset-1 border-primary'
+          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
+      ].join(' ')}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {dots.map((color, i) => (
+            <span
+              key={i}
+              className="w-3 h-3 rounded-full inline-block flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+        <span className="text-[10px] leading-none text-muted-foreground ml-1">
+          {themeType === 'dark' ? '🌙' : '☀️'}
+        </span>
+      </div>
+      <span className="text-[11px] mt-1 truncate leading-[1.3] pr-4">{label}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={`Remove ${label} theme`}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="absolute bottom-2 right-2 text-[14px] leading-none text-muted-foreground hover:text-destructive transition-colors"
+        >
+          <X size={12} />
+        </button>
+      )}
+    </button>
+  );
+}
 
 interface SettingsDialogProps {
   open: boolean;
@@ -29,9 +96,21 @@ interface SettingsDialogProps {
   theme: string;
   onThemeChange: (theme: string) => void;
   onResetAllData?: () => Promise<void>;
+  customThemes?: CustomTheme[];
+  onImportTheme?: (theme: CustomTheme) => void;
+  onRemoveCustomTheme?: (themeId: string) => void;
 }
 
-const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, onThemeChange, onResetAllData }) => {
+const SettingsDialog: React.FC<SettingsDialogProps> = ({
+  open,
+  onClose,
+  theme,
+  onThemeChange,
+  onResetAllData,
+  customThemes,
+  onImportTheme,
+  onRemoveCustomTheme,
+}) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [savedLocale, setSavedLocale] = useState('en');
@@ -39,6 +118,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
   const [locale, setLocale] = useState('en');
   const [terminal, setTerminal] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Determine OS mode for the sync indicator
+  const [osDark, setOsDark] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setOsDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +162,73 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
     }
   }, [locale, terminal, i18n, t]);
 
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so the same file can be re-imported
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        // Validate required fields
+        if (
+          typeof data.name !== 'string' ||
+          (data.type !== 'dark' && data.type !== 'light') ||
+          typeof data.colors?.background !== 'string' ||
+          typeof data.colors?.foreground !== 'string' ||
+          typeof data.colors?.primary !== 'string'
+        ) {
+          toast.error(t('settings.themeInvalidFields'));
+          return;
+        }
+        const newTheme: CustomTheme = {
+          id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: data.name,
+          type: data.type,
+          colors: data.colors,
+        };
+        onImportTheme?.(newTheme);
+        onThemeChange(newTheme.id);
+        toast.success(t('settings.themeApplied', { name: data.name }));
+      } catch {
+        toast.error(t('settings.themeInvalidJson'));
+      }
+    };
+    reader.readAsText(file);
+  }, [onImportTheme, onThemeChange, t]);
+
+  const handleDownloadTemplate = useCallback(() => {
+    const template = {
+      name: 'My Theme',
+      type: 'dark',
+      colors: {
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
+        card: '#252526',
+        primary: '#007acc',
+        accent: '#2a2d2e',
+        border: 'rgba(255,255,255,0.1)',
+        muted: '#3c3c3c',
+        'muted-foreground': '#858585',
+        ring: '#007acc',
+        destructive: '#f44747',
+        success: '#4ec9b0',
+        'tab-bar-bg': '#2d2d2d',
+        'tab-active-bg': '#1e1e1e',
+        'tab-active-indicator': '#007acc',
+        'status-bar-bg': '#007acc',
+      },
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cmdex-theme-template.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   return (
     <Dialog open={open} onOpenChange={(o) => {
       if (!o) {
@@ -86,19 +244,100 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, o
           <DialogDescription className="sr-only">{t('settings.description')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {/* Appearance / Theme section */}
           <div className="space-y-2">
-            <Label>{t('settings.theme')}</Label>
-            <Select value={theme} onValueChange={onThemeChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {THEMES.map(th => (
-                  <SelectItem key={th.id} value={th.id}>{th.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs font-semibold">{t('settings.appearance')}</Label>
+
+            {/* Built-in Themes */}
+            <p className="text-[11px] text-muted-foreground">{t('settings.builtinThemes')}</p>
+            <div
+              role="group"
+              aria-label="Theme selection"
+              className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-0.5"
+            >
+              {THEMES.map(th => (
+                <ThemeSwatch
+                  key={th.id}
+                  id={th.id}
+                  label={th.label}
+                  themeType={th.type}
+                  dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
+                  selected={theme === th.id}
+                  onSelect={() => onThemeChange(th.id)}
+                />
+              ))}
+            </div>
+
+            {/* Custom Themes (only if any exist) */}
+            {(customThemes?.length ?? 0) > 0 && (
+              <div className="mt-4 pt-3 border-t border-border space-y-2">
+                <p className="text-[11px] text-muted-foreground">{t('settings.customThemes')}</p>
+                <div
+                  role="group"
+                  aria-label="Custom themes"
+                  className="grid grid-cols-2 gap-2"
+                >
+                  {customThemes!.map(ct => (
+                    <ThemeSwatch
+                      key={ct.id}
+                      id={ct.id}
+                      label={ct.name}
+                      themeType={ct.type}
+                      dots={[
+                        ct.colors.background ?? '#888',
+                        ct.colors.card ?? '#666',
+                        ct.colors.primary ?? '#aaa',
+                        ct.colors.foreground ?? '#ccc',
+                      ]}
+                      selected={theme === ct.id}
+                      onSelect={() => onThemeChange(ct.id)}
+                      onRemove={() => onRemoveCustomTheme?.(ct.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Import / Download action row */}
+            <div className="flex gap-2 mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={14} className="mr-1" />
+                {t('settings.importTheme')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                onClick={handleDownloadTemplate}
+              >
+                <Download size={14} className="mr-1.5" />
+                {t('settings.downloadTemplate')}
+              </Button>
+            </div>
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              aria-hidden="true"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+
+            {/* OS sync indicator */}
+            <p className="text-[11px] text-muted-foreground mt-2">
+              {osDark ? '🌙' : '☀️'} {t('settings.osPreference')}
+            </p>
           </div>
+
           <div className="space-y-2">
             <Label>{t('settings.language')}</Label>
             <Select value={locale} onValueChange={setLocale}>
