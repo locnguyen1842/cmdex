@@ -26,6 +26,10 @@ export function DeletePreset(arg1, arg2) {
   return window['go']['main']['App']['DeletePreset'](arg1, arg2);
 }
 
+export function ExportCommands(arg1) {
+  return window['go']['main']['App']['ExportCommands'](arg1);
+}
+
 export function GetAvailableTerminals() {
   return window['go']['main']['App']['GetAvailableTerminals']();
 }
@@ -64,6 +68,10 @@ export function GetSettings() {
 
 export function GetVariables(arg1) {
   return window['go']['main']['App']['GetVariables'](arg1);
+}
+
+export function ImportCommands() {
+  return window['go']['main']['App']['ImportCommands']();
 }
 
 export function RenameCommand(arg1, arg2) {

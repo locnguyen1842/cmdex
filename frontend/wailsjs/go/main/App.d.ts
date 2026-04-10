@@ -14,6 +14,8 @@ export function DeleteCommand(arg1:string):Promise<void>;
 
 export function DeletePreset(arg1:string,arg2:string):Promise<void>;
 
+export function ExportCommands(arg1:Array<string>):Promise<void>;
+
 export function GetAvailableTerminals():Promise<Array<main.TerminalInfo>>;
 
 export function GetCategories():Promise<Array<main.Category>>;
@@ -33,6 +35,8 @@ export function GetScriptContent(arg1:string):Promise<string>;
 export function GetSettings():Promise<main.AppSettings>;
 
 export function GetVariables(arg1:string):Promise<Array<main.VariablePrompt>>;
+
+export function ImportCommands():Promise<Array<main.Command>>;
 
 export function RenameCommand(arg1:string,arg2:string):Promise<main.Command>;
 
