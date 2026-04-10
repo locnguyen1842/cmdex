@@ -1833,9 +1833,14 @@ textarea.inline-edit-input {
   transition: width var(--transition-fast), min-width var(--transition-fast), max-width var(--transition-fast);
 }
 
+.resizable-panel.is-resizing {
+  transition: none;
+}
+
 .resizable-panel.is-collapsed {
   background: var(--card);
   overflow: hidden;
+  cursor: pointer;
 }
 
 .resizable-panel.is-collapsed.left {
