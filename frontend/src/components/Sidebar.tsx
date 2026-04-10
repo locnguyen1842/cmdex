@@ -32,9 +32,10 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '@/components/ui/context-menu';
-import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2 } from 'lucide-react';
+import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2, Download, Upload } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
+import { ExportCommands } from '../../wailsjs/go/main/App';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 
@@ -329,6 +330,22 @@ const Sidebar: React.FC<SidebarProps> = ({
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.settings')}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={async () => {
+                try {
+                  const ids = commands.map(c => c.id);
+                  await ExportCommands(ids);
+                } catch (e) {
+                  console.error('Export failed:', e);
+                }
+              }}>
+                <Download className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('sidebar.exportCommands')}</TooltipContent>
           </Tooltip>
 
           <Popover>

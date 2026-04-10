@@ -15,6 +15,8 @@
     "uncategorized": "Uncategorized",
     "category": "Category",
     "command": "Command",
+    "exportCommands": "Export commands",
+    "importCommands": "Import commands",
     "contextMenu": {
       "edit": "Edit",
       "managePresets": "Manage Presets",
