@@ -80,21 +80,32 @@ type ModalState =
     | { type: 'categoryEditor'; category?: Category }
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
-    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
     | { type: 'confirmDiscard' }
     | { type: 'confirmClearHistory' }
     | { type: 'settings' };
 
 const THEME_STORAGE_KEY = 'cmdex-theme';
+const LAST_DARK_THEME_KEY = 'cmdex-last-dark-theme';
+const LAST_LIGHT_THEME_KEY = 'cmdex-last-light-theme';
+const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
 
-export const THEMES = [
-    { id: 'vscode-dark', label: 'VS Code Dark+' },
-    { id: 'vscode-light', label: 'VS Code Light+' },
-    { id: 'monokai', label: 'Monokai' },
-    { id: 'tokyo-night', label: 'Tokyo Night' },
-    { id: 'one-dark', label: 'One Dark Pro' },
-    { id: 'classic', label: 'Classic (Purple)' },
-] as const;
+export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
+    { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
+    { id: 'vscode-light', label: 'VS Code Light+', type: 'light' },
+    { id: 'monokai', label: 'Monokai', type: 'dark' },
+    { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
+    { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
+    { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
+    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
+    { id: 'dracula', label: 'Dracula', type: 'dark' },
+];
+
+export interface CustomTheme {
+    id: string;
+    name: string;
+    type: 'dark' | 'light';
+    colors: Record<string, string>;
+}
 
 function App() {
     const { t } = useTranslation();
@@ -148,13 +159,56 @@ function App() {
 
     const [paletteOpen, setPaletteOpen] = useState(false);
     const pendingCloseTabIdRef = useRef<string | null>(null);
+    const mainContentRef = useRef<HTMLDivElement>(null);
 
-    const [theme, setTheme] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) || 'vscode-dark');
+    const [theme, setTheme] = useState<string>(() => {
+        const saved = localStorage.getItem(THEME_STORAGE_KEY);
+        if (saved) return saved;
+        // No saved preference — use OS preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const lastDark = localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark';
+        const lastLight = localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light';
+        return prefersDark ? lastDark : lastLight;
+    });
+
+    const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => {
+        try {
+            const stored = localStorage.getItem(CUSTOM_THEMES_KEY);
+            return stored ? JSON.parse(stored) : [];
+        } catch {
+            return [];
+        }
+    });
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem(THEME_STORAGE_KEY, theme);
     }, [theme]);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handler = (e: MediaQueryListEvent) => {
+            const lastDark = localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark';
+            const lastLight = localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light';
+            setTheme(e.matches ? lastDark : lastLight);
+        };
+        mediaQuery.addEventListener('change', handler);
+        return () => mediaQuery.removeEventListener('change', handler);
+    }, []);
+
+    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
+    useEffect(() => {
+        const el = mainContentRef.current;
+        if (!el) return;
+        el.classList.remove('tab-content-fade-in');
+        // Force reflow so the class removal takes effect before re-adding
+        void el.offsetWidth;
+        el.classList.add('tab-content-fade-in');
+        const timer = setTimeout(() => {
+            el.classList.remove('tab-content-fade-in');
+        }, 160);
+        return () => clearTimeout(timer);
+    }, [activeTabId]);
 
     const resolvedVariables = useMemo(() => {
         if (!selectedCommand) return [];
@@ -601,31 +655,15 @@ function App() {
     };
 
     const handleDeleteCategory = async (catId: string) => {
-        const cat = categories.find((c) => c.id === catId);
-        if (!cat) return;
-        setModal({ type: 'confirmDelete', itemType: 'category', id: catId, name: cat.name });
-    };
-
-    const confirmDelete = async () => {
-        if (modal.type !== 'confirmDelete') return;
-        const { itemType } = modal;
         try {
-            if (itemType === 'category') {
-                await DeleteCategory(modal.id);
-                if (selectedCommand?.categoryId === modal.id) {
-                    setSelectedCommand(null);
-                }
-            } else {
-                await DeleteCommand(modal.id);
-                if (selectedCommand?.id === modal.id) {
-                    closeTab(modal.id);
-                }
+            await DeleteCategory(catId);
+            if (selectedCommand?.categoryId === catId) {
+                setSelectedCommand(null);
             }
             await loadData();
-            setModal({ type: 'none' });
-            toast.success(itemType === 'category' ? t('toast.categoryDeleted') : t('toast.commandDeleted'));
+            toast.success(t('toast.categoryDeleted'));
         } catch (err) {
-            console.error('Failed to delete:', err);
+            console.error('Failed to delete category:', err);
         }
     };
 
@@ -671,13 +709,17 @@ function App() {
         });
     };
 
-    const handleDeleteCommand = (cmd: Command) => {
-        setModal({
-            type: 'confirmDelete',
-            itemType: 'command',
-            id: cmd.id,
-            name: getCommandDisplayTitle(cmd),
-        });
+    const handleDeleteCommand = async (cmd: Command) => {
+        try {
+            await DeleteCommand(cmd.id);
+            if (selectedCommand?.id === cmd.id) {
+                closeTab(cmd.id);
+            }
+            await loadData();
+            toast.success(t('toast.commandDeleted'));
+        } catch (err) {
+            console.error('Failed to delete command:', err);
+        }
     };
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
@@ -939,6 +981,59 @@ function App() {
         }
     }, [loadData, loadHistory]);
 
+    const handleThemeChange = useCallback((newTheme: string) => {
+        // Find type from built-in themes first, then custom themes
+        const builtIn = THEMES.find(t => t.id === newTheme);
+        const custom = customThemes.find(t => t.id === newTheme);
+        const themeType = builtIn?.type ?? custom?.type ?? 'dark';
+
+        if (themeType === 'dark') {
+            localStorage.setItem(LAST_DARK_THEME_KEY, newTheme);
+        } else {
+            localStorage.setItem(LAST_LIGHT_THEME_KEY, newTheme);
+        }
+
+        // Apply custom theme CSS vars if it's an imported theme
+        if (custom) {
+            // Apply this custom theme's colors as inline CSS vars
+            Object.entries(custom.colors).forEach(([key, value]) => {
+                document.documentElement.style.setProperty(`--${key}`, value);
+            });
+        } else {
+            // Built-in theme — remove any inline custom vars so [data-theme] CSS takes over
+            const allVarKeys = [
+                'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+                'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
+                'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
+                'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
+                'tab-active-indicator', 'status-bar-bg', 'status-bar-fg'
+            ];
+            allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
+        }
+
+        setTheme(newTheme);
+    }, [customThemes]);
+
+    const handleImportTheme = useCallback((newTheme: CustomTheme) => {
+        setCustomThemes(prev => {
+            const updated = [...prev, newTheme];
+            localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(updated));
+            return updated;
+        });
+    }, []);
+
+    const handleRemoveCustomTheme = useCallback((themeId: string) => {
+        setCustomThemes(prev => {
+            const updated = prev.filter(t => t.id !== themeId);
+            localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(updated));
+            // If the removed theme was active, fall back to vscode-dark
+            if (theme === themeId) {
+                handleThemeChange('vscode-dark');
+            }
+            return updated;
+        });
+    }, [theme, handleThemeChange]);
+
     const handleSelectCommand = (cmd: Command) => {
         openTab(cmd);
     };
@@ -1074,7 +1169,7 @@ function App() {
     const isWelcome = !selectedCommand && !activeDraft;
 
     return (
-        <TooltipProvider>
+        <TooltipProvider disableHoverableContent>
             <div className="app-layout">
                 <div className="app-body">
                     <ResizablePanel
@@ -1117,7 +1212,7 @@ function App() {
                         />
 
                         <div className="top-area">
-                            <div className="main-content">
+                            <div className="main-content" ref={mainContentRef}>
                                 {selectedCommand && activeDraft ? (
                                     <div className="main-body command-tab-shell">
                                         <CommandDetail
@@ -1133,14 +1228,7 @@ function App() {
                                             onExecute={handleExecute}
                                             onRunInTerminal={handleRunInTerminal}
                                             onFillVariables={handleFillVariables}
-                                            onDelete={() =>
-                                                setModal({
-                                                    type: 'confirmDelete',
-                                                    itemType: 'command',
-                                                    id: selectedCommand.id,
-                                                    name: getCommandDisplayTitle(selectedCommand) || activeDraft.title,
-                                                })
-                                            }
+                                            onDelete={() => void handleDeleteCommand(selectedCommand)}
                                             onRenamePreset={handleRenamePresetFromDetail}
                                             onDeletePreset={handleDeletePresetFromDetail}
                                             onAddPreset={handleAddPresetFromDetail}
@@ -1227,29 +1315,6 @@ function App() {
                     />
                 )}
 
-                <AlertDialog open={modal.type === 'confirmDelete'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>{t('app.confirmDeleteTitle')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {modal.type === 'confirmDelete' && (
-                                    <>
-                                        {t('app.confirmDeleteMessage', { itemType: modal.itemType, name: modal.name })}
-                                        {modal.itemType === 'category' && ` ${t('app.confirmDeleteCategoryWarning')}`}
-                                        <br /><br />
-                                        {t('app.confirmDeleteUndone')}
-                                    </>
-                                )}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmDelete} variant="destructive">
-                                {t('app.delete')}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
                 <AlertDialog
                     open={modal.type === 'confirmDiscard'}
                     onOpenChange={(open) => {
@@ -1298,8 +1363,11 @@ function App() {
                     open={modal.type === 'settings'}
                     onClose={() => setModal({ type: 'none' })}
                     theme={theme}
-                    onThemeChange={setTheme}
+                    onThemeChange={handleThemeChange}
                     onResetAllData={handleResetAllData}
+                    customThemes={customThemes}
+                    onImportTheme={handleImportTheme}
+                    onRemoveCustomTheme={handleRemoveCustomTheme}
                 />
                 <CommandPalette
                     open={paletteOpen}
