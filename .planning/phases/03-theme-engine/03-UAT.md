@@ -66,11 +66,14 @@ blocked: 0
 ## Gaps
 
 - truth: "Clicking Download template triggers a JSON file download"
-  status: failed
+  status: fixed
   reason: "User reported: clcik to download template but nothing happen"
   severity: major
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "Detached <a> element's .click() doesn't trigger download in Wails/WKWebView — anchor must be appended to document.body first"
+  artifacts:
+    - path: "frontend/src/components/SettingsDialog.tsx"
+      issue: "a.click() called on detached anchor, not mounted to DOM"
+  missing:
+    - "document.body.appendChild(a) before click, removeChild after"
   debug_session: ""
