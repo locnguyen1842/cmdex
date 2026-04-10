@@ -1243,6 +1243,11 @@ function App() {
                             onDeleteCommand={handleDeleteCommand}
                             onReorderCommand={handleReorderCommand}
                             onOpenSettings={() => setModal({ type: 'settings' })}
+                            onImport={async () => {
+                                const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
+                                setCategories(cats || []);
+                                setCommands(cmds || []);
+                            }}
                         />
                     </ResizablePanel>
 

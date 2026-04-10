@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
 
@@ -502,6 +503,151 @@ func (db *DB) GetCommandsByIDs(ids []string) ([]Command, error) {
 		cmds = append(cmds, cmd)
 	}
 	return cmds, nil
+}
+
+// ImportCommands imports commands from import data structure
+func (db *DB) ImportCommands(commands []struct {
+	Title         string
+	Description   string
+	ScriptContent string
+	Tags          []string
+	Variables     []VariableDefinition
+	Presets       []struct {
+		Name   string
+		Values map[string]string
+	}
+	CategoryName string
+}) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Build category name -> ID map
+	categoryMap := make(map[string]string)
+	rows, err := tx.Query("SELECT id, name FROM categories")
+	if err != nil {
+		return fmt.Errorf("query categories: %w", err)
+	}
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan category: %w", err)
+		}
+		categoryMap[name] = id
+	}
+	rows.Close()
+
+	for _, importedCmd := range commands {
+		// Determine category ID
+		var categoryID *string
+		if importedCmd.CategoryName != "" {
+			if catID, exists := categoryMap[importedCmd.CategoryName]; exists {
+				categoryID = &catID
+			} else {
+				// Create new category
+				newCatID := uuid.New().String()
+				now := time.Now()
+				_, err := tx.Exec(
+					"INSERT INTO categories (id, name, icon, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+					newCatID, importedCmd.CategoryName, "", "", now, now,
+				)
+				if err != nil {
+					return fmt.Errorf("create category: %w", err)
+				}
+				categoryID = &newCatID
+				categoryMap[importedCmd.CategoryName] = newCatID
+			}
+		}
+
+		// Create command
+		cmdID := uuid.New().String()
+		now := time.Now()
+
+		var catIDPtr interface{}
+		if categoryID != nil {
+			catIDPtr = *categoryID
+		}
+
+		var titlePtr, descPtr interface{}
+		if importedCmd.Title != "" {
+			titlePtr = importedCmd.Title
+		}
+		if importedCmd.Description != "" {
+			descPtr = importedCmd.Description
+		}
+
+		// Get max position in category
+		var maxPos int
+		if categoryID != nil {
+			_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM commands WHERE category_id = ?", *categoryID).Scan(&maxPos)
+		} else {
+			_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM commands WHERE category_id IS NULL OR category_id = ''").Scan(&maxPos)
+		}
+
+		_, err = tx.Exec(
+			`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			cmdID, titlePtr, descPtr, importedCmd.ScriptContent, catIDPtr, maxPos+1, now, now,
+		)
+		if err != nil {
+			return fmt.Errorf("insert command: %w", err)
+		}
+
+		// Save tags
+		for _, tag := range importedCmd.Tags {
+			if tag == "" {
+				continue
+			}
+			_, err := tx.Exec("INSERT OR IGNORE INTO tags (name) VALUES (?)", tag)
+			if err != nil {
+				return fmt.Errorf("upsert tag: %w", err)
+			}
+			_, err = tx.Exec(
+				"INSERT OR IGNORE INTO command_tags (command_id, tag_id) SELECT ?, id FROM tags WHERE name = ?",
+				cmdID, tag,
+			)
+			if err != nil {
+				return fmt.Errorf("link tag: %w", err)
+			}
+		}
+
+		// Save variables
+		for i, v := range importedCmd.Variables {
+			_, err := tx.Exec(
+				"INSERT INTO variable_definitions (command_id, name, description, example, default_expr, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+				cmdID, v.Name, v.Description, v.Example, v.Default, i,
+			)
+			if err != nil {
+				return fmt.Errorf("insert variable: %w", err)
+			}
+		}
+
+		// Save presets
+		for _, p := range importedCmd.Presets {
+			presetID := uuid.New().String()
+			_, err := tx.Exec(
+				"INSERT INTO variable_presets (id, command_id, name, position) VALUES (?, ?, ?, ?)",
+				presetID, cmdID, p.Name, 0,
+			)
+			if err != nil {
+				return fmt.Errorf("insert preset: %w", err)
+			}
+			for k, v := range p.Values {
+				_, err := tx.Exec(
+					"INSERT INTO preset_values (preset_id, variable_name, value) VALUES (?, ?, ?)",
+					presetID, k, v,
+				)
+				if err != nil {
+					return fmt.Errorf("insert preset value: %w", err)
+				}
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (db *DB) GetCommand(id string) (Command, error) {

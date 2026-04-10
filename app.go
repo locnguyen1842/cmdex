@@ -541,3 +541,107 @@ func (a *App) ExportCommands(commandIDs []string) error {
 
 	return os.WriteFile(path, data, 0644)
 }
+
+// ImportCommands imports commands from a JSON file
+func (a *App) ImportCommands() ([]Command, error) {
+	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil || path == "" {
+		// User cancelled
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	// Define import data structures
+	type ImportedPreset struct {
+		Name   string            `json:"name"`
+		Values map[string]string `json:"values"`
+	}
+
+	type ImportedCommand struct {
+		Title         string               `json:"title"`
+		Description   string               `json:"description"`
+		ScriptContent string               `json:"scriptContent"`
+		Tags          []string             `json:"tags"`
+		Variables     []VariableDefinition `json:"variables"`
+		Presets       []ImportedPreset     `json:"presets"`
+		CategoryName  string               `json:"categoryName"`
+	}
+
+	type ImportData struct {
+		Version    string            `json:"version"`
+		ExportedAt time.Time         `json:"exportedAt"`
+		Commands   []ImportedCommand `json:"commands"`
+	}
+
+	var importData ImportData
+	if err := json.Unmarshal(data, &importData); err != nil {
+		return nil, fmt.Errorf("parse JSON: %w", err)
+	}
+
+	// Validate version
+	if importData.Version != "1.0" {
+		return nil, fmt.Errorf("unsupported export version: %s", importData.Version)
+	}
+
+	// Convert to db-compatible format
+	commands := make([]struct {
+		Title         string
+		Description   string
+		ScriptContent string
+		Tags          []string
+		Variables     []VariableDefinition
+		Presets       []struct {
+			Name   string
+			Values map[string]string
+		}
+		CategoryName string
+	}, len(importData.Commands))
+
+	for i, cmd := range importData.Commands {
+		presets := make([]struct {
+			Name   string
+			Values map[string]string
+		}, len(cmd.Presets))
+		for j, p := range cmd.Presets {
+			presets[j] = struct {
+				Name   string
+				Values map[string]string
+			}{Name: p.Name, Values: p.Values}
+		}
+		commands[i] = struct {
+			Title         string
+			Description   string
+			ScriptContent string
+			Tags          []string
+			Variables     []VariableDefinition
+			Presets       []struct {
+				Name   string
+				Values map[string]string
+			}
+			CategoryName string
+		}{
+			Title:         cmd.Title,
+			Description:   cmd.Description,
+			ScriptContent: cmd.ScriptContent,
+			Tags:          cmd.Tags,
+			Variables:     cmd.Variables,
+			Presets:       presets,
+			CategoryName:  cmd.CategoryName,
+		}
+	}
+
+	if err := a.db.ImportCommands(commands); err != nil {
+		return nil, fmt.Errorf("import commands: %w", err)
+	}
+
+	// Return all commands to refresh UI
+	return a.db.GetCommands()
+}
