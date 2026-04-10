@@ -35,7 +35,7 @@ import {
 import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2, Download, Upload } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
-import { ExportCommands } from '../../wailsjs/go/main/App';
+import { ExportCommands, ImportCommands } from '../../wailsjs/go/main/App';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 
@@ -81,6 +81,7 @@ interface SidebarProps {
   onDeleteCommand: (cmd: Command) => void;
   onReorderCommand: (id: string, newPosition: number, newCategoryId: string) => void;
   onOpenSettings: () => void;
+  onImport?: () => void;
 }
 
 interface SortableCommandItemProps {
@@ -170,6 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteCommand,
   onReorderCommand,
   onOpenSettings,
+  onImport,
 }) => {
   const { t } = useTranslation();
   const prevCatIdsRef = useRef<string[]>([]);
@@ -346,6 +348,24 @@ const Sidebar: React.FC<SidebarProps> = ({
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.exportCommands')}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={async () => {
+                try {
+                  const imported = await ImportCommands();
+                  if (imported && imported.length > 0 && onImport) {
+                    onImport();
+                  }
+                } catch (e) {
+                  console.error('Import failed:', e);
+                }
+              }}>
+                <Upload className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('sidebar.importCommands')}</TooltipContent>
           </Tooltip>
 
           <Popover>
