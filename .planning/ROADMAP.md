@@ -75,11 +75,11 @@ Plans:
   1. User can change the editor font and the UI font independently, and the change applies immediately
   2. User can switch between compact, comfortable, and spacious density modes
   3. Density change visibly adjusts padding, margins, and font sizes across all views
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Download 7 bundled woff2 fonts; replace Google Fonts @import with @font-face blocks in style.css; add density CSS variable defaults + [data-density] override blocks; add uiFont/monoFont/density state and handlers to App.tsx
+- [ ] 04-02-PLAN.md — Add tabs.tsx shadcn component; refactor SettingsDialog into Appearance/Typography/General tabs; implement FontPickerCard + CustomFontCard + density ToggleGroup; add i18n keys
 
 ### Phase 5: Import & Export
 **Goal**: Users can move commands between machines or share them as files
@@ -107,3 +107,13 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Theme Engine | 0/3 | Not started | - |
 | 4. Theme Customization | 0/2 | Not started | - |
 | 5. Import & Export | 0/2 | Not started | - |
+
+### Phase 6: OS Accent Color Theme
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 6 to break down)
