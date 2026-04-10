@@ -35,7 +35,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
   const widthRef = useRef(width);
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined as unknown as ReturnType<typeof setTimeout>);
   useEffect(() => { widthRef.current = width; }, [width]);
 
   const collapse = useCallback(() => {
@@ -54,22 +53,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     startWidthRef.current = widthRef.current;
     setDragging(true);
   }, []);
-
-  useEffect(() => {
-    const handleResize = () => {
-      clearTimeout(resizeTimerRef.current);
-      resizeTimerRef.current = setTimeout(() => {
-        if (window.innerWidth <= 600) {
-          collapse();
-        }
-      }, 100);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => {
-      clearTimeout(resizeTimerRef.current);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [collapse, storageKey]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -95,6 +78,20 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     };
   }, [dragging, side, minWidth, maxWidth, storageKey]);
 
+  if (collapsed) {
+    return (
+      <button
+        className={`resizable-panel-rail ${side} ${className ?? ''}`}
+        onClick={expand}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expand(); } }}
+        aria-label="Expand panel"
+        title="Click to expand"
+      >
+        {collapsedIcon}
+      </button>
+    );
+  }
+
   const handle = (
     <div
       className={`resize-handle-wrap ${side} ${dragging ? 'dragging' : ''}`}
@@ -111,32 +108,14 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     </div>
   );
 
-  const panelStyle: React.CSSProperties = collapsed
-    ? { width: 44, minWidth: 44, maxWidth: 44 }
-    : { width, minWidth: width, maxWidth: width };
-
   return (
     <div
-      className={`resizable-panel ${side} ${className ?? ''} ${collapsed ? 'is-collapsed' : ''}`}
-      style={panelStyle}
+      className={`resizable-panel ${className ?? ''}`}
+      style={{ width, minWidth: width, maxWidth: width }}
     >
-      {collapsed ? (
-        <button
-          className={`resizable-panel-rail-inner ${side}`}
-          onClick={expand}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expand(); } }}
-          aria-label="Expand sidebar"
-          title="Expand sidebar"
-        >
-          {collapsedIcon}
-        </button>
-      ) : (
-        <>
-          {side === 'right' && handle}
-          {children}
-          {side === 'left' && handle}
-        </>
-      )}
+      {side === 'right' && handle}
+      {children}
+      {side === 'left' && handle}
     </div>
   );
 };
