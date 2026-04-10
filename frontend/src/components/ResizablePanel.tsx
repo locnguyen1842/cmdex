@@ -78,20 +78,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     };
   }, [dragging, side, minWidth, maxWidth, storageKey]);
 
-  if (collapsed) {
-    return (
-      <button
-        className={`resizable-panel-rail ${side} ${className ?? ''}`}
-        onClick={expand}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expand(); } }}
-        aria-label="Expand panel"
-        title="Click to expand"
-      >
-        {collapsedIcon}
-      </button>
-    );
-  }
-
   const handle = (
     <div
       className={`resize-handle-wrap ${side} ${dragging ? 'dragging' : ''}`}
@@ -110,12 +96,29 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
 
   return (
     <div
-      className={`resizable-panel ${className ?? ''}`}
-      style={{ width, minWidth: width, maxWidth: width }}
+      className={`resizable-panel ${side} ${collapsed ? 'is-collapsed' : ''} ${dragging ? 'is-resizing' : ''} ${className ?? ''}`}
+      style={collapsed
+        ? { width: 44, minWidth: 44, maxWidth: 44 }
+        : { width, minWidth: width, maxWidth: width }
+      }
     >
-      {side === 'right' && handle}
-      {children}
-      {side === 'left' && handle}
+      {collapsed ? (
+        <button
+          className="resizable-panel-rail-inner"
+          onClick={expand}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expand(); } }}
+          aria-label="Expand panel"
+          title="Click to expand"
+        >
+          {collapsedIcon}
+        </button>
+      ) : (
+        <>
+          {side === 'right' && handle}
+          {children}
+          {side === 'left' && handle}
+        </>
+      )}
     </div>
   );
 };
