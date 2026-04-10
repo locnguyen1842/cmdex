@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../wailsjs/go/main/App';
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
-import { THEMES } from '../App';
+import { THEMES, CustomTheme } from '../App';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -29,9 +29,12 @@ interface SettingsDialogProps {
   theme: string;
   onThemeChange: (theme: string) => void;
   onResetAllData?: () => Promise<void>;
+  customThemes?: CustomTheme[];
+  onImportTheme?: (theme: CustomTheme) => void;
+  onRemoveCustomTheme?: (themeId: string) => void;
 }
 
-const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, onThemeChange, onResetAllData }) => {
+const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onClose, theme, onThemeChange, onResetAllData, customThemes: _customThemes, onImportTheme: _onImportTheme, onRemoveCustomTheme: _onRemoveCustomTheme }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [savedLocale, setSavedLocale] = useState('en');
