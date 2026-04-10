@@ -14,6 +14,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Upload, Download, X } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } from '../../wailsjs/go/main/App';
 import { TerminalInfo } from '../types';
@@ -23,6 +25,20 @@ import { THEMES, CustomTheme } from '../App';
 const LANGUAGES = [
   { code: 'en', label: 'English' },
 ];
+
+const UI_FONTS = [
+  { id: 'Inter', label: 'Inter', fontFamily: "'Inter', system-ui, sans-serif" },
+  { id: 'Geist', label: 'Geist', fontFamily: "'Geist', system-ui, sans-serif" },
+  { id: 'Nunito', label: 'Nunito', fontFamily: "'Nunito', system-ui, sans-serif" },
+  { id: 'System Default', label: 'System Default', fontFamily: 'system-ui, -apple-system, sans-serif' },
+] as const;
+
+const MONO_FONTS = [
+  { id: 'JetBrains Mono', label: 'JetBrains Mono', fontFamily: "'JetBrains Mono', monospace" },
+  { id: 'Fira Code', label: 'Fira Code', fontFamily: "'Fira Code', monospace" },
+  { id: 'Cascadia Code', label: 'Cascadia Code', fontFamily: "'Cascadia Code', monospace" },
+  { id: 'Monaspace Neon', label: 'Monaspace Neon', fontFamily: "'Monaspace Neon', monospace" },
+] as const;
 
 // Color dots per built-in theme: [bg, card, primary, fg]
 const THEME_DOTS: Record<string, [string, string, string, string]> = {
@@ -90,6 +106,72 @@ function ThemeSwatch({ label, themeType, dots, selected, onSelect, onRemove }: T
   );
 }
 
+interface FontPickerCardProps {
+  fontFamily: string;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function FontPickerCard({ fontFamily, label, selected, onSelect }: FontPickerCardProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={[
+        'flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full min-h-[56px]',
+        selected
+          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary'
+          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
+      ].join(' ')}
+    >
+      <span style={{ fontFamily }} className="text-sm font-medium truncate leading-[1.4]">{label}</span>
+      <span style={{ fontFamily }} className="text-[11px] text-muted-foreground mt-0.5 leading-[1.3]">
+        ABC abc 012
+      </span>
+    </button>
+  );
+}
+
+interface CustomFontCardProps {
+  value: string;
+  onChange: (v: string) => void;
+  selected: boolean;
+}
+
+function CustomFontCard({ value, onChange, selected }: CustomFontCardProps) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onChange(v.trim());
+    }, 300);
+  };
+
+  return (
+    <div
+      className={[
+        'flex flex-col p-2 rounded-md border text-left min-h-[56px]',
+        selected && value.trim()
+          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary'
+          : 'border-border bg-card',
+      ].join(' ')}
+    >
+      <span className="text-[11px] text-muted-foreground mb-1 leading-[1.3]">Custom</span>
+      <input
+        type="text"
+        defaultValue={value}
+        placeholder="Custom font name…"
+        onChange={handleChange}
+        className="bg-transparent text-sm w-full outline-none placeholder:text-muted-foreground/50"
+      />
+    </div>
+  );
+}
+
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
@@ -132,6 +214,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [terminal, setTerminal] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [customFontValue, setCustomFontValue] = useState<string>(() => {
+    // If the stored uiFont is not in the curated list, it's a custom value
+    const isKnown = UI_FONTS.some(f => f.id === (uiFont || 'Inter'));
+    return isKnown ? '' : (uiFont || '');
+  });
 
   // Determine OS mode for the sync indicator
   const [osDark, setOsDark] = useState(() =>
@@ -228,45 +316,63 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         onClose();
       }
     }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t('settings.title')}</DialogTitle>
           <DialogDescription className="sr-only">{t('settings.description')}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          {/* Appearance / Theme section */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">{t('settings.appearance')}</Label>
 
-            {/* Built-in Themes */}
-            <p className="text-[11px] text-muted-foreground">{t('settings.builtinThemes')}</p>
-            <div
-              role="group"
-              aria-label="Theme selection"
-              className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-0.5"
+        <Tabs defaultValue="appearance" className="w-full">
+          <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-border h-auto mb-0">
+            <TabsTrigger
+              value="appearance"
+              className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
             >
-              {THEMES.map(th => (
-                <ThemeSwatch
-                  key={th.id}
-                  id={th.id}
-                  label={th.label}
-                  themeType={th.type}
-                  dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
-                  selected={theme === th.id}
-                  onSelect={() => onThemeChange(th.id)}
-                />
-              ))}
+              {t('settings.tabs.appearance')}
+            </TabsTrigger>
+            <TabsTrigger
+              value="typography"
+              className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+            >
+              {t('settings.tabs.typography')}
+            </TabsTrigger>
+            <TabsTrigger
+              value="general"
+              className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+            >
+              {t('settings.tabs.general')}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ---- Appearance Tab ---- */}
+          <TabsContent value="appearance" className="space-y-4 pt-4">
+            {/* Built-in Themes */}
+            <div className="space-y-2">
+              <p className="text-[11px] text-muted-foreground">{t('settings.builtinThemes')}</p>
+              <div
+                role="group"
+                aria-label="Theme selection"
+                className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-0.5"
+              >
+                {THEMES.map(th => (
+                  <ThemeSwatch
+                    key={th.id}
+                    id={th.id}
+                    label={th.label}
+                    themeType={th.type}
+                    dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
+                    selected={theme === th.id}
+                    onSelect={() => onThemeChange(th.id)}
+                  />
+                ))}
+              </div>
             </div>
 
             {/* Custom Themes (only if any exist) */}
             {(customThemes?.length ?? 0) > 0 && (
-              <div className="mt-4 pt-3 border-t border-border space-y-2">
+              <div className="pt-3 border-t border-border space-y-2">
                 <p className="text-[11px] text-muted-foreground">{t('settings.customThemes')}</p>
-                <div
-                  role="group"
-                  aria-label="Custom themes"
-                  className="grid grid-cols-2 gap-2"
-                >
+                <div role="group" aria-label="Custom themes" className="grid grid-cols-2 gap-2">
                   {customThemes!.map(ct => (
                     <ThemeSwatch
                       key={ct.id}
@@ -289,7 +395,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             )}
 
             {/* Import / Download action row */}
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -323,54 +429,128 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             />
 
             {/* OS sync indicator */}
-            <p className="text-[11px] text-muted-foreground mt-2">
+            <p className="text-[11px] text-muted-foreground">
               {osDark ? '🌙' : '☀️'} {t('settings.osPreference')}
             </p>
-          </div>
 
-          <div className="space-y-2">
-            <Label>{t('settings.language')}</Label>
-            <Select value={locale} onValueChange={setLocale}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map(lang => (
-                  <SelectItem key={lang.code} value={lang.code}>{lang.label}</SelectItem>
+            {/* Density selector */}
+            <div className="pt-3 border-t border-border space-y-2">
+              <p className="text-sm font-medium">{t('settings.densityLabel')}</p>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={density || 'comfortable'}
+                onValueChange={(v) => v && onDensityChange?.(v)}
+                className="w-full"
+              >
+                <ToggleGroupItem value="compact" className="flex-1">
+                  {t('settings.densityCompact')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="comfortable" className="flex-1">
+                  {t('settings.densityComfortable')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="spacious" className="flex-1">
+                  {t('settings.densitySpacious')}
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </TabsContent>
+
+          {/* ---- Typography Tab ---- */}
+          <TabsContent value="typography" className="space-y-5 pt-4">
+            {/* UI Font section */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">{t('settings.uiFontLabel')}</Label>
+              <div role="group" aria-label="UI font selection" className="grid grid-cols-2 gap-2">
+                {UI_FONTS.map(font => (
+                  <FontPickerCard
+                    key={font.id}
+                    fontFamily={font.fontFamily}
+                    label={font.label}
+                    selected={uiFont === font.id && !customFontValue}
+                    onSelect={() => {
+                      setCustomFontValue('');
+                      onUiFontChange?.(font.id);
+                    }}
+                  />
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>{t('settings.terminal')}</Label>
-            <Select value={terminal || '__auto__'} onValueChange={(v) => setTerminal(v === '__auto__' ? '' : v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__auto__">
-                  <span className="italic opacity-70">{t('settings.terminalAuto')}</span>
-                </SelectItem>
-                {terminals.map(term => (
-                  <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
+                {/* Custom font input card — last in grid per D-02 */}
+                <CustomFontCard
+                  value={customFontValue}
+                  selected={!!customFontValue}
+                  onChange={(v) => {
+                    setCustomFontValue(v);
+                    if (v) onUiFontChange?.(v);
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Editor (Mono) Font section */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">{t('settings.monoFontLabel')}</Label>
+              <div role="group" aria-label="Editor font selection" className="grid grid-cols-2 gap-2">
+                {MONO_FONTS.map(font => (
+                  <FontPickerCard
+                    key={font.id}
+                    fontFamily={font.fontFamily}
+                    label={font.label}
+                    selected={monoFont === font.id}
+                    onSelect={() => onMonoFontChange?.(font.id)}
+                  />
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        {onResetAllData && (
-          <div className="border-t border-border pt-4 mt-2">
-            <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
-              onClick={() => setConfirmReset(true)}
-            >
-              {t('settings.resetAllData')}
-            </Button>
-          </div>
-        )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ---- General Tab ---- */}
+          <TabsContent value="general" className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>{t('settings.language')}</Label>
+              <Select value={locale} onValueChange={setLocale}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES.map(lang => (
+                    <SelectItem key={lang.code} value={lang.code}>{lang.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t('settings.terminal')}</Label>
+              <Select value={terminal || '__auto__'} onValueChange={(v) => setTerminal(v === '__auto__' ? '' : v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">
+                    <span className="italic opacity-70">{t('settings.terminalAuto')}</span>
+                  </SelectItem>
+                  {terminals.map(term => (
+                    <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {onResetAllData && (
+              <div className="border-t border-border pt-4 mt-2">
+                <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
+                  onClick={() => setConfirmReset(true)}
+                >
+                  {t('settings.resetAllData')}
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => { setLocale(savedLocale); setTerminal(savedTerminal); setConfirmReset(false); onClose(); }}>
             {t('settings.close')}

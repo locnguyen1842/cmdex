@@ -214,7 +214,18 @@
     "dangerZone": "Danger Zone",
     "resetAllData": "Reset All Data",
     "resetConfirmTitle": "Reset All Data?",
-    "resetConfirmDescription": "This will delete all commands, categories, presets, and history. This cannot be undone."
+    "resetConfirmDescription": "This will delete all commands, categories, presets, and history. This cannot be undone.",
+    "tabs": {
+      "appearance": "Appearance",
+      "typography": "Typography",
+      "general": "General"
+    },
+    "densityLabel": "Layout Density",
+    "densityCompact": "Compact",
+    "densityComfortable": "Comfortable",
+    "densitySpacious": "Spacious",
+    "uiFontLabel": "UI Font",
+    "monoFontLabel": "Editor Font"
   },
   "resizablePanel": {
     "expandPanel": "Expand panel",
