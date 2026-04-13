@@ -2,7 +2,11 @@
   "common": {
     "untitled": "Untitled",
     "loading": "Loading…",
-    "keyboardShortcuts": "Keyboard Shortcuts"
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteWithName": "Delete \"{{name}}\"",
+    "deleteCategoryDescription": "Are you sure you want to delete this category? This cannot be undone."
   },
   "sidebar": {
     "searchPlaceholder": "Search commands...",
@@ -15,6 +19,8 @@
     "uncategorized": "Uncategorized",
     "category": "Category",
     "command": "Command",
+    "exportCommands": "Export commands",
+    "importCommands": "Import commands",
     "contextMenu": {
       "edit": "Edit",
       "managePresets": "Manage Presets",
@@ -28,6 +34,7 @@
     "editCommand": "Edit command",
     "copyCommand": "Copy",
     "copied": "Copied!",
+    "copyFailed": "Failed to copy to clipboard",
     "arguments": "Arguments",
     "presets": "Presets",
     "managePresets": "Manage Presets",
@@ -41,6 +48,8 @@
     "manage": "Manage",
     "preview": "Preview",
     "template": "Template",
+    "showPreview": "Show Preview",
+    "showTemplate": "Show Template",
     "doubleClickToRename": "Double-click to rename",
     "addPreset": "Add preset",
     "revertChanges": "Revert changes",
@@ -68,7 +77,6 @@
     "savePresetFailed": "Could not save preset",
     "addTag": "Add tag",
     "tagNamePlaceholder": "name",
-    "scriptEditHint": "Shift+Enter: new line · Enter: save · {{cmdKey}}⇧⌫: discard",
     "scriptEditHintNewLine": "New line",
     "scriptEditHintSave": "Save changes",
     "scriptEditHintDiscard": "Discard changes",
@@ -205,7 +213,20 @@
     "dangerZone": "Danger Zone",
     "resetAllData": "Reset All Data",
     "resetConfirmTitle": "Reset All Data?",
-    "resetConfirmDescription": "This will delete all commands, categories, presets, and history. This cannot be undone."
+    "resetConfirmDescription": "This will delete all commands, categories, presets, and history. This cannot be undone.",
+    "tabs": {
+      "appearance": "Appearance",
+      "typography": "Typography",
+      "general": "General"
+    },
+    "densityLabel": "Layout Density",
+    "densityCompact": "Compact",
+    "densityComfortable": "Comfortable",
+    "densitySpacious": "Spacious",
+    "uiFontLabel": "UI Font",
+    "monoFontLabel": "Editor Font",
+    "importTheme": "Import theme",
+    "downloadTemplate": "Download template"
   },
   "resizablePanel": {
     "expandPanel": "Expand panel",

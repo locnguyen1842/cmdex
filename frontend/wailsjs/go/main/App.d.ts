@@ -14,6 +14,8 @@ export function DeleteCommand(arg1:string):Promise<void>;
 
 export function DeletePreset(arg1:string,arg2:string):Promise<void>;
 
+export function ExportCommands(arg1:Array<string>):Promise<void>;
+
 export function GetAvailableTerminals():Promise<Array<main.TerminalInfo>>;
 
 export function GetCategories():Promise<Array<main.Category>>;
@@ -34,6 +36,8 @@ export function GetSettings():Promise<main.AppSettings>;
 
 export function GetVariables(arg1:string):Promise<Array<main.VariablePrompt>>;
 
+export function ImportCommands():Promise<Array<main.Command>>;
+
 export function RenameCommand(arg1:string,arg2:string):Promise<main.Command>;
 
 export function ReorderCommand(arg1:string,arg2:number,arg3:string):Promise<Array<main.Command>>;
@@ -48,9 +52,11 @@ export function RunInTerminal(arg1:string,arg2:Record<string, string>):Promise<v
 
 export function SavePreset(arg1:string,arg2:string,arg3:Record<string, string>):Promise<main.VariablePreset>;
 
+export function SaveThemeTemplate():Promise<void>;
+
 export function SearchCommands(arg1:string):Promise<Array<main.Command>>;
 
-export function SetSettings(arg1:string,arg2:string):Promise<void>;
+export function SetSettings(arg1:string):Promise<void>;
 
 export function UpdateCategory(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.Category>;
 

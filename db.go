@@ -2,12 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
 
@@ -16,7 +18,7 @@ type DB struct {
 	dataDir string
 }
 
-const schemaVersion = 7
+const schemaVersion = 9
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -97,8 +99,7 @@ CREATE TABLE IF NOT EXISTS executions (
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
-    locale TEXT NOT NULL DEFAULT 'en',
-    terminal TEXT NOT NULL DEFAULT ''
+    data TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS commands_fts USING fts5(
@@ -192,13 +193,13 @@ func (db *DB) migrate() error {
 			)`,
 			`INSERT INTO commands_new SELECT * FROM commands`,
 			`DROP TABLE commands`,
-		`ALTER TABLE commands_new RENAME TO commands`,
-		// Update empty strings to NULL
-		`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
-		// Rebuild FTS index to match new rowids after table recreation
-		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
-		// Recreate FTS triggers
-		`DROP TRIGGER IF EXISTS commands_ai`,
+			`ALTER TABLE commands_new RENAME TO commands`,
+			// Update empty strings to NULL
+			`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
+			// Rebuild FTS index to match new rowids after table recreation
+			`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+			// Recreate FTS triggers
+			`DROP TRIGGER IF EXISTS commands_ai`,
 			`DROP TRIGGER IF EXISTS commands_ad`,
 			`DROP TRIGGER IF EXISTS commands_au`,
 			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
@@ -287,30 +288,30 @@ func (db *DB) migrate() error {
 				script_content, category_id, position, created_at, updated_at
 				FROM commands`,
 			`DROP TABLE commands`,
-		`ALTER TABLE commands_new RENAME TO commands`,
-		// Rebuild FTS index to match new rowids after table recreation
-		`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
-		`DROP TRIGGER IF EXISTS commands_ai`,
-		`DROP TRIGGER IF EXISTS commands_ad`,
-		`DROP TRIGGER IF EXISTS commands_au`,
-		`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
+			`ALTER TABLE commands_new RENAME TO commands`,
+			// Rebuild FTS index to match new rowids after table recreation
+			`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
+			`DROP TRIGGER IF EXISTS commands_ai`,
+			`DROP TRIGGER IF EXISTS commands_ad`,
+			`DROP TRIGGER IF EXISTS commands_au`,
+			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
 			INSERT INTO commands_fts(rowid, title, description, script_content)
 			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
 		END`,
-		`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
+			`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
 			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
 			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
 		END`,
-		`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
+			`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
 			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
 			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
 			INSERT INTO commands_fts(rowid, title, description, script_content)
 			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
 		END`,
-	}
-	for _, m := range migrations {
-		if _, err := tx.Exec(m); err != nil {
-			return fmt.Errorf("migration v5: %w", err)
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v5: %w", err)
 			}
 		}
 		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 5); err != nil {
@@ -353,6 +354,89 @@ func (db *DB) migrate() error {
 		_, err := db.conn.Exec(`ALTER TABLE executions ADD COLUMN working_dir TEXT DEFAULT ''`)
 		if err != nil {
 			return fmt.Errorf("migration v7: %w", err)
+		}
+	}
+
+	if version < 8 {
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v8 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		migrations := []string{
+			`ALTER TABLE app_settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'vscode-dark'`,
+			`ALTER TABLE app_settings ADD COLUMN last_dark_theme TEXT NOT NULL DEFAULT 'vscode-dark'`,
+			`ALTER TABLE app_settings ADD COLUMN last_light_theme TEXT NOT NULL DEFAULT 'vscode-light'`,
+			`ALTER TABLE app_settings ADD COLUMN custom_themes TEXT NOT NULL DEFAULT '[]'`,
+			`ALTER TABLE app_settings ADD COLUMN ui_font TEXT NOT NULL DEFAULT 'Inter'`,
+			`ALTER TABLE app_settings ADD COLUMN mono_font TEXT NOT NULL DEFAULT 'JetBrains Mono'`,
+			`ALTER TABLE app_settings ADD COLUMN density TEXT NOT NULL DEFAULT 'comfortable'`,
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v8: %w", err)
+			}
+		}
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 8); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v8: %w", err)
+		}
+	}
+
+	if version < 9 {
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v9 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		// Read existing row to preserve values
+		var locale, terminal, theme, lastDarkTheme, lastLightTheme, customThemes, uiFont, monoFont, density string
+		err = tx.QueryRow(`SELECT locale, terminal, theme, last_dark_theme, last_light_theme,
+			custom_themes, ui_font, mono_font, density FROM app_settings LIMIT 1`).
+			Scan(&locale, &terminal, &theme, &lastDarkTheme, &lastLightTheme,
+				&customThemes, &uiFont, &monoFont, &density)
+		hasRow := err == nil
+
+		migrations := []string{
+			`DROP TABLE app_settings`,
+			`CREATE TABLE app_settings (data TEXT NOT NULL DEFAULT '{}')`,
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v9: %w", err)
+			}
+		}
+
+		// Re-insert existing data as JSON, or insert defaults
+		s := AppSettings{
+			Locale: "en", Terminal: "", Theme: "vscode-dark",
+			LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
+			CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		}
+		if hasRow {
+			s = AppSettings{
+				Locale: locale, Terminal: terminal, Theme: theme,
+				LastDarkTheme: lastDarkTheme, LastLightTheme: lastLightTheme,
+				CustomThemes: customThemes, UIFont: uiFont, MonoFont: monoFont, Density: density,
+			}
+		}
+		data, err := json.Marshal(s)
+		if err != nil {
+			return fmt.Errorf("marshal settings for migration: %w", err)
+		}
+		if _, err := tx.Exec(`INSERT INTO app_settings (data) VALUES (?)`, string(data)); err != nil {
+			return fmt.Errorf("migration v9 insert: %w", err)
+		}
+
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 9); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v9: %w", err)
 		}
 	}
 
@@ -485,6 +569,168 @@ func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 		}
 	}
 	return cmds, nil
+}
+
+func (db *DB) GetCommandsByIDs(ids []string) ([]Command, error) {
+	if len(ids) == 0 {
+		return []Command{}, nil
+	}
+
+	cmds := make([]Command, 0, len(ids))
+	for _, id := range ids {
+		cmd, err := db.GetCommand(id)
+		if err != nil {
+			// Skip missing commands, continue with others
+			continue
+		}
+		cmds = append(cmds, cmd)
+	}
+	return cmds, nil
+}
+
+// ImportCommands imports commands from import data structure
+func (db *DB) ImportCommands(commands []struct {
+	Title         string
+	Description   string
+	ScriptContent string
+	Tags          []string
+	Variables     []VariableDefinition
+	Presets       []struct {
+		Name   string
+		Values map[string]string
+	}
+	CategoryName string
+}) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Build category name -> ID map
+	categoryMap := make(map[string]string)
+	rows, err := tx.Query("SELECT id, name FROM categories")
+	if err != nil {
+		return fmt.Errorf("query categories: %w", err)
+	}
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan category: %w", err)
+		}
+		categoryMap[name] = id
+	}
+	rows.Close()
+
+	for _, importedCmd := range commands {
+		// Determine category ID
+		var categoryID *string
+		if importedCmd.CategoryName != "" {
+			if catID, exists := categoryMap[importedCmd.CategoryName]; exists {
+				categoryID = &catID
+			} else {
+				// Create new category
+				newCatID := uuid.New().String()
+				now := time.Now()
+				_, err := tx.Exec(
+					"INSERT INTO categories (id, name, icon, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+					newCatID, importedCmd.CategoryName, "", "", now, now,
+				)
+				if err != nil {
+					return fmt.Errorf("create category: %w", err)
+				}
+				categoryID = &newCatID
+				categoryMap[importedCmd.CategoryName] = newCatID
+			}
+		}
+
+		// Create command
+		cmdID := uuid.New().String()
+		now := time.Now()
+
+		var catIDPtr interface{}
+		if categoryID != nil {
+			catIDPtr = *categoryID
+		}
+
+		var titlePtr, descPtr interface{}
+		if importedCmd.Title != "" {
+			titlePtr = importedCmd.Title
+		}
+		if importedCmd.Description != "" {
+			descPtr = importedCmd.Description
+		}
+
+		// Get max position in category
+		var maxPos int
+		if categoryID != nil {
+			_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM commands WHERE category_id = ?", *categoryID).Scan(&maxPos)
+		} else {
+			_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM commands WHERE category_id IS NULL OR category_id = ''").Scan(&maxPos)
+		}
+
+		_, err = tx.Exec(
+			`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			cmdID, titlePtr, descPtr, importedCmd.ScriptContent, catIDPtr, maxPos+1, now, now,
+		)
+		if err != nil {
+			return fmt.Errorf("insert command: %w", err)
+		}
+
+		// Save tags
+		for _, tag := range importedCmd.Tags {
+			if tag == "" {
+				continue
+			}
+			_, err := tx.Exec("INSERT OR IGNORE INTO tags (name) VALUES (?)", tag)
+			if err != nil {
+				return fmt.Errorf("upsert tag: %w", err)
+			}
+			_, err = tx.Exec(
+				"INSERT OR IGNORE INTO command_tags (command_id, tag_id) SELECT ?, id FROM tags WHERE name = ?",
+				cmdID, tag,
+			)
+			if err != nil {
+				return fmt.Errorf("link tag: %w", err)
+			}
+		}
+
+		// Save variables
+		for i, v := range importedCmd.Variables {
+			_, err := tx.Exec(
+				"INSERT INTO variable_definitions (command_id, name, description, example, default_expr, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+				cmdID, v.Name, v.Description, v.Example, v.Default, i,
+			)
+			if err != nil {
+				return fmt.Errorf("insert variable: %w", err)
+			}
+		}
+
+		// Save presets
+		for _, p := range importedCmd.Presets {
+			presetID := uuid.New().String()
+			_, err := tx.Exec(
+				"INSERT INTO variable_presets (id, command_id, name, position) VALUES (?, ?, ?, ?)",
+				presetID, cmdID, p.Name, 0,
+			)
+			if err != nil {
+				return fmt.Errorf("insert preset: %w", err)
+			}
+			for k, v := range p.Values {
+				_, err := tx.Exec(
+					"INSERT INTO preset_values (preset_id, variable_name, value) VALUES (?, ?, ?)",
+					presetID, k, v,
+				)
+				if err != nil {
+					return fmt.Errorf("insert preset value: %w", err)
+				}
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (db *DB) GetCommand(id string) (Command, error) {
@@ -1107,25 +1353,39 @@ func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 // ---------------------------------------------------------------------------
 
 func (db *DB) GetSettings() (AppSettings, error) {
-	var s AppSettings
-	err := db.conn.QueryRow("SELECT locale, terminal FROM app_settings LIMIT 1").Scan(&s.Locale, &s.Terminal)
+	defaults := AppSettings{
+		Locale: "en", Terminal: "",
+		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
+		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+	}
+
+	var raw string
+	err := db.conn.QueryRow(`SELECT data FROM app_settings LIMIT 1`).Scan(&raw)
 	if err == sql.ErrNoRows {
-		// Auto-insert defaults
-		s = AppSettings{Locale: "en", Terminal: ""}
-		_, err = db.conn.Exec("INSERT INTO app_settings (locale, terminal) VALUES (?, ?)", s.Locale, s.Terminal)
+		data, _ := json.Marshal(defaults)
+		_, err = db.conn.Exec(`INSERT INTO app_settings (data) VALUES (?)`, string(data))
 		if err != nil {
-			return s, fmt.Errorf("insert default settings: %w", err)
+			return defaults, fmt.Errorf("insert default settings: %w", err)
 		}
-		return s, nil
+		return defaults, nil
 	}
 	if err != nil {
-		return s, fmt.Errorf("get settings: %w", err)
+		return defaults, fmt.Errorf("get settings: %w", err)
+	}
+
+	var s AppSettings
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		return defaults, fmt.Errorf("unmarshal settings: %w", err)
 	}
 	return s, nil
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
-	_, err := db.conn.Exec("UPDATE app_settings SET locale = ?, terminal = ?", s.Locale, s.Terminal)
+	data, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("marshal settings: %w", err)
+	}
+	_, err = db.conn.Exec(`UPDATE app_settings SET data = ?`, string(data))
 	if err != nil {
 		return fmt.Errorf("update settings: %w", err)
 	}
@@ -1157,7 +1417,12 @@ func (db *DB) ResetAll() error {
 		}
 	}
 
-	if _, err := tx.Exec("INSERT INTO app_settings (locale, terminal) VALUES ('en', '')"); err != nil {
+	defaultSettings, _ := json.Marshal(AppSettings{
+		Locale: "en", Terminal: "", Theme: "vscode-dark",
+		LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
+		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+	})
+	if _, err := tx.Exec(`INSERT INTO app_settings (data) VALUES (?)`, string(defaultSettings)); err != nil {
 		return fmt.Errorf("insert default settings: %w", err)
 	}
 

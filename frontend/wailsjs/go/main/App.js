@@ -26,6 +26,10 @@ export function DeletePreset(arg1, arg2) {
   return window['go']['main']['App']['DeletePreset'](arg1, arg2);
 }
 
+export function ExportCommands(arg1) {
+  return window['go']['main']['App']['ExportCommands'](arg1);
+}
+
 export function GetAvailableTerminals() {
   return window['go']['main']['App']['GetAvailableTerminals']();
 }
@@ -66,6 +70,10 @@ export function GetVariables(arg1) {
   return window['go']['main']['App']['GetVariables'](arg1);
 }
 
+export function ImportCommands() {
+  return window['go']['main']['App']['ImportCommands']();
+}
+
 export function RenameCommand(arg1, arg2) {
   return window['go']['main']['App']['RenameCommand'](arg1, arg2);
 }
@@ -94,12 +102,16 @@ export function SavePreset(arg1, arg2, arg3) {
   return window['go']['main']['App']['SavePreset'](arg1, arg2, arg3);
 }
 
+export function SaveThemeTemplate() {
+  return window['go']['main']['App']['SaveThemeTemplate']();
+}
+
 export function SearchCommands(arg1) {
   return window['go']['main']['App']['SearchCommands'](arg1);
 }
 
-export function SetSettings(arg1, arg2) {
-  return window['go']['main']['App']['SetSettings'](arg1, arg2);
+export function SetSettings(arg1) {
+  return window['go']['main']['App']['SetSettings'](arg1);
 }
 
 export function UpdateCategory(arg1, arg2, arg3, arg4) {

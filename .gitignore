@@ -8,3 +8,10 @@ cmdex
 
 todos/
 .cursor/rules/claude-mem-context.mdc
+
+.planning/*
+
+!.planning/PROJECT.md
+!.planning/ROADMAP.md
+!.planning/codebase/
+!.planning/milestones/
