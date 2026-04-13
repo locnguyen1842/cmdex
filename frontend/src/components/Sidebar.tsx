@@ -376,40 +376,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             <TooltipContent>{t('sidebar.settings')}</TooltipContent>
           </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={async () => {
-                try {
-                  const ids = commands.map(c => c.id);
-                  await ExportCommands(ids);
-                } catch (e) {
-                  console.error('Export failed:', e);
-                }
-              }}>
-                <Download className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('sidebar.exportCommands')}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={async () => {
-                try {
-                  const imported = await ImportCommands();
-                  if (imported && imported.length > 0 && onImport) {
-                    onImport();
-                  }
-                } catch (e) {
-                  console.error('Import failed:', e);
-                }
-              }}>
-                <Upload className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('sidebar.importCommands')}</TooltipContent>
-          </Tooltip>
-
           <Popover>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -486,6 +452,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                           </ContextMenuItem>
                           <ContextMenuItem onSelect={() => onEditCategory(cat)}>
                             <Pencil className="size-3.5" /> {t('sidebar.editCategory')}
+                          </ContextMenuItem>
+                          <ContextMenuItem onSelect={async () => {
+                            try {
+                              await ExportCommands(commands.filter(c => c.categoryId === cat.id).map(c => c.id));
+                            } catch (e) { console.error('Export failed:', e); }
+                          }}>
+                            <Download className="size-3.5" /> {t('sidebar.exportCommands')}
+                          </ContextMenuItem>
+                          <ContextMenuItem onSelect={async () => {
+                            try {
+                              const imported = await ImportCommands();
+                              if (imported && imported.length > 0 && onImport) onImport();
+                            } catch (e) { console.error('Import failed:', e); }
+                          }}>
+                            <Upload className="size-3.5" /> {t('sidebar.importCommands')}
                           </ContextMenuItem>
                           <ContextMenuItem
                             onSelect={() => setPendingDeleteCat(cat.id)}
@@ -590,6 +571,21 @@ const Sidebar: React.FC<SidebarProps> = ({
             </ContextMenuItem>
             <ContextMenuItem onSelect={onAddCategory}>
               <Group className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={async () => {
+              try {
+                await ExportCommands(commands.map(c => c.id));
+              } catch (e) { console.error('Export failed:', e); }
+            }}>
+              <Download className="size-3.5" /> {t('sidebar.exportCommands')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={async () => {
+              try {
+                const imported = await ImportCommands();
+                if (imported && imported.length > 0 && onImport) onImport();
+              } catch (e) { console.error('Import failed:', e); }
+            }}>
+              <Upload className="size-3.5" /> {t('sidebar.importCommands')}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
