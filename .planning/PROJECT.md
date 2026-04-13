@@ -30,6 +30,17 @@ Users can organize commands by project context, execute them with variable place
 
 - No automated tests exist
 
+## Current Milestone: v1.1 Build Settings Window
+
+**Goal:** Convert the settings dialog from a popup/modal to a proper application Window using Wails window management.
+
+**Target features:**
+- Settings opened as separate application window (not dialog/popup)
+- Window management (position, size, minimize, maximize)
+- Settings persist and apply in real-time
+
+---
+
 ## Next Milestone Goals (v2.0)
 
 - **Workspaces** — Named project contexts with sidebar switcher
@@ -49,6 +60,23 @@ Users can organize commands by project context, execute them with variable place
 - Cloud: Cloudflare services (Workers + D1 + R2)
 - Auth: OAuth only (Google/GitHub)
 - Desktop: Wails v2
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
 
