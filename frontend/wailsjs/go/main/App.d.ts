@@ -56,7 +56,7 @@ export function SaveThemeTemplate():Promise<void>;
 
 export function SearchCommands(arg1:string):Promise<Array<main.Command>>;
 
-export function SetSettings(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string,arg9:string):Promise<void>;
+export function SetSettings(arg1:string):Promise<void>;
 
 export function UpdateCategory(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.Category>;
 

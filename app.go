@@ -389,15 +389,12 @@ func (a *App) GetAvailableTerminals() []TerminalInfo {
 	return a.executor.GetAvailableTerminals()
 }
 
-func (a *App) SetSettings(
-	locale, terminal, theme, lastDarkTheme, lastLightTheme,
-	customThemes, uiFont, monoFont, density string,
-) error {
-	return a.db.SetSettings(AppSettings{
-		Locale: locale, Terminal: terminal,
-		Theme: theme, LastDarkTheme: lastDarkTheme, LastLightTheme: lastLightTheme,
-		CustomThemes: customThemes, UIFont: uiFont, MonoFont: monoFont, Density: density,
-	})
+func (a *App) SetSettings(jsonStr string) error {
+	var s AppSettings
+	if err := json.Unmarshal([]byte(jsonStr), &s); err != nil {
+		return fmt.Errorf("invalid settings JSON: %w", err)
+	}
+	return a.db.SetSettings(s)
 }
 
 // ========== Search ==========

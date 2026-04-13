@@ -192,10 +192,17 @@ function App() {
     const flushSettings = () => {
         if (!settingsLoadedRef.current) return;
         const r = settingsRef.current;
-        SetSettings(
-            r.locale, r.terminal, r.theme, r.lastDarkTheme, r.lastLightTheme,
-            JSON.stringify(r.customThemes), r.uiFont, r.monoFont, r.density,
-        ).catch(() => {});
+        SetSettings(JSON.stringify({
+            locale: r.locale,
+            terminal: r.terminal,
+            theme: r.theme,
+            lastDarkTheme: r.lastDarkTheme,
+            lastLightTheme: r.lastLightTheme,
+            customThemes: JSON.stringify(r.customThemes),
+            uiFont: r.uiFont,
+            monoFont: r.monoFont,
+            density: r.density,
+        })).catch(() => {});
     };
 
     useEffect(() => {
@@ -424,11 +431,17 @@ function App() {
                 );
 
                 // Persist migrated values to DB (covers the case where migration pulled from localStorage)
-                SetSettings(
-                    settingsRef.current.locale, settingsRef.current.terminal,
-                    migratedTheme, migratedLastDark, migratedLastLight,
-                    JSON.stringify(migratedCustomThemes), migratedUiFont, migratedMonoFont, migratedDensity,
-                ).catch(() => {});
+                SetSettings(JSON.stringify({
+                    locale: settingsRef.current.locale,
+                    terminal: settingsRef.current.terminal,
+                    theme: migratedTheme,
+                    lastDarkTheme: migratedLastDark,
+                    lastLightTheme: migratedLastLight,
+                    customThemes: JSON.stringify(migratedCustomThemes),
+                    uiFont: migratedUiFont,
+                    monoFont: migratedMonoFont,
+                    density: migratedDensity,
+                })).catch(() => {});
 
                 // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
                 void osDefaultTheme;

@@ -157,6 +157,7 @@
 
   /* Density variables — comfortable baseline (overridden by [data-density] blocks) */
   --density-font-size-base: 13px;
+  --density-font-size-sm: 11px;
   --density-padding-sm: 4px;
   --density-padding-md: 8px;
   --density-gap-sm: 4px;
@@ -447,6 +448,7 @@
 
 [data-density="compact"] {
   --density-font-size-base: 12px;
+  --density-font-size-sm: 10px;
   --density-padding-sm: 4px;
   --density-padding-md: 4px;
   --density-gap-sm: 4px;
@@ -455,6 +457,7 @@
 
 [data-density="spacious"] {
   --density-font-size-base: 14px;
+  --density-font-size-sm: 12px;
   --density-padding-sm: 8px;
   --density-padding-md: 12px;
   --density-gap-sm: 8px;
@@ -534,8 +537,8 @@ body {
 .tab-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px 0 14px;
+  gap: var(--density-gap-sm);
+  padding: 0 var(--density-gap-sm) 0 var(--density-gap-md);
   height: 100%;
   font-size: 13px;
   cursor: pointer;
@@ -620,7 +623,7 @@ body {
 }
 
 .sidebar-header {
-  padding: 16px 16px 8px;
+  padding: var(--density-padding-md) var(--density-padding-md) var(--density-padding-sm);
   border-bottom: 1px solid var(--border);
   --wails-draggable: drag;
 }
@@ -628,7 +631,7 @@ body {
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--density-gap-md);
   margin-bottom: 8px;
 }
 
@@ -653,7 +656,7 @@ body {
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 8px;
+  padding: var(--density-padding-sm);
 }
 
 .sidebar-section {
@@ -664,7 +667,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px;
+  padding: var(--density-padding-sm);
   cursor: pointer;
   border-radius: 4px;
   transition: background var(--transition-fast);
@@ -676,8 +679,8 @@ body {
 .sidebar-section-header .section-left {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: var(--density-gap-sm);
+  font-size: var(--density-font-size-sm, 11px);
   font-weight: 700;
   color: var(--muted-foreground);
   text-transform: uppercase;
@@ -694,11 +697,11 @@ body {
 .sidebar-section-header .section-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--density-gap-sm);
 }
 
 .sidebar-commands {
-  margin-left: 12px;
+  margin-left: var(--density-padding-md);
   border-left: 1px solid var(--border);
   padding-left: 0;
   margin-top: 1px;
@@ -708,8 +711,8 @@ body {
 .command-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: var(--density-gap-sm);
+  padding: var(--density-padding-sm);
   margin: 1px 0;
   cursor: pointer;
   border-radius: 0 4px 4px 0;
@@ -799,13 +802,13 @@ body {
 }
 
 .sidebar-footer {
-  padding: 8px;
+  padding: var(--density-padding-sm);
   border-top: 1px solid var(--border);
 }
 
 .sidebar-footer .add-btns {
   display: flex;
-  gap: 4px;
+  gap: var(--density-gap-sm);
 }
 
 /* ========== Main Content ========== */
@@ -829,7 +832,7 @@ body {
 }
 
 .main-header {
-  padding: 8px 20px;
+  padding: var(--density-padding-sm) 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -843,7 +846,7 @@ body {
 .main-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 24px;
+  padding: calc(var(--density-padding-md) * 3);
 }
 
 .main-body.command-tab-shell {
@@ -1573,12 +1576,12 @@ textarea.inline-edit-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: var(--density-padding-sm) var(--density-padding-md);
   border-bottom: 1px solid var(--border);
 }
 
 .history-pane-title {
-  font-size: 11px;
+  font-size: var(--density-font-size-sm, 11px);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -1595,7 +1598,7 @@ textarea.inline-edit-input {
 }
 
 .history-item {
-  padding: 8px 10px;
+  padding: var(--density-padding-sm) var(--density-gap-md);
   border-radius: var(--radius);
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -1608,13 +1611,13 @@ textarea.inline-edit-input {
 .history-item-top {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--density-gap-sm);
 }
 
 .history-item-cmd {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--density-font-size-sm, 11px);
   color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;

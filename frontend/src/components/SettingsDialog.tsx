@@ -246,16 +246,17 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       setSavedDensity(draftDensity);
       // Fetch current DB values only for fields not managed by this dialog
       const current = await GetSettings();
-      await SetSettings(
-        locale, terminal,
-        draftTheme,
-        current?.lastDarkTheme || 'vscode-dark',
-        current?.lastLightTheme || 'vscode-light',
-        current?.customThemes || '[]',
-        draftUiFont,
-        draftMonoFont,
-        draftDensity,
-      );
+      await SetSettings(JSON.stringify({
+        locale,
+        terminal,
+        theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      }));
       setSavedLocale(locale);
       setSavedTerminal(terminal);
       toast.success(t('settings.title'));
