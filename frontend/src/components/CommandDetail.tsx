@@ -919,7 +919,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         )}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>
+                    <TooltipContent side="right">
                       {isExecuting ? (
                         t('commandDetail.running')
                       ) : (
