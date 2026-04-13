@@ -242,18 +242,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     originX: number;
     originY: number;
   }>({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 });
-  const [dialogOffset, setDialogOffset] = useState<{ x: number; y: number } | null>(null);
-
-  // Determine OS mode for the sync indicator
-  const [osDark, setOsDark] = useState(() =>
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => setOsDark(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!open) return;
@@ -290,11 +279,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const ds = dragStateRef.current;
-      if (!ds.dragging) return;
-      setDialogOffset({
-        x: ds.originX + (e.clientX - ds.startX),
-        y: ds.originY + (e.clientY - ds.startY),
-      });
+      if (!ds.dragging || !dialogRef.current) return;
+      const newX = ds.originX + (e.clientX - ds.startX);
+      const newY = ds.originY + (e.clientY - ds.startY);
+      dragOffsetRef.current = { x: newX, y: newY };
+      dialogRef.current.style.transform = `translate(calc(-50% + ${newX}px), calc(-50% + ${newY}px))`;
     };
     const onUp = () => { dragStateRef.current.dragging = false; };
     document.addEventListener('mousemove', onMove);
@@ -312,10 +301,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     ds.dragging = true;
     ds.startX = e.clientX;
     ds.startY = e.clientY;
-    ds.originX = dialogOffset?.x ?? 0;
-    ds.originY = dialogOffset?.y ?? 0;
+    ds.originX = dragOffsetRef.current.x;
+    ds.originY = dragOffsetRef.current.y;
     e.preventDefault();
-  }, [dialogOffset]);
+  }, []);
 
   const isDirty =
     locale !== savedLocale ||
@@ -366,9 +355,16 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setDraftMonoFont(savedMonoFont);
     setDraftDensity(savedDensity);
     setConfirmReset(false);
-    setDialogOffset(null);
+    // Reset drag offset
+    if (dialogRef.current) dialogRef.current.style.transform = '';
+    dragOffsetRef.current = { x: 0, y: 0 };
+    // Revert live preview to saved values
+    onThemeChange(savedTheme);
+    onUiFontChange?.(savedUiFont);
+    onMonoFontChange?.(savedMonoFont);
+    onDensityChange?.(savedDensity);
     onClose();
-  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, onClose]);
+  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, onClose, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -426,9 +422,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       <DialogContent
         ref={dialogRef}
         className="max-w-md"
-        style={dialogOffset ? {
-          transform: `translate(calc(-50% + ${dialogOffset.x}px), calc(-50% + ${dialogOffset.y}px))`,
-        } : undefined}
       >
         <DialogHeader
           className="select-none cursor-grab active:cursor-grabbing"
@@ -478,7 +471,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     themeType={th.type}
                     dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
                     selected={draftTheme === th.id}
-                    onSelect={() => setDraftTheme(th.id)}
+                    onSelect={() => { setDraftTheme(th.id); onThemeChange(th.id); }}
                   />
                 ))}
               </div>
@@ -502,7 +495,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         ct.colors.foreground ?? '#ccc',
                       ]}
                       selected={draftTheme === ct.id}
-                      onSelect={() => setDraftTheme(ct.id)}
+                      onSelect={() => { setDraftTheme(ct.id); onThemeChange(ct.id); }}
                       onRemove={() => onRemoveCustomTheme?.(ct.id)}
                     />
                   ))}
@@ -544,11 +537,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               onChange={handleImportFile}
             />
 
-            {/* OS sync indicator */}
-            <p className="text-[11px] text-muted-foreground">
-              {osDark ? '🌙' : '☀️'} {t('settings.osPreference')}
-            </p>
-
             {/* Density selector */}
             <div className="pt-3 border-t border-border space-y-2">
               <p className="text-sm font-medium">{t('settings.densityLabel')}</p>
@@ -557,7 +545,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 variant="outline"
                 size="sm"
                 value={draftDensity}
-                onValueChange={(v) => v && setDraftDensity(v)}
+                onValueChange={(v) => { if (v) { setDraftDensity(v); onDensityChange?.(v); } }}
                 className="w-full"
               >
                 <ToggleGroupItem value="compact" className="flex-1">
@@ -588,6 +576,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     onSelect={() => {
                       setCustomFontValue('');
                       setDraftUiFont(font.id);
+                      onUiFontChange?.(font.id);
                     }}
                   />
                 ))}
@@ -597,7 +586,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   selected={!!customFontValue}
                   onChange={(v) => {
                     setCustomFontValue(v);
-                    if (v) setDraftUiFont(v);
+                    if (v) { setDraftUiFont(v); onUiFontChange?.(v); }
                   }}
                 />
               </div>
@@ -613,7 +602,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     fontFamily={font.fontFamily}
                     label={font.label}
                     selected={draftMonoFont === font.id}
-                    onSelect={() => setDraftMonoFont(font.id)}
+                    onSelect={() => { setDraftMonoFont(font.id); onMonoFontChange?.(font.id); }}
                   />
                 ))}
               </div>
