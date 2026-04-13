@@ -1357,6 +1357,7 @@ func (db *DB) GetSettings() (AppSettings, error) {
 		Locale: "en", Terminal: "",
 		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		WindowX: -1, WindowY: -1, WindowWidth: 640, WindowHeight: 520,
 	}
 
 	var raw string

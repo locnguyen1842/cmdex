@@ -105,6 +105,10 @@ type AppSettings struct {
 	UIFont         string `json:"uiFont"`         // UI sans-serif font
 	MonoFont       string `json:"monoFont"`       // monospace font for editor
 	Density        string `json:"density"`        // layout density: compact | comfortable | spacious
+	WindowX        int    `json:"windowX"`        // settings window X position, -1 = unset (center on open)
+	WindowY        int    `json:"windowY"`        // settings window Y position
+	WindowWidth    int    `json:"windowWidth"`    // settings window width, min 480
+	WindowHeight   int    `json:"windowHeight"`   // settings window height, min 400
 }
 
 // ExecutionResult holds the output of a command execution
