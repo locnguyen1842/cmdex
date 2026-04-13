@@ -1,4 +1,8 @@
 build/bin
+build/ios/
+build/linux/
+build/windows/
+.task/
 node_modules
 frontend/dist
 cmdex
