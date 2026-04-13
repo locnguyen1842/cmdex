@@ -1261,7 +1261,6 @@ textarea.inline-edit-input {
 .script-edit-tooltip-row span {
   color: var(--foreground);
 }
-/* 
 
 /* Highlighted textarea overlay */
 .highlighted-textarea-wrap {
