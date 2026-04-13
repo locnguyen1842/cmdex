@@ -59,6 +59,7 @@ import {
     UpdatePreset,
     DeletePreset,
     GetSettings,
+    SetSettings,
     RunInTerminal,
     ReorderCommand,
     GetScriptBody,
@@ -84,6 +85,7 @@ type ModalState =
     | { type: 'confirmClearHistory' }
     | { type: 'settings' };
 
+// Legacy localStorage keys — used only for one-time migration on startup
 const THEME_STORAGE_KEY = 'cmdex-theme';
 const LAST_DARK_THEME_KEY = 'cmdex-last-dark-theme';
 const LAST_LIGHT_THEME_KEY = 'cmdex-last-light-theme';
@@ -164,46 +166,49 @@ function App() {
     const pendingCloseTabIdRef = useRef<string | null>(null);
     const mainContentRef = useRef<HTMLDivElement>(null);
 
-    const [theme, setTheme] = useState<string>(() => {
-        const saved = localStorage.getItem(THEME_STORAGE_KEY);
-        if (saved) return saved;
-        // No saved preference — use OS preference
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const lastDark = localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark';
-        const lastLight = localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light';
-        return prefersDark ? lastDark : lastLight;
+    const [theme, setTheme] = useState<string>('vscode-dark');
+    const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+    const [uiFont, setUiFont] = useState<string>('Inter');
+    const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
+    const [density, setDensity] = useState<string>('comfortable');
+
+    // Tracks whether settings have been loaded from DB (prevents premature saves before load)
+    const settingsLoadedRef = useRef(false);
+    // Holds latest settings values for use in flushSettings without stale closures
+    const settingsRef = useRef({
+        locale: 'en',
+        terminal: '',
+        theme: 'vscode-dark',
+        lastDarkTheme: 'vscode-dark',
+        lastLightTheme: 'vscode-light',
+        customThemes: [] as CustomTheme[],
+        uiFont: 'Inter',
+        monoFont: 'JetBrains Mono',
+        density: 'comfortable',
     });
 
-    const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => {
-        try {
-            const stored = localStorage.getItem(CUSTOM_THEMES_KEY);
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    });
-
-    const [uiFont, setUiFont] = useState<string>(() =>
-        localStorage.getItem(FONT_SANS_KEY) || 'Inter'
-    );
-    const [monoFont, setMonoFont] = useState<string>(() =>
-        localStorage.getItem(FONT_MONO_KEY) || 'JetBrains Mono'
-    );
-    const [density, setDensity] = useState<string>(() =>
-        localStorage.getItem(DENSITY_KEY) || 'comfortable'
-    );
+    // Persists all current settings from settingsRef to the DB.
+    // Must only be called after settingsLoadedRef.current === true.
+    const flushSettings = () => {
+        if (!settingsLoadedRef.current) return;
+        const r = settingsRef.current;
+        SetSettings(
+            r.locale, r.terminal, r.theme, r.lastDarkTheme, r.lastLightTheme,
+            JSON.stringify(r.customThemes), r.uiFont, r.monoFont, r.density,
+        ).catch(() => {});
+    };
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem(THEME_STORAGE_KEY, theme);
-    }, [theme]);
+        settingsRef.current.theme = theme;
+        flushSettings();
+    }, [theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
         const handler = (e: MediaQueryListEvent) => {
-            const lastDark = localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark';
-            const lastLight = localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light';
-            setTheme(e.matches ? lastDark : lastLight);
+            const r = settingsRef.current;
+            setTheme(e.matches ? r.lastDarkTheme : r.lastLightTheme);
         };
         mediaQuery.addEventListener('change', handler);
         return () => mediaQuery.removeEventListener('change', handler);
@@ -214,18 +219,21 @@ function App() {
             ? 'system-ui, -apple-system, sans-serif'
             : `'${uiFont}', system-ui, sans-serif`;
         document.documentElement.style.setProperty('--font-sans', fontValue);
-        localStorage.setItem(FONT_SANS_KEY, uiFont);
-    }, [uiFont]);
+        settingsRef.current.uiFont = uiFont;
+        flushSettings();
+    }, [uiFont]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         document.documentElement.style.setProperty('--font-mono', `'${monoFont}', monospace`);
-        localStorage.setItem(FONT_MONO_KEY, monoFont);
-    }, [monoFont]);
+        settingsRef.current.monoFont = monoFont;
+        flushSettings();
+    }, [monoFont]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         document.documentElement.setAttribute('data-density', density);
-        localStorage.setItem(DENSITY_KEY, density);
-    }, [density]);
+        settingsRef.current.density = density;
+        flushSettings();
+    }, [density]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
     useEffect(() => {
@@ -350,11 +358,85 @@ function App() {
         loadHistory();
         GetSettings()
             .then((s) => {
-                if (s?.locale && s.locale !== i18n.language) {
+                if (!s) return;
+
+                // One-time localStorage migration: if DB has the default value but localStorage
+                // has a user-set value, prefer the localStorage value (migrates existing users).
+                const migrateField = (dbVal: string, lsKey: string, defaultVal: string): string => {
+                    if (dbVal === defaultVal) {
+                        return localStorage.getItem(lsKey) || defaultVal;
+                    }
+                    return dbVal;
+                };
+
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const osDefaultTheme = prefersDark ? 'vscode-dark' : 'vscode-light';
+                const migratedTheme = migrateField(s.theme, THEME_STORAGE_KEY, 'vscode-dark') ||
+                    (prefersDark
+                        ? (localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark')
+                        : (localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light'));
+                const migratedLastDark = migrateField(s.lastDarkTheme, LAST_DARK_THEME_KEY, 'vscode-dark');
+                const migratedLastLight = migrateField(s.lastLightTheme, LAST_LIGHT_THEME_KEY, 'vscode-light');
+                const migratedUiFont = migrateField(s.uiFont, FONT_SANS_KEY, 'Inter');
+                const migratedMonoFont = migrateField(s.monoFont, FONT_MONO_KEY, 'JetBrains Mono');
+                const migratedDensity = migrateField(s.density, DENSITY_KEY, 'comfortable');
+
+                let migratedCustomThemes: CustomTheme[] = [];
+                try {
+                    if (s.customThemes && s.customThemes !== '[]') {
+                        migratedCustomThemes = JSON.parse(s.customThemes);
+                    } else {
+                        const lsCustom = localStorage.getItem(CUSTOM_THEMES_KEY);
+                        if (lsCustom) migratedCustomThemes = JSON.parse(lsCustom);
+                    }
+                } catch { /* ignore parse errors */ }
+
+                // Apply locale
+                if (s.locale && s.locale !== i18n.language) {
                     i18n.changeLanguage(s.locale);
                 }
+
+                // Sync settingsRef before marking loaded (prevents flushSettings no-ops)
+                settingsRef.current = {
+                    locale: s.locale || 'en',
+                    terminal: s.terminal || '',
+                    theme: migratedTheme,
+                    lastDarkTheme: migratedLastDark,
+                    lastLightTheme: migratedLastLight,
+                    customThemes: migratedCustomThemes,
+                    uiFont: migratedUiFont,
+                    monoFont: migratedMonoFont,
+                    density: migratedDensity,
+                };
+                settingsLoadedRef.current = true;
+
+                // Apply state — each setter triggers its effect which calls flushSettings
+                setTheme(migratedTheme);
+                setCustomThemes(migratedCustomThemes);
+                setUiFont(migratedUiFont);
+                setMonoFont(migratedMonoFont);
+                setDensity(migratedDensity);
+
+                // Clear legacy localStorage keys after successful migration
+                [THEME_STORAGE_KEY, LAST_DARK_THEME_KEY, LAST_LIGHT_THEME_KEY,
+                 CUSTOM_THEMES_KEY, FONT_SANS_KEY, FONT_MONO_KEY, DENSITY_KEY].forEach(k =>
+                    localStorage.removeItem(k)
+                );
+
+                // Persist migrated values to DB (covers the case where migration pulled from localStorage)
+                SetSettings(
+                    settingsRef.current.locale, settingsRef.current.terminal,
+                    migratedTheme, migratedLastDark, migratedLastLight,
+                    JSON.stringify(migratedCustomThemes), migratedUiFont, migratedMonoFont, migratedDensity,
+                ).catch(() => {});
+
+                // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
+                void osDefaultTheme;
             })
-            .catch(() => {});
+            .catch(() => {
+                // Allow saves even if initial load fails
+                settingsLoadedRef.current = true;
+            });
         setOpenTabs([]);
         setActiveTabId(null);
     }, [loadData, loadHistory]);
@@ -1019,9 +1101,9 @@ function App() {
         const themeType = builtIn?.type ?? custom?.type ?? 'dark';
 
         if (themeType === 'dark') {
-            localStorage.setItem(LAST_DARK_THEME_KEY, newTheme);
+            settingsRef.current.lastDarkTheme = newTheme;
         } else {
-            localStorage.setItem(LAST_LIGHT_THEME_KEY, newTheme);
+            settingsRef.current.lastLightTheme = newTheme;
         }
 
         // Apply custom theme CSS vars if it's an imported theme
@@ -1048,22 +1130,24 @@ function App() {
     const handleImportTheme = useCallback((newTheme: CustomTheme) => {
         setCustomThemes(prev => {
             const updated = [...prev, newTheme];
-            localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(updated));
+            settingsRef.current.customThemes = updated;
+            flushSettings();
             return updated;
         });
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRemoveCustomTheme = useCallback((themeId: string) => {
         setCustomThemes(prev => {
             const updated = prev.filter(t => t.id !== themeId);
-            localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(updated));
+            settingsRef.current.customThemes = updated;
+            flushSettings();
             // If the removed theme was active, fall back to vscode-dark
             if (theme === themeId) {
                 handleThemeChange('vscode-dark');
             }
             return updated;
         });
-    }, [theme, handleThemeChange]);
+    }, [theme, handleThemeChange]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleUiFontChange = useCallback((font: string) => {
         setUiFont(font);
