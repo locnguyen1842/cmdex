@@ -65,6 +65,7 @@ import {
     GetScriptBody,
     ResetAllData,
     ReorderPresets,
+    ShowSettingsWindow,
 } from '../bindings/cmdex/app';
 import i18n from './i18n';
 import {
@@ -455,7 +456,27 @@ function App() {
     }, [loadData, loadHistory]);
 
     useEffect(() => {
-        const cleanup = Events.On('open-settings', () => setModal({ type: 'settings' }));
+        const cleanup = Events.On('open-settings', async () => {
+            await ShowSettingsWindow();
+        });
+        return cleanup;
+    }, []);
+
+    useEffect(() => {
+        const cleanup = Events.On('settings-changed', (settings: any) => {
+            if (!settings) return;
+            setTheme(settings.theme || 'vscode-dark');
+            setUiFont(settings.uiFont || 'Inter');
+            setMonoFont(settings.monoFont || 'JetBrains Mono');
+            setDensity(settings.density || 'comfortable');
+            if (settings.customThemes) {
+                try {
+                    setCustomThemes(JSON.parse(settings.customThemes));
+                } catch {
+                    setCustomThemes([]);
+                }
+            }
+        });
         return cleanup;
     }, []);
 
