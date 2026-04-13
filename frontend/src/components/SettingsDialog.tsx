@@ -233,17 +233,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     return isKnown ? '' : (uiFont || '');
   });
 
-  // Drag state for repositioning the dialog
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const dragStateRef = useRef<{
-    dragging: boolean;
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-  }>({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 });
-  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
+  // Load terminals + locale/terminal settings when dialog opens
   useEffect(() => {
     if (!open) return;
     GetAvailableTerminals()
@@ -259,8 +249,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         setTerminal(term);
       })
       .catch(() => {});
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Sync appearance draft/saved state from current prop values when dialog opens
+  // Snapshot appearance props when dialog opens — intentionally NOT re-running when
+  // theme/uiFont/monoFont/density change (those are live-preview updates while open)
+  useEffect(() => {
+    if (!open) return;
     setSavedTheme(theme);
     setDraftTheme(theme);
     setSavedUiFont(uiFont);
@@ -269,42 +263,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setDraftMonoFont(monoFont);
     setSavedDensity(density);
     setDraftDensity(density);
-
-    // Sync custom font value
     const isKnown = UI_FONTS.some(f => f.id === (uiFont || 'Inter'));
     setCustomFontValue(isKnown ? '' : (uiFont || ''));
-  }, [open, theme, uiFont, monoFont, density]);
-
-  // Global mouse event listeners for drag behavior
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const ds = dragStateRef.current;
-      if (!ds.dragging || !dialogRef.current) return;
-      const newX = ds.originX + (e.clientX - ds.startX);
-      const newY = ds.originY + (e.clientY - ds.startY);
-      dragOffsetRef.current = { x: newX, y: newY };
-      dialogRef.current.style.transform = `translate(calc(-50% + ${newX}px), calc(-50% + ${newY}px))`;
-    };
-    const onUp = () => { dragStateRef.current.dragging = false; };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-  }, []);
-
-  const handleHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // Only drag on left-click on the header itself (not on inner buttons)
-    if (e.button !== 0) return;
-    const ds = dragStateRef.current;
-    ds.dragging = true;
-    ds.startX = e.clientX;
-    ds.startY = e.clientY;
-    ds.originX = dragOffsetRef.current.x;
-    ds.originY = dragOffsetRef.current.y;
-    e.preventDefault();
-  }, []);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isDirty =
     locale !== savedLocale ||
@@ -327,17 +288,17 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       setSavedUiFont(draftUiFont);
       setSavedMonoFont(draftMonoFont);
       setSavedDensity(draftDensity);
-      // Fetch current DB values to preserve non-locale/terminal settings
+      // Fetch current DB values only for fields not managed by this dialog
       const current = await GetSettings();
       await SetSettings(
         locale, terminal,
-        current?.theme || 'vscode-dark',
+        draftTheme,
         current?.lastDarkTheme || 'vscode-dark',
         current?.lastLightTheme || 'vscode-light',
         current?.customThemes || '[]',
-        current?.uiFont || 'Inter',
-        current?.monoFont || 'JetBrains Mono',
-        current?.density || 'comfortable',
+        draftUiFont,
+        draftMonoFont,
+        draftDensity,
       );
       setSavedLocale(locale);
       setSavedTerminal(terminal);
@@ -355,9 +316,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setDraftMonoFont(savedMonoFont);
     setDraftDensity(savedDensity);
     setConfirmReset(false);
-    // Reset drag offset
-    if (dialogRef.current) dialogRef.current.style.transform = '';
-    dragOffsetRef.current = { x: 0, y: 0 };
     // Revert live preview to saved values
     onThemeChange(savedTheme);
     onUiFontChange?.(savedUiFont);
@@ -419,14 +377,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         handleCancel();
       }
     }}>
-      <DialogContent
-        ref={dialogRef}
-        className="max-w-md"
-      >
-        <DialogHeader
-          className="select-none cursor-grab active:cursor-grabbing"
-          onMouseDown={handleHeaderMouseDown}
-        >
+      <DialogContent className="max-w-md">
+        <DialogHeader>
           <DialogTitle>{t('settings.title')}</DialogTitle>
           <DialogDescription className="sr-only">{t('settings.description')}</DialogDescription>
         </DialogHeader>
