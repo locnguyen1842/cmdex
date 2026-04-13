@@ -1,0 +1,519 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Upload, Download, X } from 'lucide-react';
+import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } from '../../bindings/cmdex/app';
+import { TerminalInfo } from '../types';
+import { toast } from 'sonner';
+import { THEMES, CustomTheme } from '../App';
+import { EventsEmit } from '../../wailsjs/runtime/runtime';
+
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+];
+
+const UI_FONTS = [
+  { id: 'Inter', label: 'Inter', fontFamily: "'Inter', system-ui, sans-serif" },
+  { id: 'Geist', label: 'Geist', fontFamily: "'Geist', system-ui, sans-serif" },
+  { id: 'Nunito', label: 'Nunito', fontFamily: "'Nunito', system-ui, sans-serif" },
+  { id: 'System Default', label: 'System Default', fontFamily: 'system-ui, -apple-system, sans-serif' },
+] as const;
+
+const MONO_FONTS = [
+  { id: 'JetBrains Mono', label: 'JetBrains Mono', fontFamily: "'JetBrains Mono', monospace" },
+  { id: 'Fira Code', label: 'Fira Code', fontFamily: "'Fira Code', monospace" },
+  { id: 'Cascadia Code', label: 'Cascadia Code', fontFamily: "'Cascadia Code', monospace" },
+  { id: 'Monaspace Neon', label: 'Monaspace Neon', fontFamily: "'Monaspace Neon', monospace" },
+] as const;
+
+const THEME_DOTS: Record<string, [string, string, string, string]> = {
+  'vscode-dark':        ['#1e1e1e', '#252526', '#007acc', '#d4d4d4'],
+  'vscode-light':       ['#ffffff', '#f3f3f3', '#0078d4', '#1f1f1f'],
+  'monokai':            ['#272822', '#2d2e27', '#a6e22e', '#f8f8f2'],
+  'tokyo-night':        ['#1a1b26', '#16161e', '#7aa2f7', '#a9b1d6'],
+  'one-dark':           ['#282c34', '#21252b', '#61afef', '#abb2bf'],
+  'classic':            ['#0f0f14', '#16161e', '#7c6aef', '#e8e8f0'],
+  'catppuccin-mocha':   ['#1e1e2e', '#181825', '#cba6f7', '#cdd6f4'],
+  'dracula':            ['#282a36', '#21222c', '#bd93f9', '#f8f8f2'],
+};
+
+interface ThemeSwatchProps {
+  id: string;
+  label: string;
+  themeType: 'dark' | 'light';
+  dots: [string, string, string, string];
+  selected: boolean;
+  onSelect: () => void;
+  onRemove?: () => void;
+}
+
+function ThemeSwatch({ label, themeType, dots, selected, onSelect, onRemove }: ThemeSwatchProps) {
+  return (
+    <button
+      type="button"
+      role="button"
+      aria-label={`${label} theme, ${themeType}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={[
+        'relative flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full',
+        selected
+          ? 'ring-2 ring-primary ring-offset-1 border-primary'
+          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
+      ].join(' ')}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {dots.map((color, i) => (
+            <span
+              key={i}
+              className="w-3 h-3 rounded-full inline-block flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+        <span className="text-[10px] leading-none text-muted-foreground ml-1">
+          {themeType === 'dark' ? '🌙' : '☀️'}
+        </span>
+      </div>
+      <span className="text-[11px] mt-1 truncate leading-[1.3] pr-4">{label}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={`Remove ${label} theme`}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="absolute bottom-2 right-2 text-[14px] leading-none text-muted-foreground hover:text-destructive transition-colors"
+        >
+          <X size={12} />
+        </button>
+      )}
+    </button>
+  );
+}
+
+interface FontPickerCardProps {
+  fontFamily: string;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function FontPickerCard({ fontFamily, label, selected, onSelect }: FontPickerCardProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={[
+        'flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full min-h-[56px]',
+        selected
+          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary'
+          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
+      ].join(' ')}
+    >
+      <span style={{ fontFamily }} className="text-sm font-medium truncate leading-[1.4]">{label}</span>
+      <span style={{ fontFamily }} className="text-[11px] text-muted-foreground mt-0.5 leading-[1.3]">
+        ABC abc 012
+      </span>
+    </button>
+  );
+}
+
+export interface SettingsPageProps {
+  theme: string;
+  onThemeChange: (theme: string) => void;
+  onResetAllData?: () => Promise<void>;
+  customThemes?: CustomTheme[];
+  onImportTheme?: (theme: CustomTheme) => void;
+  onRemoveCustomTheme?: (themeId: string) => void;
+  uiFont?: string;
+  monoFont?: string;
+  density?: string;
+  onUiFontChange?: (font: string) => void;
+  onMonoFontChange?: (font: string) => void;
+  onDensityChange?: (density: string) => void;
+}
+
+const SettingsPage: React.FC<SettingsPageProps> = ({
+  theme,
+  onThemeChange,
+  onResetAllData,
+  customThemes,
+  onImportTheme,
+  onRemoveCustomTheme,
+  uiFont = 'Inter',
+  monoFont = 'JetBrains Mono',
+  density = 'comfortable',
+  onUiFontChange,
+  onMonoFontChange,
+  onDensityChange,
+}) => {
+  const { t, i18n } = useTranslation();
+  const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
+  const [savedLocale, setSavedLocale] = useState('en');
+  const [savedTerminal, setSavedTerminal] = useState('');
+  const [locale, setLocale] = useState('en');
+  const [terminal, setTerminal] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [draftTheme, setDraftTheme] = useState(theme);
+  const [draftUiFont, setDraftUiFont] = useState(uiFont);
+  const [draftMonoFont, setDraftMonoFont] = useState(monoFont);
+  const [draftDensity, setDraftDensity] = useState(density);
+
+  const [savedTheme, setSavedTheme] = useState(theme);
+  const [savedUiFont, setSavedUiFont] = useState(uiFont);
+  const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
+  const [savedDensity, setSavedDensity] = useState(density);
+
+  useEffect(() => {
+    GetAvailableTerminals()
+      .then(t => setTerminals(t || []))
+      .catch(() => setTerminals([]));
+    GetSettings()
+      .then(s => {
+        const loc = s?.locale || i18n.language || 'en';
+        const term = s?.terminal || '';
+        setSavedLocale(loc);
+        setSavedTerminal(term);
+        setLocale(loc);
+        setTerminal(term);
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setSavedTheme(theme);
+    setDraftTheme(theme);
+    setSavedUiFont(uiFont);
+    setDraftUiFont(uiFont);
+    setSavedMonoFont(monoFont);
+    setDraftMonoFont(monoFont);
+    setSavedDensity(density);
+    setDraftDensity(density);
+  }, [theme, uiFont, monoFont, density]);
+
+  const isDirty =
+    locale !== savedLocale ||
+    terminal !== savedTerminal ||
+    draftTheme !== savedTheme ||
+    draftUiFont !== savedUiFont ||
+    draftMonoFont !== savedMonoFont ||
+    draftDensity !== savedDensity;
+
+  const handleSave = useCallback(async () => {
+    try {
+      await i18n.changeLanguage(locale);
+      onThemeChange(draftTheme);
+      onUiFontChange?.(draftUiFont);
+      onMonoFontChange?.(draftMonoFont);
+      onDensityChange?.(draftDensity);
+      setSavedTheme(draftTheme);
+      setSavedUiFont(draftUiFont);
+      setSavedMonoFont(draftMonoFont);
+      setSavedDensity(draftDensity);
+      const current = await GetSettings();
+      const newSettings = {
+        locale,
+        terminal,
+        theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      await SetSettings(JSON.stringify(newSettings));
+      EventsEmit('settings-changed', newSettings);
+      setSavedLocale(locale);
+      setSavedTerminal(terminal);
+      toast.success(t('settings.title'));
+    } catch (err) {
+      console.error('Failed to persist settings:', err);
+    }
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
+
+  const handleCancel = useCallback(() => {
+    setLocale(savedLocale);
+    setTerminal(savedTerminal);
+    setDraftTheme(savedTheme);
+    setDraftUiFont(savedUiFont);
+    setDraftMonoFont(savedMonoFont);
+    setDraftDensity(savedDensity);
+    setConfirmReset(false);
+    onThemeChange(savedTheme);
+    onUiFontChange?.(savedUiFont);
+    onMonoFontChange?.(savedMonoFont);
+    onDensityChange?.(savedDensity);
+  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
+
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (
+          typeof data.name !== 'string' ||
+          (data.type !== 'dark' && data.type !== 'light') ||
+          typeof data.colors?.background !== 'string' ||
+          typeof data.colors?.foreground !== 'string' ||
+          typeof data.colors?.primary !== 'string'
+        ) {
+          toast.error(t('settings.themeInvalidFields'));
+          return;
+        }
+        const newTheme: CustomTheme = {
+          id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: data.name,
+          type: data.type,
+          colors: data.colors,
+        };
+        onImportTheme?.(newTheme);
+        onThemeChange(newTheme.id);
+        setDraftTheme(newTheme.id);
+        setSavedTheme(newTheme.id);
+        toast.success(t('settings.themeApplied', { name: data.name }));
+      } catch {
+        toast.error(t('settings.themeInvalidJson'));
+      }
+    };
+    reader.readAsText(file);
+  }, [onImportTheme, onThemeChange, t]);
+
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await SaveThemeTemplate();
+    } catch (err) {
+      toast.error(String(err));
+    }
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <Tabs defaultValue="appearance" className="w-full">
+        <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-border h-auto mb-0">
+          <TabsTrigger
+            value="appearance"
+            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+          >
+            {t('settings.tabs.appearance')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="typography"
+            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+          >
+            {t('settings.tabs.typography')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="general"
+            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+          >
+            {t('settings.tabs.general')}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="appearance" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground">{t('settings.builtinThemes')}</p>
+            <div
+              role="group"
+              aria-label="Theme selection"
+              className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-0.5"
+            >
+              {THEMES.map(th => (
+                <ThemeSwatch
+                  key={th.id}
+                  id={th.id}
+                  label={th.label}
+                  themeType={th.type}
+                  dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
+                  selected={draftTheme === th.id}
+                  onSelect={() => { setDraftTheme(th.id); onThemeChange(th.id); }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {(customThemes?.length ?? 0) > 0 && (
+            <div className="pt-3 border-t border-border space-y-2">
+              <p className="text-[11px] text-muted-foreground">{t('settings.customThemes')}</p>
+              <div role="group" aria-label="Custom themes" className="grid grid-cols-2 gap-2">
+                {customThemes!.map(ct => (
+                  <ThemeSwatch
+                    key={ct.id}
+                    id={ct.id}
+                    label={ct.name}
+                    themeType={ct.type}
+                    dots={[
+                      ct.colors.background ?? '#888',
+                      ct.colors.card ?? '#666',
+                      ct.colors.primary ?? '#aaa',
+                      ct.colors.foreground ?? '#ccc',
+                    ]}
+                    selected={draftTheme === ct.id}
+                    onSelect={() => { setDraftTheme(ct.id); onThemeChange(ct.id); }}
+                    onRemove={() => onRemoveCustomTheme?.(ct.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={14} className="mr-1" />
+              {t('settings.importTheme')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="flex-1"
+              onClick={handleDownloadTemplate}
+            >
+              <Download size={14} className="mr-1.5" />
+              {t('settings.downloadTemplate')}
+            </Button>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            aria-hidden="true"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+
+          <div className="pt-3 border-t border-border space-y-2">
+            <p className="text-sm font-medium">{t('settings.densityLabel')}</p>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={draftDensity}
+              onValueChange={(v) => { if (v) { setDraftDensity(v); onDensityChange?.(v); } }}
+              className="w-full"
+            >
+              <ToggleGroupItem value="compact" className="flex-1">
+                {t('settings.densityCompact')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="comfortable" className="flex-1">
+                {t('settings.densityComfortable')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="spacious" className="flex-1">
+                {t('settings.densitySpacious')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="typography" className="space-y-5 pt-4">
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">{t('settings.uiFontLabel')}</Label>
+            <div role="group" aria-label="UI font selection" className="grid grid-cols-2 gap-2">
+              {UI_FONTS.map(font => (
+                <FontPickerCard
+                  key={font.id}
+                  fontFamily={font.fontFamily}
+                  label={font.label}
+                  selected={draftUiFont === font.id}
+                  onSelect={() => {
+                    setDraftUiFont(font.id);
+                    onUiFontChange?.(font.id);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">{t('settings.monoFontLabel')}</Label>
+            <div role="group" aria-label="Editor font selection" className="grid grid-cols-2 gap-2">
+              {MONO_FONTS.map(font => (
+                <FontPickerCard
+                  key={font.id}
+                  fontFamily={font.fontFamily}
+                  label={font.label}
+                  selected={draftMonoFont === font.id}
+                  onSelect={() => { setDraftMonoFont(font.id); onMonoFontChange?.(font.id); }}
+                />
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="general" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label>{t('settings.language')}</Label>
+            <Select value={locale} onValueChange={setLocale}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map(lang => (
+                  <SelectItem key={lang.code} value={lang.code}>{lang.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('settings.terminal')}</Label>
+            <Select value={terminal || '__auto__'} onValueChange={(v) => setTerminal(v === '__auto__' ? '' : v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__auto__">
+                  <span className="italic opacity-70">{t('settings.terminalAuto')}</span>
+                </SelectItem>
+                {terminals.map(term => (
+                  <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {onResetAllData && (
+            <div className="border-t border-border pt-4 mt-2">
+              <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
+                onClick={() => setConfirmReset(true)}
+              >
+                {t('settings.resetAllData')}
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" onClick={handleCancel}>
+          {t('settings.close')}
+        </Button>
+        <Button disabled={!isDirty} onClick={handleSave}>
+          {t('settings.save')}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default SettingsPage;
