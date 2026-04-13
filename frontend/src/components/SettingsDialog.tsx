@@ -134,43 +134,6 @@ function FontPickerCard({ fontFamily, label, selected, onSelect }: FontPickerCar
   );
 }
 
-interface CustomFontCardProps {
-  value: string;
-  onChange: (v: string) => void;
-  selected: boolean;
-}
-
-function CustomFontCard({ value, onChange, selected }: CustomFontCardProps) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      onChange(v.trim());
-    }, 300);
-  };
-
-  return (
-    <div
-      className={[
-        'flex flex-col p-2 rounded-md border text-left min-h-[56px]',
-        selected && value.trim()
-          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary'
-          : 'border-border bg-card',
-      ].join(' ')}
-    >
-      <span className="text-[11px] text-muted-foreground mb-1 leading-[1.3]">Custom</span>
-      <input
-        type="text"
-        defaultValue={value}
-        placeholder="Custom font name…"
-        onChange={handleChange}
-        className="bg-transparent text-sm w-full outline-none placeholder:text-muted-foreground/50"
-      />
-    </div>
-  );
-}
 
 interface SettingsDialogProps {
   open: boolean;
@@ -227,11 +190,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
   const [savedDensity, setSavedDensity] = useState(density);
 
-  const [customFontValue, setCustomFontValue] = useState<string>(() => {
-    // If the stored uiFont is not in the curated list, it's a custom value
-    const isKnown = UI_FONTS.some(f => f.id === (uiFont || 'Inter'));
-    return isKnown ? '' : (uiFont || '');
-  });
 
   // Load terminals + locale/terminal settings when dialog opens
   useEffect(() => {
@@ -263,8 +221,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setDraftMonoFont(monoFont);
     setSavedDensity(density);
     setDraftDensity(density);
-    const isKnown = UI_FONTS.some(f => f.id === (uiFont || 'Inter'));
-    setCustomFontValue(isKnown ? '' : (uiFont || ''));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isDirty =
@@ -524,23 +480,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     key={font.id}
                     fontFamily={font.fontFamily}
                     label={font.label}
-                    selected={draftUiFont === font.id && !customFontValue}
+                    selected={draftUiFont === font.id}
                     onSelect={() => {
-                      setCustomFontValue('');
                       setDraftUiFont(font.id);
                       onUiFontChange?.(font.id);
                     }}
                   />
                 ))}
-                {/* Custom font input card — last in grid per D-02 */}
-                <CustomFontCard
-                  value={customFontValue}
-                  selected={!!customFontValue}
-                  onChange={(v) => {
-                    setCustomFontValue(v);
-                    if (v) { setDraftUiFont(v); onUiFontChange?.(v); }
-                  }}
-                />
               </div>
             </div>
 
