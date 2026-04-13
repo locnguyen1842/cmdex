@@ -215,11 +215,34 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [confirmReset, setConfirmReset] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Draft state for appearance settings (not applied until Save)
+  const [draftTheme, setDraftTheme] = useState(theme);
+  const [draftUiFont, setDraftUiFont] = useState(uiFont);
+  const [draftMonoFont, setDraftMonoFont] = useState(monoFont);
+  const [draftDensity, setDraftDensity] = useState(density);
+
+  // Saved/committed counterparts to track what is currently applied
+  const [savedTheme, setSavedTheme] = useState(theme);
+  const [savedUiFont, setSavedUiFont] = useState(uiFont);
+  const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
+  const [savedDensity, setSavedDensity] = useState(density);
+
   const [customFontValue, setCustomFontValue] = useState<string>(() => {
     // If the stored uiFont is not in the curated list, it's a custom value
     const isKnown = UI_FONTS.some(f => f.id === (uiFont || 'Inter'));
     return isKnown ? '' : (uiFont || '');
   });
+
+  // Drag state for repositioning the dialog
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<{
+    dragging: boolean;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  }>({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+  const [dialogOffset, setDialogOffset] = useState<{ x: number; y: number } | null>(null);
 
   // Determine OS mode for the sync indicator
   const [osDark, setOsDark] = useState(() =>
@@ -247,13 +270,74 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         setTerminal(term);
       })
       .catch(() => {});
-  }, [open]);
 
-  const isDirty = locale !== savedLocale || terminal !== savedTerminal;
+    // Sync appearance draft/saved state from current prop values when dialog opens
+    setSavedTheme(theme);
+    setDraftTheme(theme);
+    setSavedUiFont(uiFont);
+    setDraftUiFont(uiFont);
+    setSavedMonoFont(monoFont);
+    setDraftMonoFont(monoFont);
+    setSavedDensity(density);
+    setDraftDensity(density);
+
+    // Sync custom font value
+    const isKnown = UI_FONTS.some(f => f.id === (uiFont || 'Inter'));
+    setCustomFontValue(isKnown ? '' : (uiFont || ''));
+  }, [open, theme, uiFont, monoFont, density]);
+
+  // Global mouse event listeners for drag behavior
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const ds = dragStateRef.current;
+      if (!ds.dragging) return;
+      setDialogOffset({
+        x: ds.originX + (e.clientX - ds.startX),
+        y: ds.originY + (e.clientY - ds.startY),
+      });
+    };
+    const onUp = () => { dragStateRef.current.dragging = false; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  const handleHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag on left-click on the header itself (not on inner buttons)
+    if (e.button !== 0) return;
+    const ds = dragStateRef.current;
+    ds.dragging = true;
+    ds.startX = e.clientX;
+    ds.startY = e.clientY;
+    ds.originX = dialogOffset?.x ?? 0;
+    ds.originY = dialogOffset?.y ?? 0;
+    e.preventDefault();
+  }, [dialogOffset]);
+
+  const isDirty =
+    locale !== savedLocale ||
+    terminal !== savedTerminal ||
+    draftTheme !== savedTheme ||
+    draftUiFont !== savedUiFont ||
+    draftMonoFont !== savedMonoFont ||
+    draftDensity !== savedDensity;
 
   const handleSave = useCallback(async () => {
     try {
       await i18n.changeLanguage(locale);
+      // Commit appearance changes by calling parent callbacks
+      onThemeChange(draftTheme);
+      onUiFontChange?.(draftUiFont);
+      onMonoFontChange?.(draftMonoFont);
+      onDensityChange?.(draftDensity);
+      // Update saved appearance state
+      setSavedTheme(draftTheme);
+      setSavedUiFont(draftUiFont);
+      setSavedMonoFont(draftMonoFont);
+      setSavedDensity(draftDensity);
       // Fetch current DB values to preserve non-locale/terminal settings
       const current = await GetSettings();
       await SetSettings(
@@ -272,7 +356,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     } catch (err) {
       console.error('Failed to persist settings:', err);
     }
-  }, [locale, terminal, i18n, t]);
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
+
+  const handleCancel = useCallback(() => {
+    setLocale(savedLocale);
+    setTerminal(savedTerminal);
+    setDraftTheme(savedTheme);
+    setDraftUiFont(savedUiFont);
+    setDraftMonoFont(savedMonoFont);
+    setDraftDensity(savedDensity);
+    setConfirmReset(false);
+    setDialogOffset(null);
+    onClose();
+  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, onClose]);
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -301,7 +397,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           colors: data.colors,
         };
         onImportTheme?.(newTheme);
+        // Import = immediate apply; sync both draft and saved to keep dialog state consistent
         onThemeChange(newTheme.id);
+        setDraftTheme(newTheme.id);
+        setSavedTheme(newTheme.id);
         toast.success(t('settings.themeApplied', { name: data.name }));
       } catch {
         toast.error(t('settings.themeInvalidJson'));
@@ -321,14 +420,20 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={(o) => {
       if (!o) {
-        setLocale(savedLocale);
-        setTerminal(savedTerminal);
-        setConfirmReset(false);
-        onClose();
+        handleCancel();
       }
     }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent
+        ref={dialogRef}
+        className="max-w-md"
+        style={dialogOffset ? {
+          transform: `translate(calc(-50% + ${dialogOffset.x}px), calc(-50% + ${dialogOffset.y}px))`,
+        } : undefined}
+      >
+        <DialogHeader
+          className="select-none cursor-grab active:cursor-grabbing"
+          onMouseDown={handleHeaderMouseDown}
+        >
           <DialogTitle>{t('settings.title')}</DialogTitle>
           <DialogDescription className="sr-only">{t('settings.description')}</DialogDescription>
         </DialogHeader>
@@ -372,8 +477,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     label={th.label}
                     themeType={th.type}
                     dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
-                    selected={theme === th.id}
-                    onSelect={() => onThemeChange(th.id)}
+                    selected={draftTheme === th.id}
+                    onSelect={() => setDraftTheme(th.id)}
                   />
                 ))}
               </div>
@@ -396,8 +501,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         ct.colors.primary ?? '#aaa',
                         ct.colors.foreground ?? '#ccc',
                       ]}
-                      selected={theme === ct.id}
-                      onSelect={() => onThemeChange(ct.id)}
+                      selected={draftTheme === ct.id}
+                      onSelect={() => setDraftTheme(ct.id)}
                       onRemove={() => onRemoveCustomTheme?.(ct.id)}
                     />
                   ))}
@@ -451,8 +556,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 type="single"
                 variant="outline"
                 size="sm"
-                value={density || 'comfortable'}
-                onValueChange={(v) => v && onDensityChange?.(v)}
+                value={draftDensity}
+                onValueChange={(v) => v && setDraftDensity(v)}
                 className="w-full"
               >
                 <ToggleGroupItem value="compact" className="flex-1">
@@ -479,10 +584,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     key={font.id}
                     fontFamily={font.fontFamily}
                     label={font.label}
-                    selected={uiFont === font.id && !customFontValue}
+                    selected={draftUiFont === font.id && !customFontValue}
                     onSelect={() => {
                       setCustomFontValue('');
-                      onUiFontChange?.(font.id);
+                      setDraftUiFont(font.id);
                     }}
                   />
                 ))}
@@ -492,7 +597,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   selected={!!customFontValue}
                   onChange={(v) => {
                     setCustomFontValue(v);
-                    if (v) onUiFontChange?.(v);
+                    if (v) setDraftUiFont(v);
                   }}
                 />
               </div>
@@ -507,8 +612,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     key={font.id}
                     fontFamily={font.fontFamily}
                     label={font.label}
-                    selected={monoFont === font.id}
-                    onSelect={() => onMonoFontChange?.(font.id)}
+                    selected={draftMonoFont === font.id}
+                    onSelect={() => setDraftMonoFont(font.id)}
                   />
                 ))}
               </div>
@@ -563,7 +668,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </TabsContent>
         </Tabs>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => { setLocale(savedLocale); setTerminal(savedTerminal); setConfirmReset(false); onClose(); }}>
+          <Button variant="outline" onClick={handleCancel}>
             {t('settings.close')}
           </Button>
           <Button disabled={!isDirty} onClick={handleSave}>
