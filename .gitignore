@@ -15,3 +15,5 @@ todos/
 !.planning/ROADMAP.md
 !.planning/codebase/
 !.planning/milestones/
+
+.claude/settings.local.json
