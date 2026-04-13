@@ -34,6 +34,7 @@
     "editCommand": "Edit command",
     "copyCommand": "Copy",
     "copied": "Copied!",
+    "copyFailed": "Failed to copy to clipboard",
     "arguments": "Arguments",
     "presets": "Presets",
     "managePresets": "Manage Presets",

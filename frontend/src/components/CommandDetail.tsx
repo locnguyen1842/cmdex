@@ -623,8 +623,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       })
-      .catch(() => setCopied(false));
-  }, [showPreview, getResolvedScript, scriptBody]);
+      .catch(() => {
+        setCopied(false);
+        toast.error(t('commandDetail.copyFailed'));
+      });
+  }, [showPreview, getResolvedScript, scriptBody, t]);
 
   const TAG_REGEX = /^[a-zA-Z0-9-]+$/;
 
