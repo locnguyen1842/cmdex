@@ -35,7 +35,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
   const widthRef = useRef(width);
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined as unknown as ReturnType<typeof setTimeout>);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => { widthRef.current = width; }, [width]);
 
   const collapse = useCallback(() => {
