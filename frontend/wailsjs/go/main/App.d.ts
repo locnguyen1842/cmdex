@@ -54,9 +54,13 @@ export function SavePreset(arg1:string,arg2:string,arg3:Record<string, string>):
 
 export function SaveThemeTemplate():Promise<void>;
 
+export function SaveSettingsWindowState(arg1:number,arg2:number,arg3:number,arg4:number):Promise<void>;
+
 export function SearchCommands(arg1:string):Promise<Array<main.Command>>;
 
 export function SetSettings(arg1:string):Promise<void>;
+
+export function ShowSettingsWindow():Promise<void>;
 
 export function UpdateCategory(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.Category>;
 

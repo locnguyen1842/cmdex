@@ -106,12 +106,20 @@ export function SaveThemeTemplate() {
   return window['go']['main']['App']['SaveThemeTemplate']();
 }
 
+export function SaveSettingsWindowState(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SaveSettingsWindowState'](arg1, arg2, arg3, arg4);
+}
+
 export function SearchCommands(arg1) {
   return window['go']['main']['App']['SearchCommands'](arg1);
 }
 
 export function SetSettings(arg1) {
   return window['go']['main']['App']['SetSettings'](arg1);
+}
+
+export function ShowSettingsWindow() {
+  return window['go']['main']['App']['ShowSettingsWindow']();
 }
 
 export function UpdateCategory(arg1, arg2, arg3, arg4) {
