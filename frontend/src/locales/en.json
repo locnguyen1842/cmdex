@@ -223,7 +223,9 @@
     "densityComfortable": "Comfortable",
     "densitySpacious": "Spacious",
     "uiFontLabel": "UI Font",
-    "monoFontLabel": "Editor Font"
+    "monoFontLabel": "Editor Font",
+    "importTheme": "Import theme",
+    "downloadTemplate": "Download template"
   },
   "resizablePanel": {
     "expandPanel": "Expand panel",
