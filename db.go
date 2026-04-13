@@ -17,7 +17,7 @@ type DB struct {
 	dataDir string
 }
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -354,6 +354,35 @@ func (db *DB) migrate() error {
 		_, err := db.conn.Exec(`ALTER TABLE executions ADD COLUMN working_dir TEXT DEFAULT ''`)
 		if err != nil {
 			return fmt.Errorf("migration v7: %w", err)
+		}
+	}
+
+	if version < 8 {
+		tx, err := db.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration v8 tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		migrations := []string{
+			`ALTER TABLE app_settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'vscode-dark'`,
+			`ALTER TABLE app_settings ADD COLUMN last_dark_theme TEXT NOT NULL DEFAULT 'vscode-dark'`,
+			`ALTER TABLE app_settings ADD COLUMN last_light_theme TEXT NOT NULL DEFAULT 'vscode-light'`,
+			`ALTER TABLE app_settings ADD COLUMN custom_themes TEXT NOT NULL DEFAULT '[]'`,
+			`ALTER TABLE app_settings ADD COLUMN ui_font TEXT NOT NULL DEFAULT 'Inter'`,
+			`ALTER TABLE app_settings ADD COLUMN mono_font TEXT NOT NULL DEFAULT 'JetBrains Mono'`,
+			`ALTER TABLE app_settings ADD COLUMN density TEXT NOT NULL DEFAULT 'comfortable'`,
+		}
+		for _, m := range migrations {
+			if _, err := tx.Exec(m); err != nil {
+				return fmt.Errorf("migration v8: %w", err)
+			}
+		}
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 8); err != nil {
+			return fmt.Errorf("update schema version: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration v8: %w", err)
 		}
 	}
 
@@ -1271,11 +1300,25 @@ func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 
 func (db *DB) GetSettings() (AppSettings, error) {
 	var s AppSettings
-	err := db.conn.QueryRow("SELECT locale, terminal FROM app_settings LIMIT 1").Scan(&s.Locale, &s.Terminal)
+	err := db.conn.QueryRow(`
+		SELECT locale, terminal, theme, last_dark_theme, last_light_theme,
+		       custom_themes, ui_font, mono_font, density
+		FROM app_settings LIMIT 1
+	`).Scan(&s.Locale, &s.Terminal, &s.Theme, &s.LastDarkTheme, &s.LastLightTheme,
+		&s.CustomThemes, &s.UIFont, &s.MonoFont, &s.Density)
 	if err == sql.ErrNoRows {
 		// Auto-insert defaults
-		s = AppSettings{Locale: "en", Terminal: ""}
-		_, err = db.conn.Exec("INSERT INTO app_settings (locale, terminal) VALUES (?, ?)", s.Locale, s.Terminal)
+		s = AppSettings{
+			Locale: "en", Terminal: "",
+			Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
+			CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		}
+		_, err = db.conn.Exec(`
+			INSERT INTO app_settings
+			(locale, terminal, theme, last_dark_theme, last_light_theme, custom_themes, ui_font, mono_font, density)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			s.Locale, s.Terminal, s.Theme, s.LastDarkTheme, s.LastLightTheme,
+			s.CustomThemes, s.UIFont, s.MonoFont, s.Density)
 		if err != nil {
 			return s, fmt.Errorf("insert default settings: %w", err)
 		}
@@ -1288,7 +1331,14 @@ func (db *DB) GetSettings() (AppSettings, error) {
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
-	_, err := db.conn.Exec("UPDATE app_settings SET locale = ?, terminal = ?", s.Locale, s.Terminal)
+	_, err := db.conn.Exec(`
+		UPDATE app_settings SET
+		    locale = ?, terminal = ?, theme = ?, last_dark_theme = ?,
+		    last_light_theme = ?, custom_themes = ?, ui_font = ?,
+		    mono_font = ?, density = ?`,
+		s.Locale, s.Terminal, s.Theme, s.LastDarkTheme,
+		s.LastLightTheme, s.CustomThemes, s.UIFont,
+		s.MonoFont, s.Density)
 	if err != nil {
 		return fmt.Errorf("update settings: %w", err)
 	}
@@ -1320,7 +1370,9 @@ func (db *DB) ResetAll() error {
 		}
 	}
 
-	if _, err := tx.Exec("INSERT INTO app_settings (locale, terminal) VALUES ('en', '')"); err != nil {
+	if _, err := tx.Exec(`INSERT INTO app_settings
+		(locale, terminal, theme, last_dark_theme, last_light_theme, custom_themes, ui_font, mono_font, density)
+		VALUES ('en', '', 'vscode-dark', 'vscode-dark', 'vscode-light', '[]', 'Inter', 'JetBrains Mono', 'comfortable')`); err != nil {
 		return fmt.Errorf("insert default settings: %w", err)
 	}
 

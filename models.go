@@ -96,8 +96,15 @@ type TerminalInfo struct {
 
 // AppSettings stores user preferences
 type AppSettings struct {
-	Locale   string `json:"locale"`
-	Terminal string `json:"terminal"` // terminal ID; empty = auto-detect
+	Locale         string `json:"locale"`
+	Terminal       string `json:"terminal"`       // terminal ID; empty = auto-detect
+	Theme          string `json:"theme"`          // active theme ID
+	LastDarkTheme  string `json:"lastDarkTheme"`  // last used dark theme
+	LastLightTheme string `json:"lastLightTheme"` // last used light theme
+	CustomThemes   string `json:"customThemes"`   // JSON-encoded []CustomTheme; empty string = "[]"
+	UIFont         string `json:"uiFont"`         // UI sans-serif font
+	MonoFont       string `json:"monoFont"`       // monospace font for editor
+	Density        string `json:"density"`        // layout density: compact | comfortable | spacious
 }
 
 // ExecutionResult holds the output of a command execution
