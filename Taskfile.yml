@@ -1,0 +1,40 @@
+version: '3'
+
+vars:
+  APP_NAME: cmdex
+  BIN_DIR: bin
+
+tasks:
+  build:
+    summary: Builds the application for current platform
+    deps:
+      - build:frontend
+    cmds:
+      - go build -tags production -trimpath -ldflags="-w -s" -o {{.BIN_DIR}}/{{.APP_NAME}}
+
+  build:frontend:
+    dir: frontend
+    deps:
+      - install:deps
+      - generate:bindings
+    cmds:
+      - pnpm run build
+
+  install:deps:
+    dir: frontend
+    cmds:
+      - pnpm install
+
+  generate:bindings:
+    cmds:
+      - wails3 generate bindings -clean=true
+
+  dev:
+    summary: Run in development mode
+    cmds:
+      - wails3 dev
+
+  run:
+    summary: Run the built binary
+    cmds:
+      - ./{{.BIN_DIR}}/{{.APP_NAME}}

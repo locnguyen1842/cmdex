@@ -9,38 +9,34 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // App struct holds application state
 type App struct {
-	ctx      context.Context
+	app      *application.App
 	db       *DB
 	executor *Executor
 }
 
-// NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
-}
-
-// startup is called when the app starts
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+// ServiceStartup is called when the app starts
+func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	a.app = application.Get()
 	db, err := NewDB()
 	if err != nil {
-		wailsruntime.LogFatal(ctx, "Failed to initialize database: "+err.Error())
-		return
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 	a.db = db
 	a.executor = NewExecutor()
+	return nil
 }
 
-// shutdown is called when the app is closing
-func (a *App) shutdown(ctx context.Context) {
+// ServiceShutdown is called when the app is closing
+func (a *App) ServiceShutdown() error {
 	if a.db != nil {
 		a.db.Close()
 	}
+	return nil
 }
 
 // ========== Category Operations ==========
@@ -264,7 +260,7 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
 
 	result := a.executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
-		wailsruntime.EventsEmit(a.ctx, "cmd-output", chunk)
+		a.app.Event.Emit("cmd-output", chunk)
 	})
 
 	wd, _ := os.Getwd()
@@ -419,12 +415,10 @@ func (a *App) SearchCommands(query string) []Command {
 // ========== Theme ==========
 
 func (a *App) SaveThemeTemplate() error {
-	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		DefaultFilename: "cmdex-theme-template.json",
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
-		},
-	})
+	path, err := a.app.Dialog.SaveFile().
+		SetFilename("cmdex-theme-template.json").
+		AddFilter("JSON Files (*.json)", "*.json").
+		PromptForSingleSelection()
 	if err != nil || path == "" {
 		return err
 	}
@@ -456,12 +450,10 @@ func (a *App) SaveThemeTemplate() error {
 
 // ExportCommandIDs exports selected commands to a JSON file
 func (a *App) ExportCommands(commandIDs []string) error {
-	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		DefaultFilename: "cmdex-commands.json",
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
-		},
-	})
+	path, err := a.app.Dialog.SaveFile().
+		SetFilename("cmdex-commands.json").
+		AddFilter("JSON Files (*.json)", "*.json").
+		PromptForSingleSelection()
 	if err != nil || path == "" {
 		// User cancelled
 		return nil
@@ -548,11 +540,10 @@ func (a *App) ExportCommands(commandIDs []string) error {
 
 // ImportCommands imports commands from a JSON file
 func (a *App) ImportCommands() ([]Command, error) {
-	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
-		},
-	})
+	path, err := a.app.Dialog.OpenFile().
+		CanChooseFiles(true).
+		AddFilter("JSON Files (*.json)", "*.json").
+		PromptForSingleSelection()
 	if err != nil || path == "" {
 		// User cancelled
 		return nil, nil
