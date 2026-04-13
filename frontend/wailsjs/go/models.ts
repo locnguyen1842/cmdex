@@ -3,6 +3,13 @@ export namespace main {
 	export class AppSettings {
 	    locale: string;
 	    terminal: string;
+	    theme: string;
+	    lastDarkTheme: string;
+	    lastLightTheme: string;
+	    customThemes: string;
+	    uiFont: string;
+	    monoFont: string;
+	    density: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettings(source);
@@ -12,6 +19,13 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.locale = source["locale"];
 	        this.terminal = source["terminal"];
+	        this.theme = source["theme"];
+	        this.lastDarkTheme = source["lastDarkTheme"];
+	        this.lastLightTheme = source["lastLightTheme"];
+	        this.customThemes = source["customThemes"];
+	        this.uiFont = source["uiFont"];
+	        this.monoFont = source["monoFont"];
+	        this.density = source["density"];
 	    }
 	}
 	export class Category {

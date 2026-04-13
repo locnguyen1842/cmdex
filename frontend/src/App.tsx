@@ -59,6 +59,7 @@ import {
     UpdatePreset,
     DeletePreset,
     GetSettings,
+    SetSettings,
     RunInTerminal,
     ReorderCommand,
     GetScriptBody,
@@ -80,21 +81,36 @@ type ModalState =
     | { type: 'categoryEditor'; category?: Category }
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
-    | { type: 'confirmDelete'; itemType: 'command' | 'category'; id: string; name: string }
     | { type: 'confirmDiscard' }
     | { type: 'confirmClearHistory' }
     | { type: 'settings' };
 
+// Legacy localStorage keys — used only for one-time migration on startup
 const THEME_STORAGE_KEY = 'cmdex-theme';
+const LAST_DARK_THEME_KEY = 'cmdex-last-dark-theme';
+const LAST_LIGHT_THEME_KEY = 'cmdex-last-light-theme';
+const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
+const FONT_SANS_KEY = 'cmdex-ui-font';
+const FONT_MONO_KEY = 'cmdex-mono-font';
+const DENSITY_KEY = 'cmdex-density';
 
-export const THEMES = [
-    { id: 'vscode-dark', label: 'VS Code Dark+' },
-    { id: 'vscode-light', label: 'VS Code Light+' },
-    { id: 'monokai', label: 'Monokai' },
-    { id: 'tokyo-night', label: 'Tokyo Night' },
-    { id: 'one-dark', label: 'One Dark Pro' },
-    { id: 'classic', label: 'Classic (Purple)' },
-] as const;
+export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
+    { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
+    { id: 'vscode-light', label: 'VS Code Light+', type: 'light' },
+    { id: 'monokai', label: 'Monokai', type: 'dark' },
+    { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
+    { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
+    { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
+    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
+    { id: 'dracula', label: 'Dracula', type: 'dark' },
+];
+
+export interface CustomTheme {
+    id: string;
+    name: string;
+    type: 'dark' | 'light';
+    colors: Record<string, string>;
+}
 
 function App() {
     const { t } = useTranslation();
@@ -148,13 +164,97 @@ function App() {
 
     const [paletteOpen, setPaletteOpen] = useState(false);
     const pendingCloseTabIdRef = useRef<string | null>(null);
+    const mainContentRef = useRef<HTMLDivElement>(null);
 
-    const [theme, setTheme] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) || 'vscode-dark');
+    const [theme, setTheme] = useState<string>('vscode-dark');
+    const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+    const [uiFont, setUiFont] = useState<string>('Inter');
+    const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
+    const [density, setDensity] = useState<string>('comfortable');
+
+    // Tracks whether settings have been loaded from DB (prevents premature saves before load)
+    const settingsLoadedRef = useRef(false);
+    // Holds latest settings values for use in flushSettings without stale closures
+    const settingsRef = useRef({
+        locale: 'en',
+        terminal: '',
+        theme: 'vscode-dark',
+        lastDarkTheme: 'vscode-dark',
+        lastLightTheme: 'vscode-light',
+        customThemes: [] as CustomTheme[],
+        uiFont: 'Inter',
+        monoFont: 'JetBrains Mono',
+        density: 'comfortable',
+    });
+
+    // Persists all current settings from settingsRef to the DB.
+    // Must only be called after settingsLoadedRef.current === true.
+    const flushSettings = () => {
+        if (!settingsLoadedRef.current) return;
+        const r = settingsRef.current;
+        SetSettings(JSON.stringify({
+            locale: r.locale,
+            terminal: r.terminal,
+            theme: r.theme,
+            lastDarkTheme: r.lastDarkTheme,
+            lastLightTheme: r.lastLightTheme,
+            customThemes: JSON.stringify(r.customThemes),
+            uiFont: r.uiFont,
+            monoFont: r.monoFont,
+            density: r.density,
+        })).catch(() => {});
+    };
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem(THEME_STORAGE_KEY, theme);
-    }, [theme]);
+        settingsRef.current.theme = theme;
+        flushSettings();
+    }, [theme]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handler = (e: MediaQueryListEvent) => {
+            const r = settingsRef.current;
+            setTheme(e.matches ? r.lastDarkTheme : r.lastLightTheme);
+        };
+        mediaQuery.addEventListener('change', handler);
+        return () => mediaQuery.removeEventListener('change', handler);
+    }, []);
+
+    useEffect(() => {
+        const fontValue = uiFont === 'System Default'
+            ? 'system-ui, -apple-system, sans-serif'
+            : `'${uiFont}', system-ui, sans-serif`;
+        document.documentElement.style.setProperty('--font-sans', fontValue);
+        settingsRef.current.uiFont = uiFont;
+        flushSettings();
+    }, [uiFont]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        document.documentElement.style.setProperty('--font-mono', `'${monoFont}', monospace`);
+        settingsRef.current.monoFont = monoFont;
+        flushSettings();
+    }, [monoFont]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-density', density);
+        settingsRef.current.density = density;
+        flushSettings();
+    }, [density]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
+    useEffect(() => {
+        const el = mainContentRef.current;
+        if (!el) return;
+        el.classList.remove('tab-content-fade-in');
+        // Force reflow so the class removal takes effect before re-adding
+        void el.offsetWidth;
+        el.classList.add('tab-content-fade-in');
+        const timer = setTimeout(() => {
+            el.classList.remove('tab-content-fade-in');
+        }, 160);
+        return () => clearTimeout(timer);
+    }, [activeTabId]);
 
     const resolvedVariables = useMemo(() => {
         if (!selectedCommand) return [];
@@ -265,11 +365,91 @@ function App() {
         loadHistory();
         GetSettings()
             .then((s) => {
-                if (s?.locale && s.locale !== i18n.language) {
+                if (!s) return;
+
+                // One-time localStorage migration: if DB has the default value but localStorage
+                // has a user-set value, prefer the localStorage value (migrates existing users).
+                const migrateField = (dbVal: string, lsKey: string, defaultVal: string): string => {
+                    if (dbVal === defaultVal) {
+                        return localStorage.getItem(lsKey) || defaultVal;
+                    }
+                    return dbVal;
+                };
+
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const osDefaultTheme = prefersDark ? 'vscode-dark' : 'vscode-light';
+                const migratedTheme = migrateField(s.theme, THEME_STORAGE_KEY, 'vscode-dark') ||
+                    (prefersDark
+                        ? (localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark')
+                        : (localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light'));
+                const migratedLastDark = migrateField(s.lastDarkTheme, LAST_DARK_THEME_KEY, 'vscode-dark');
+                const migratedLastLight = migrateField(s.lastLightTheme, LAST_LIGHT_THEME_KEY, 'vscode-light');
+                const migratedUiFont = migrateField(s.uiFont, FONT_SANS_KEY, 'Inter');
+                const migratedMonoFont = migrateField(s.monoFont, FONT_MONO_KEY, 'JetBrains Mono');
+                const migratedDensity = migrateField(s.density, DENSITY_KEY, 'comfortable');
+
+                let migratedCustomThemes: CustomTheme[] = [];
+                try {
+                    if (s.customThemes && s.customThemes !== '[]') {
+                        migratedCustomThemes = JSON.parse(s.customThemes);
+                    } else {
+                        const lsCustom = localStorage.getItem(CUSTOM_THEMES_KEY);
+                        if (lsCustom) migratedCustomThemes = JSON.parse(lsCustom);
+                    }
+                } catch { /* ignore parse errors */ }
+
+                // Apply locale
+                if (s.locale && s.locale !== i18n.language) {
                     i18n.changeLanguage(s.locale);
                 }
+
+                // Sync settingsRef before marking loaded (prevents flushSettings no-ops)
+                settingsRef.current = {
+                    locale: s.locale || 'en',
+                    terminal: s.terminal || '',
+                    theme: migratedTheme,
+                    lastDarkTheme: migratedLastDark,
+                    lastLightTheme: migratedLastLight,
+                    customThemes: migratedCustomThemes,
+                    uiFont: migratedUiFont,
+                    monoFont: migratedMonoFont,
+                    density: migratedDensity,
+                };
+                settingsLoadedRef.current = true;
+
+                // Apply state — each setter triggers its effect which calls flushSettings
+                setTheme(migratedTheme);
+                setCustomThemes(migratedCustomThemes);
+                setUiFont(migratedUiFont);
+                setMonoFont(migratedMonoFont);
+                setDensity(migratedDensity);
+
+                // Clear legacy localStorage keys after successful migration
+                [THEME_STORAGE_KEY, LAST_DARK_THEME_KEY, LAST_LIGHT_THEME_KEY,
+                 CUSTOM_THEMES_KEY, FONT_SANS_KEY, FONT_MONO_KEY, DENSITY_KEY].forEach(k =>
+                    localStorage.removeItem(k)
+                );
+
+                // Persist migrated values to DB (covers the case where migration pulled from localStorage)
+                SetSettings(JSON.stringify({
+                    locale: settingsRef.current.locale,
+                    terminal: settingsRef.current.terminal,
+                    theme: migratedTheme,
+                    lastDarkTheme: migratedLastDark,
+                    lastLightTheme: migratedLastLight,
+                    customThemes: JSON.stringify(migratedCustomThemes),
+                    uiFont: migratedUiFont,
+                    monoFont: migratedMonoFont,
+                    density: migratedDensity,
+                })).catch(() => {});
+
+                // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
+                void osDefaultTheme;
             })
-            .catch(() => {});
+            .catch(() => {
+                // Allow saves even if initial load fails
+                settingsLoadedRef.current = true;
+            });
         setOpenTabs([]);
         setActiveTabId(null);
     }, [loadData, loadHistory]);
@@ -601,31 +781,15 @@ function App() {
     };
 
     const handleDeleteCategory = async (catId: string) => {
-        const cat = categories.find((c) => c.id === catId);
-        if (!cat) return;
-        setModal({ type: 'confirmDelete', itemType: 'category', id: catId, name: cat.name });
-    };
-
-    const confirmDelete = async () => {
-        if (modal.type !== 'confirmDelete') return;
-        const { itemType } = modal;
         try {
-            if (itemType === 'category') {
-                await DeleteCategory(modal.id);
-                if (selectedCommand?.categoryId === modal.id) {
-                    setSelectedCommand(null);
-                }
-            } else {
-                await DeleteCommand(modal.id);
-                if (selectedCommand?.id === modal.id) {
-                    closeTab(modal.id);
-                }
+            await DeleteCategory(catId);
+            if (selectedCommand?.categoryId === catId) {
+                setSelectedCommand(null);
             }
             await loadData();
-            setModal({ type: 'none' });
-            toast.success(itemType === 'category' ? t('toast.categoryDeleted') : t('toast.commandDeleted'));
+            toast.success(t('toast.categoryDeleted'));
         } catch (err) {
-            console.error('Failed to delete:', err);
+            console.error('Failed to delete category:', err);
         }
     };
 
@@ -671,13 +835,17 @@ function App() {
         });
     };
 
-    const handleDeleteCommand = (cmd: Command) => {
-        setModal({
-            type: 'confirmDelete',
-            itemType: 'command',
-            id: cmd.id,
-            name: getCommandDisplayTitle(cmd),
-        });
+    const handleDeleteCommand = async (cmd: Command) => {
+        try {
+            await DeleteCommand(cmd.id);
+            if (selectedCommand?.id === cmd.id) {
+                closeTab(cmd.id);
+            }
+            await loadData();
+            toast.success(t('toast.commandDeleted'));
+        } catch (err) {
+            console.error('Failed to delete command:', err);
+        }
     };
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
@@ -939,6 +1107,73 @@ function App() {
         }
     }, [loadData, loadHistory]);
 
+    const handleThemeChange = useCallback((newTheme: string) => {
+        // Find type from built-in themes first, then custom themes
+        const builtIn = THEMES.find(t => t.id === newTheme);
+        const custom = customThemes.find(t => t.id === newTheme);
+        const themeType = builtIn?.type ?? custom?.type ?? 'dark';
+
+        if (themeType === 'dark') {
+            settingsRef.current.lastDarkTheme = newTheme;
+        } else {
+            settingsRef.current.lastLightTheme = newTheme;
+        }
+
+        // Apply custom theme CSS vars if it's an imported theme
+        if (custom) {
+            // Apply this custom theme's colors as inline CSS vars
+            Object.entries(custom.colors).forEach(([key, value]) => {
+                document.documentElement.style.setProperty(`--${key}`, value);
+            });
+        } else {
+            // Built-in theme — remove any inline custom vars so [data-theme] CSS takes over
+            const allVarKeys = [
+                'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+                'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
+                'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
+                'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
+                'tab-active-indicator', 'status-bar-bg', 'status-bar-fg'
+            ];
+            allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
+        }
+
+        setTheme(newTheme);
+    }, [customThemes]);
+
+    const handleImportTheme = useCallback((newTheme: CustomTheme) => {
+        setCustomThemes(prev => {
+            const updated = [...prev, newTheme];
+            settingsRef.current.customThemes = updated;
+            flushSettings();
+            return updated;
+        });
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleRemoveCustomTheme = useCallback((themeId: string) => {
+        setCustomThemes(prev => {
+            const updated = prev.filter(t => t.id !== themeId);
+            settingsRef.current.customThemes = updated;
+            flushSettings();
+            // If the removed theme was active, fall back to vscode-dark
+            if (theme === themeId) {
+                handleThemeChange('vscode-dark');
+            }
+            return updated;
+        });
+    }, [theme, handleThemeChange]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleUiFontChange = useCallback((font: string) => {
+        setUiFont(font);
+    }, []);
+
+    const handleMonoFontChange = useCallback((font: string) => {
+        setMonoFont(font);
+    }, []);
+
+    const handleDensityChange = useCallback((d: string) => {
+        setDensity(d);
+    }, []);
+
     const handleSelectCommand = (cmd: Command) => {
         openTab(cmd);
     };
@@ -1074,7 +1309,7 @@ function App() {
     const isWelcome = !selectedCommand && !activeDraft;
 
     return (
-        <TooltipProvider>
+        <TooltipProvider disableHoverableContent>
             <div className="app-layout">
                 <div className="app-body">
                     <ResizablePanel
@@ -1105,6 +1340,11 @@ function App() {
                             onDeleteCommand={handleDeleteCommand}
                             onReorderCommand={handleReorderCommand}
                             onOpenSettings={() => setModal({ type: 'settings' })}
+                            onImport={async () => {
+                                const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
+                                setCategories(cats || []);
+                                setCommands(cmds || []);
+                            }}
                         />
                     </ResizablePanel>
 
@@ -1117,7 +1357,7 @@ function App() {
                         />
 
                         <div className="top-area">
-                            <div className="main-content">
+                            <div className="main-content" ref={mainContentRef}>
                                 {selectedCommand && activeDraft ? (
                                     <div className="main-body command-tab-shell">
                                         <CommandDetail
@@ -1133,14 +1373,7 @@ function App() {
                                             onExecute={handleExecute}
                                             onRunInTerminal={handleRunInTerminal}
                                             onFillVariables={handleFillVariables}
-                                            onDelete={() =>
-                                                setModal({
-                                                    type: 'confirmDelete',
-                                                    itemType: 'command',
-                                                    id: selectedCommand.id,
-                                                    name: getCommandDisplayTitle(selectedCommand) || activeDraft.title,
-                                                })
-                                            }
+                                            onDelete={() => void handleDeleteCommand(selectedCommand)}
                                             onRenamePreset={handleRenamePresetFromDetail}
                                             onDeletePreset={handleDeletePresetFromDetail}
                                             onAddPreset={handleAddPresetFromDetail}
@@ -1227,29 +1460,6 @@ function App() {
                     />
                 )}
 
-                <AlertDialog open={modal.type === 'confirmDelete'} onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>{t('app.confirmDeleteTitle')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {modal.type === 'confirmDelete' && (
-                                    <>
-                                        {t('app.confirmDeleteMessage', { itemType: modal.itemType, name: modal.name })}
-                                        {modal.itemType === 'category' && ` ${t('app.confirmDeleteCategoryWarning')}`}
-                                        <br /><br />
-                                        {t('app.confirmDeleteUndone')}
-                                    </>
-                                )}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmDelete} variant="destructive">
-                                {t('app.delete')}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
                 <AlertDialog
                     open={modal.type === 'confirmDiscard'}
                     onOpenChange={(open) => {
@@ -1298,8 +1508,17 @@ function App() {
                     open={modal.type === 'settings'}
                     onClose={() => setModal({ type: 'none' })}
                     theme={theme}
-                    onThemeChange={setTheme}
+                    onThemeChange={handleThemeChange}
                     onResetAllData={handleResetAllData}
+                    customThemes={customThemes}
+                    onImportTheme={handleImportTheme}
+                    onRemoveCustomTheme={handleRemoveCustomTheme}
+                    uiFont={uiFont}
+                    monoFont={monoFont}
+                    density={density}
+                    onUiFontChange={handleUiFontChange}
+                    onMonoFontChange={handleMonoFontChange}
+                    onDensityChange={handleDensityChange}
                 />
                 <CommandPalette
                     open={paletteOpen}

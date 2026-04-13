@@ -1,4 +1,75 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* ========== Bundled Fonts ========== */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist/Geist-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito';
+  src: url('/fonts/nunito/Nunito-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito';
+  src: url('/fonts/nunito/Nunito-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Fira Code';
+  src: url('/fonts/fira-code/FiraCode-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cascadia Code';
+  src: url('/fonts/cascadia-code/CascadiaCode-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Monaspace Neon';
+  src: url('/fonts/monaspace-neon/MonaspaceNeon-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -83,6 +154,14 @@
   --font-sans: 'Inter', -apple-system, blinkmacsystemfont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --shadow-tooltip: 0 2px 10px rgba(0, 0, 0, 0.35);
+
+  /* Density variables — comfortable baseline (overridden by [data-density] blocks) */
+  --density-font-size-base: 13px;
+  --density-font-size-sm: 11px;
+  --density-padding-sm: 4px;
+  --density-padding-md: 8px;
+  --density-gap-sm: 4px;
+  --density-gap-md: 8px;
 }
 
 /* ========== VS Code Light+ ========== */
@@ -285,6 +364,106 @@
   --var-missing-border: rgba(251, 189, 35, 0.3);
 }
 
+/* ========== Catppuccin Mocha ========== */
+
+[data-theme="catppuccin-mocha"] {
+  --background: #1e1e2e;
+  --foreground: #cdd6f4;
+  --card: #181825;
+  --card-foreground: #cdd6f4;
+  --popover: #313244;
+  --popover-foreground: #cdd6f4;
+  --primary: #cba6f7;
+  --primary-foreground: #1e1e2e;
+  --secondary: #313244;
+  --secondary-foreground: #cdd6f4;
+  --muted: #45475a;
+  --muted-foreground: #6c7086;
+  --accent: #313244;
+  --accent-foreground: #cdd6f4;
+  --destructive: #f38ba8;
+  --destructive-foreground: #1e1e2e;
+  --success: #a6e3a1;
+  --success-foreground: #1e1e2e;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #cba6f7;
+
+  --tab-bar-bg: #11111b;
+  --tab-active-bg: #1e1e2e;
+  --tab-inactive-bg: #11111b;
+  --tab-active-indicator: #cba6f7;
+  --status-bar-bg: #cba6f7;
+  --status-bar-fg: #1e1e2e;
+
+  --var-filled-bg: rgba(166, 227, 161, 0.18);
+  --var-filled-fg: #a6e3a1;
+  --var-filled-border: rgba(166, 227, 161, 0.35);
+  --var-missing-bg: rgba(249, 226, 175, 0.18);
+  --var-missing-fg: #f9e2af;
+  --var-missing-border: rgba(249, 226, 175, 0.35);
+}
+
+/* ========== Dracula ========== */
+
+[data-theme="dracula"] {
+  --background: #282a36;
+  --foreground: #f8f8f2;
+  --card: #21222c;
+  --card-foreground: #f8f8f2;
+  --popover: #44475a;
+  --popover-foreground: #f8f8f2;
+  --primary: #bd93f9;
+  --primary-foreground: #282a36;
+  --secondary: #44475a;
+  --secondary-foreground: #f8f8f2;
+  --muted: #44475a;
+  --muted-foreground: #6272a4;
+  --accent: #44475a;
+  --accent-foreground: #f8f8f2;
+  --destructive: #ff5555;
+  --destructive-foreground: #f8f8f2;
+  --success: #50fa7b;
+  --success-foreground: #282a36;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #bd93f9;
+
+  --tab-bar-bg: #191a21;
+  --tab-active-bg: #282a36;
+  --tab-inactive-bg: #191a21;
+  --tab-active-indicator: #bd93f9;
+  --status-bar-bg: #bd93f9;
+  --status-bar-fg: #282a36;
+
+  --var-filled-bg: rgba(80, 250, 123, 0.15);
+  --var-filled-fg: #50fa7b;
+  --var-filled-border: rgba(80, 250, 123, 0.3);
+  --var-missing-bg: rgba(241, 250, 140, 0.15);
+  --var-missing-fg: #f1fa8c;
+  --var-missing-border: rgba(241, 250, 140, 0.3);
+}
+
+/* ========== Density Overrides ========== */
+
+[data-density="compact"] {
+  --density-font-size-base: 12px;
+  --density-font-size-sm: 10px;
+  --density-padding-sm: 4px;
+  --density-padding-md: 4px;
+  --density-gap-sm: 4px;
+  --density-gap-md: 4px;
+}
+
+[data-density="spacious"] {
+  --density-font-size-base: 14px;
+  --density-font-size-sm: 12px;
+  --density-padding-sm: 8px;
+  --density-padding-md: 12px;
+  --density-gap-sm: 8px;
+  --density-gap-md: 12px;
+}
+
 /* ========== Base ========== */
 
 html, body, #root {
@@ -299,7 +478,7 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-size: 13px;
+  font-size: var(--density-font-size-base, 13px);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -358,8 +537,8 @@ body {
 .tab-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px 0 14px;
+  gap: var(--density-gap-sm);
+  padding: 0 var(--density-gap-sm) 0 var(--density-gap-md);
   height: 100%;
   font-size: 13px;
   cursor: pointer;
@@ -444,7 +623,7 @@ body {
 }
 
 .sidebar-header {
-  padding: 14px 14px 10px;
+  padding: var(--density-padding-md) var(--density-padding-md) var(--density-padding-sm);
   border-bottom: 1px solid var(--border);
   --wails-draggable: drag;
 }
@@ -452,8 +631,8 @@ body {
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: var(--density-gap-md);
+  margin-bottom: 8px;
 }
 
 .sidebar-logo .logo-icon {
@@ -477,7 +656,7 @@ body {
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 6px;
+  padding: var(--density-padding-sm);
 }
 
 .sidebar-section {
@@ -488,7 +667,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 8px;
+  padding: var(--density-padding-sm);
   cursor: pointer;
   border-radius: 4px;
   transition: background var(--transition-fast);
@@ -500,8 +679,8 @@ body {
 .sidebar-section-header .section-left {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: var(--density-gap-sm);
+  font-size: var(--density-font-size-sm, 11px);
   font-weight: 700;
   color: var(--muted-foreground);
   text-transform: uppercase;
@@ -518,20 +697,11 @@ body {
 .sidebar-section-header .section-right {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.sidebar-section-header .cmd-count {
-  font-size: 10px;
-  color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-weight: 500;
+  gap: var(--density-gap-sm);
 }
 
 .sidebar-commands {
-  margin-left: 12px;
+  margin-left: var(--density-padding-md);
   border-left: 1px solid var(--border);
   padding-left: 0;
   margin-top: 1px;
@@ -541,8 +711,8 @@ body {
 .command-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: var(--density-gap-sm);
+  padding: var(--density-padding-sm);
   margin: 1px 0;
   cursor: pointer;
   border-radius: 0 4px 4px 0;
@@ -578,6 +748,43 @@ body {
   font-weight: 400;
 }
 
+/* Inline delete confirmation — right side of command item */
+.cmd-trash-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.cmd-trash-btn:hover {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+}
+
+.cmd-delete-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.cmd-delete-btn {
+  height: 20px !important;
+  padding: 0 7px !important;
+  font-size: 11px !important;
+  min-width: 0 !important;
+}
+.cmd-delete-btn--confirm {
+  color: var(--destructive) !important;
+}
+
 .cmd-tags-row {
   display: flex;
   gap: 4px;
@@ -595,13 +802,13 @@ body {
 }
 
 .sidebar-footer {
-  padding: 8px;
+  padding: var(--density-padding-sm);
   border-top: 1px solid var(--border);
 }
 
 .sidebar-footer .add-btns {
   display: flex;
-  gap: 4px;
+  gap: var(--density-gap-sm);
 }
 
 /* ========== Main Content ========== */
@@ -614,8 +821,18 @@ body {
   background: var(--background);
 }
 
+/* Tab switch fade */
+@keyframes tab-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.tab-content-fade-in {
+  animation: tab-fade-in var(--transition-fast) ease both;
+}
+
 .main-header {
-  padding: 8px 20px;
+  padding: var(--density-padding-sm) 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -629,7 +846,7 @@ body {
 .main-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: calc(var(--density-padding-md) * 3);
 }
 
 .main-body.command-tab-shell {
@@ -1047,7 +1264,6 @@ textarea.inline-edit-input {
 .script-edit-tooltip-row span {
   color: var(--foreground);
 }
-/* 
 
 /* Highlighted textarea overlay */
 .highlighted-textarea-wrap {
@@ -1204,6 +1420,23 @@ textarea.inline-edit-input {
   margin-bottom: 8px;
 }
 
+.script-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+.script-mode-toggle:hover {
+  opacity: 1;
+}
+
 .command-text-box-glow {
   border-radius: 8px;
   padding: 1px;
@@ -1303,6 +1536,23 @@ textarea.inline-edit-input {
   font-weight: 600;
 }
 
+/* Unified script block — Preview mode: variable with no resolved value */
+.var-placeholder-muted {
+  background: var(--var-missing-bg);
+  color: var(--var-missing-fg);
+  border: 1px solid var(--var-missing-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-weight: 600;
+  opacity: 0.5;
+  font-style: italic;
+}
+.var-placeholder-muted.var-focused {
+  outline: 1px solid var(--primary);
+  border-radius: 3px;
+  opacity: 0.8;
+}
+
 .command-actions {
   display: flex;
   gap: 8px;
@@ -1326,12 +1576,12 @@ textarea.inline-edit-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px 8px 12px;
+  padding: var(--density-padding-sm) var(--density-padding-md);
   border-bottom: 1px solid var(--border);
 }
 
 .history-pane-title {
-  font-size: 11px;
+  font-size: var(--density-font-size-sm, 11px);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -1348,7 +1598,7 @@ textarea.inline-edit-input {
 }
 
 .history-item {
-  padding: 8px 10px;
+  padding: var(--density-padding-sm) var(--density-gap-md);
   border-radius: var(--radius);
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -1361,13 +1611,13 @@ textarea.inline-edit-input {
 .history-item-top {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--density-gap-sm);
 }
 
 .history-item-cmd {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--density-font-size-sm, 11px);
   color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
@@ -1396,7 +1646,7 @@ textarea.inline-edit-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 12px;
+  padding: 8px 16px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
   cursor: default;
@@ -1514,6 +1764,42 @@ textarea.inline-edit-input {
 }
 
 @keyframes blink { 50% { opacity: 0; } }
+
+/* CollapsibleContent transition for Output panel */
+/* Radix sets data-state="open"/"closed" on CollapsibleContent */
+.output-pane [data-radix-collapsible-content] {
+  overflow: hidden;
+}
+
+.output-pane [data-radix-collapsible-content][data-state="open"] {
+  animation: output-slide-in var(--transition-fast) ease;
+}
+
+.output-pane [data-radix-collapsible-content][data-state="closed"] {
+  animation: output-slide-out var(--transition-fast) ease;
+}
+
+@keyframes output-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes output-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
 
 /* ========== Variable Prompt (fill mode) ========== */
 
@@ -1642,6 +1928,44 @@ textarea.inline-edit-input {
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
+  transition: width var(--transition-fast), min-width var(--transition-fast), max-width var(--transition-fast);
+}
+
+.resizable-panel.is-resizing {
+  transition: none;
+}
+
+.resizable-panel.is-collapsed {
+  background: var(--card);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.resizable-panel.is-collapsed.left {
+  border-right: 1px solid var(--border);
+}
+
+.resizable-panel.is-collapsed.right {
+  border-left: 1px solid var(--border);
+}
+
+.resizable-panel-rail-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.resizable-panel-rail-inner:hover {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
 }
 
 .resizable-panel > *:not(.resize-handle-wrap) {
@@ -1718,8 +2042,8 @@ textarea.inline-edit-input {
 
 /* Collapsed rail — full height, click or Enter/Space to expand */
 .resizable-panel-rail {
-  width: 36px;
-  min-width: 36px;
+  width: 44px;
+  min-width: 44px;
   flex-shrink: 0;
   background: var(--card);
   display: flex;
