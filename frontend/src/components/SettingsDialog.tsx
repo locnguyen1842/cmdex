@@ -254,7 +254,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const handleSave = useCallback(async () => {
     try {
       await i18n.changeLanguage(locale);
-      await SetSettings(locale, terminal);
+      // Fetch current DB values to preserve non-locale/terminal settings
+      const current = await GetSettings();
+      await SetSettings(
+        locale, terminal,
+        current?.theme || 'vscode-dark',
+        current?.lastDarkTheme || 'vscode-dark',
+        current?.lastLightTheme || 'vscode-light',
+        current?.customThemes || '[]',
+        current?.uiFont || 'Inter',
+        current?.monoFont || 'JetBrains Mono',
+        current?.density || 'comfortable',
+      );
       setSavedLocale(locale);
       setSavedTerminal(terminal);
       toast.success(t('settings.title'));
