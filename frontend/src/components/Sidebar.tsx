@@ -45,7 +45,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
-import { ExportCommands, ImportCommands } from '../../wailsjs/go/main/App';
+import { ExportCommands, ImportCommands } from '../../bindings/cmdex/app';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 

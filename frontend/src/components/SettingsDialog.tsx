@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Upload, Download, X } from 'lucide-react';
-import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } from '../../wailsjs/go/main/App';
+import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } from '../../bindings/cmdex/app';
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';

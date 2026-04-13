@@ -28,7 +28,7 @@ import {
     AlertDialogCancel,
     AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { EventsOn } from '../wailsjs/runtime/runtime';
+import { Events } from '@wailsio/runtime';
 import {
     Category,
     Command,
@@ -65,7 +65,7 @@ import {
     GetScriptBody,
     ResetAllData,
     ReorderPresets,
-} from '../wailsjs/go/main/App';
+} from '../bindings/cmdex/app';
 import i18n from './i18n';
 import {
     emptyDraft,
@@ -455,7 +455,7 @@ function App() {
     }, [loadData, loadHistory]);
 
     useEffect(() => {
-        const cleanup = EventsOn('open-settings', () => setModal({ type: 'settings' }));
+        const cleanup = Events.On('open-settings', () => setModal({ type: 'settings' }));
         return cleanup;
     }, []);
 
@@ -920,7 +920,8 @@ function App() {
         setOutputPaneOpen(true);
         setHistoryPaneOpen(true);
 
-        const cleanup = EventsOn('cmd-output', (chunk: { stream: string; data: string }) => {
+        const cleanup = Events.On('cmd-output', (event) => {
+            const chunk = event.data as { stream: string; data: string };
             const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
             streamBufferRef.current.push(prefix + chunk.data);
             if (streamFlushRef.current === null) {

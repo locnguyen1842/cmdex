@@ -1,16 +1,28 @@
 version: '3'
 
+includes:
+  common:
+    taskfile: ./build/Taskfile.yml
+    optional: true
+
 vars:
   APP_NAME: cmdex
   BIN_DIR: bin
+  VITE_PORT: 9245
 
 tasks:
+  darwin:build:
+    summary: Build for Darwin/macOS
+    cmds:
+      - task: common:build
+        vars:
+          DEV: "false"
+          OUTPUT: "{{.BIN_DIR}}/{{.APP_NAME}}"
+
   build:
     summary: Builds the application for current platform
-    deps:
-      - build:frontend
     cmds:
-      - go build -tags production -trimpath -ldflags="-w -s" -o {{.BIN_DIR}}/{{.APP_NAME}}
+      - task: darwin:build
 
   build:frontend:
     dir: frontend
