@@ -429,7 +429,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   }, []);
 
   return (
-    <div className="space-y-4">
+    <div className={standalone ? "p-4 space-y-4" : "space-y-4"}>
       <Tabs defaultValue="appearance" className="w-full">
         <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-border h-auto mb-0">
           <TabsTrigger
