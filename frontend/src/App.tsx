@@ -28,6 +28,7 @@ import {
     AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { Events } from '@wailsio/runtime';
+import { EVENT_CMD_OUTPUT, EVENT_OPEN_SETTINGS, EVENT_SETTINGS_CHANGED } from './wails/events';
 import {
     Category,
     Command,
@@ -454,7 +455,7 @@ function App() {
     }, [loadData, loadHistory]);
 
     useEffect(() => {
-        const cleanup = Events.On('open-settings', async () => {
+        const cleanup = Events.On(EVENT_OPEN_SETTINGS, async () => {
             await ShowSettingsWindow();
         });
         return cleanup;
@@ -466,7 +467,7 @@ function App() {
         // Reading the payload fields directly off `event` returns undefined and would
         // cause `||` fallbacks to kick in, overwriting user's just-saved settings
         // with defaults. Always unwrap `.data`.
-        const cleanup = Events.On('settings-changed', (event: any) => {
+        const cleanup = Events.On(EVENT_SETTINGS_CHANGED, (event: any) => {
             const payload = event?.data;
             if (!payload) return;
             // Keep settingsRef in sync BEFORE state setters fire their auto-save
@@ -966,7 +967,7 @@ function App() {
         setOutputPaneOpen(true);
         setHistoryPaneOpen(true);
 
-        const cleanup = Events.On('cmd-output', (event) => {
+        const cleanup = Events.On(EVENT_CMD_OUTPUT, (event) => {
             const chunk = event.data as { stream: string; data: string };
             const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
             streamBufferRef.current.push(prefix + chunk.data);
