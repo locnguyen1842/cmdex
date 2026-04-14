@@ -10,8 +10,6 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-var appService *App
-
 var settingsWindow *application.WebviewWindow
 
 func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
@@ -63,7 +61,10 @@ func ShowSettingsWindow() {
 }
 
 func main() {
-	appService = &App{}
+	// App is registered as the main service; it initializes all sub-services in ServiceStartup.
+	// Each sub-service is NOT independently registered to avoid duplicate method bindings.
+	// The App facade forwards all calls to the appropriate service.
+	appService := &App{}
 
 	app := application.New(application.Options{
 		Name: "Cmdex",
