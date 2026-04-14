@@ -1284,8 +1284,8 @@ function App() {
 
         [`${cmdOrCtrl}+f`]: () => setPaletteOpen(true),
 
-        [`${cmdOrCtrl}+,`]: () => {
-            if (modal.type === 'none') setModal({ type: 'settings' });
+        [`${cmdOrCtrl}+,`]: async () => {
+            await ShowSettingsWindow();
         },
 
         'ctrl+w': () => {
