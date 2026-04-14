@@ -5,7 +5,7 @@ milestone_name: Build Settings Window
 status: In progress
 stopped_at: "Phase 7 context gathered"
 last_updated: "2026-04-13T06:00:00.000Z"
-last_activity: 2026-04-13 — Phase 7 context gathered
+last_activity: 2026-04-14 — Completed quick task 260414-fvh: check setting dialogs linking to wails setting window
 progress:
   total_phases: 2
   completed_phases: 0
@@ -61,6 +61,12 @@ Progress: [░░░░░░░░░░] 0%
 
 - No tests exist — manual verification required for all phases.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260414-fvh | check setting dialogs linking to wails setting window | 2026-04-14 | bebe4a4 | [260414-fvh-check-setting-dialogs-linking-to-wails-s](./quick/260414-fvh-check-setting-dialogs-linking-to-wails-s/) |
+
 ---
 
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-14*
