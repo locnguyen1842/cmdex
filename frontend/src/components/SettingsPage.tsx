@@ -220,6 +220,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: v,
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit('settings-changed', newSettings);
     }
   }, [markTouched, standalone, onDensityChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont]);
 
@@ -240,6 +241,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit('settings-changed', newSettings);
     }
   }, [markTouched, standalone, onUiFontChange, locale, terminal, draftTheme, savedTheme, draftMonoFont, draftDensity]);
 
@@ -260,6 +262,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit('settings-changed', newSettings);
     }
   }, [markTouched, standalone, onMonoFontChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftDensity]);
 
