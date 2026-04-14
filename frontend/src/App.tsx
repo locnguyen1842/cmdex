@@ -7,7 +7,6 @@ import CategoryEditor from './components/CategoryEditor';
 import VariablePrompt from './components/VariablePrompt';
 import HistoryPane from './components/HistoryPane';
 import OutputPane from './components/OutputPane';
-import SettingsDialog from './components/SettingsDialog';
 import ResizablePanel from './components/ResizablePanel';
 import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
@@ -83,8 +82,7 @@ type ModalState =
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDiscard' }
-    | { type: 'confirmClearHistory' }
-    | { type: 'settings' };
+    | { type: 'confirmClearHistory' };
 
 // Legacy localStorage keys — used only for one-time migration on startup
 const THEME_STORAGE_KEY = 'cmdex-theme';
@@ -1388,7 +1386,7 @@ function App() {
                             onAddCommand={(catId) => openNewCommandTab(catId)}
                             onDeleteCommand={handleDeleteCommand}
                             onReorderCommand={handleReorderCommand}
-                            onOpenSettings={() => setModal({ type: 'settings' })}
+                            onOpenSettings={() => ShowSettingsWindow()}
                             onImport={async () => {
                                 const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
                                 setCategories(cats || []);
@@ -1553,22 +1551,6 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <SettingsDialog
-                    open={modal.type === 'settings'}
-                    onClose={() => setModal({ type: 'none' })}
-                    theme={theme}
-                    onThemeChange={handleThemeChange}
-                    onResetAllData={handleResetAllData}
-                    customThemes={customThemes}
-                    onImportTheme={handleImportTheme}
-                    onRemoveCustomTheme={handleRemoveCustomTheme}
-                    uiFont={uiFont}
-                    monoFont={monoFont}
-                    density={density}
-                    onUiFontChange={handleUiFontChange}
-                    onMonoFontChange={handleMonoFontChange}
-                    onDensityChange={handleDensityChange}
-                />
                 <CommandPalette
                     open={paletteOpen}
                     commands={allCommandsRef.current}
