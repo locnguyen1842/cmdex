@@ -186,36 +186,118 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const changeTheme = useCallback((v: string) => {
     markTouched();
     setDraftTheme(v);
-    if (!standalone) onThemeChange(v);
-  }, [markTouched, standalone, onThemeChange]);
+    if (!standalone) {
+      onThemeChange(v);
+    } else {
+      // Auto-save immediately in standalone mode
+      const newSettings = {
+        locale, terminal, theme: v,
+        lastDarkTheme: v.startsWith('vscode-dark') || v.startsWith('monokai') || v.startsWith('one-dark') || v.startsWith('classic') || v.startsWith('catppuccin') || v.startsWith('dracula') || v.startsWith('tokyo-night') ? v : savedTheme.startsWith('vscode-dark') || savedTheme.startsWith('monokai') || savedTheme.startsWith('one-dark') || savedTheme.startsWith('classic') || savedTheme.startsWith('catppuccin') || savedTheme.startsWith('dracula') || savedTheme.startsWith('tokyo-night') ? savedTheme : 'vscode-dark',
+        lastLightTheme: v.startsWith('vscode-light') ? v : savedTheme.startsWith('vscode-light') ? savedTheme : 'vscode-light',
+        customThemes: '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    }
+  }, [markTouched, standalone, onThemeChange, locale, terminal, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   const changeDensity = useCallback((v: string) => {
     markTouched();
     setDraftDensity(v);
-    if (!standalone) onDensityChange?.(v);
-  }, [markTouched, standalone, onDensityChange]);
+    if (!standalone) {
+      onDensityChange?.(v);
+    } else {
+      // Auto-save immediately in standalone mode
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: savedTheme,
+        lastLightTheme: savedTheme,
+        customThemes: '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: v,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    }
+  }, [markTouched, standalone, onDensityChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont]);
 
   const changeUiFont = useCallback((v: string) => {
     markTouched();
     setDraftUiFont(v);
-    if (!standalone) onUiFontChange?.(v);
-  }, [markTouched, standalone, onUiFontChange]);
+    if (!standalone) {
+      onUiFontChange?.(v);
+    } else {
+      // Auto-save immediately in standalone mode
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: savedTheme,
+        lastLightTheme: savedTheme,
+        customThemes: '[]',
+        uiFont: v,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    }
+  }, [markTouched, standalone, onUiFontChange, locale, terminal, draftTheme, savedTheme, draftMonoFont, draftDensity]);
 
   const changeMonoFont = useCallback((v: string) => {
     markTouched();
     setDraftMonoFont(v);
-    if (!standalone) onMonoFontChange?.(v);
-  }, [markTouched, standalone, onMonoFontChange]);
+    if (!standalone) {
+      onMonoFontChange?.(v);
+    } else {
+      // Auto-save immediately in standalone mode
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: savedTheme,
+        lastLightTheme: savedTheme,
+        customThemes: '[]',
+        uiFont: draftUiFont,
+        monoFont: v,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    }
+  }, [markTouched, standalone, onMonoFontChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftDensity]);
 
   const changeLocale = useCallback((v: string) => {
     markTouched();
     setLocale(v);
-  }, [markTouched]);
+    if (standalone) {
+      // Auto-save immediately in standalone mode
+      const newSettings = {
+        locale: v, terminal, theme: draftTheme,
+        lastDarkTheme: savedTheme,
+        lastLightTheme: savedTheme,
+        customThemes: '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    }
+  }, [markTouched, standalone, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   const changeTerminal = useCallback((v: string) => {
     markTouched();
     setTerminal(v);
-  }, [markTouched]);
+    if (standalone) {
+      // Auto-save immediately in standalone mode
+      const newSettings = {
+        locale, terminal: v, theme: draftTheme,
+        lastDarkTheme: savedTheme,
+        lastLightTheme: savedTheme,
+        customThemes: '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    }
+  }, [markTouched, standalone, locale, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   useEffect(() => {
     GetAvailableTerminals()
@@ -632,14 +714,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           )}
         </TabsContent>
       </Tabs>
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" onClick={handleCancel}>
-          {t('settings.close')}
-        </Button>
-        <Button disabled={!isDirty} onClick={handleSave}>
-          {t('settings.save')}
-        </Button>
-      </div>
+      {!standalone && (
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" onClick={handleCancel}>
+            {t('settings.close')}
+          </Button>
+          <Button disabled={!isDirty} onClick={handleSave}>
+            {t('settings.save')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
