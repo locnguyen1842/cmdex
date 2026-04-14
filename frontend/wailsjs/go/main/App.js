@@ -34,6 +34,10 @@ export function GetAvailableTerminals() {
   return window['go']['main']['App']['GetAvailableTerminals']();
 }
 
+export function GetEventNames() {
+  return window['go']['main']['App']['GetEventNames']();
+}
+
 export function GetCategories() {
   return window['go']['main']['App']['GetCategories']();
 }

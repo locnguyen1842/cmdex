@@ -1,5 +1,23 @@
 export namespace main {
 	
+	export class EventNames {
+	    cmdOutput: string;
+	    openSettings: string;
+	    settingsChanged: string;
+	    settingsWindowHiding: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EventNames(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cmdOutput = source["cmdOutput"];
+	        this.openSettings = source["openSettings"];
+	        this.settingsChanged = source["settingsChanged"];
+	        this.settingsWindowHiding = source["settingsWindowHiding"];
+	    }
+	}
 	export class AppSettings {
 	    locale: string;
 	    terminal: string;

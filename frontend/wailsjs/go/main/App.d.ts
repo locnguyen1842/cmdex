@@ -18,6 +18,8 @@ export function ExportCommands(arg1:Array<string>):Promise<void>;
 
 export function GetAvailableTerminals():Promise<Array<main.TerminalInfo>>;
 
+export function GetEventNames():Promise<main.EventNames>;
+
 export function GetCategories():Promise<Array<main.Category>>;
 
 export function GetCommands():Promise<Array<main.Command>>;

@@ -13,8 +13,27 @@ import (
 )
 
 const eventCmdOutput = "cmd-output"
+const eventSettingsWindowHiding = "settings-window-hiding"
 
-// App struct holds application state
+// EventNames holds all Wails event name constants, exposed to frontend via GetEventNames().
+type EventNames struct {
+	CmdOutput            string `json:"cmdOutput"`
+	OpenSettings         string `json:"openSettings"`
+	SettingsChanged      string `json:"settingsChanged"`
+	SettingsWindowHiding string `json:"settingsWindowHiding"`
+}
+
+// GetEventNames returns all event name constants so the frontend can use
+// them via Wails bindings instead of hardcoded strings.
+func (a *App) GetEventNames() EventNames {
+	return EventNames{
+		CmdOutput:            eventCmdOutput,
+		OpenSettings:         "open-settings",
+		SettingsChanged:      "settings-changed",
+		SettingsWindowHiding: "settings-window-hiding",
+	}
+}
+
 type App struct {
 	app      *application.App
 	db       *DB

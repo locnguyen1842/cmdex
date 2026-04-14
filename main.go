@@ -40,7 +40,7 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 	settingsWindow = app.Window.NewWithOptions(windowOptions)
 
 	settingsWindow.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		app.Event.Emit("settings-window-hiding")
+		app.Event.Emit(eventSettingsWindowHiding)
 		settingsWindow.Hide()
 	})
 

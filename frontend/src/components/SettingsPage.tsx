@@ -11,7 +11,7 @@ import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';
 import { Events } from '@wailsio/runtime';
-import { EVENT_SETTINGS_CHANGED, EVENT_SETTINGS_WINDOW_HIDING } from '../wails/events';
+import { events } from '../wails/events';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -221,7 +221,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: v,
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(EVENT_SETTINGS_CHANGED, newSettings);
+      Events.Emit(events.settingsChanged, newSettings);
     }
   }, [markTouched, standalone, onDensityChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont]);
 
@@ -242,7 +242,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(EVENT_SETTINGS_CHANGED, newSettings);
+      Events.Emit(events.settingsChanged, newSettings);
     }
   }, [markTouched, standalone, onUiFontChange, locale, terminal, draftTheme, savedTheme, draftMonoFont, draftDensity]);
 
@@ -263,7 +263,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(EVENT_SETTINGS_CHANGED, newSettings);
+      Events.Emit(events.settingsChanged, newSettings);
     }
   }, [markTouched, standalone, onMonoFontChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftDensity]);
 
@@ -425,7 +425,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       await SetSettings(JSON.stringify(newSettings));
-      Events.Emit(EVENT_SETTINGS_CHANGED, newSettings);
+      Events.Emit(events.settingsChanged, newSettings);
       setSavedLocale(locale);
       setSavedTerminal(terminal);
       userTouchedRef.current = false;
@@ -464,7 +464,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   // returns to the last saved values.
   useEffect(() => {
     if (!standalone) return;
-    const cleanup = Events.On(EVENT_SETTINGS_WINDOW_HIDING, () => {
+    const cleanup = Events.On(events.settingsWindowHiding, () => {
       revertDraftToSaved();
     });
     return cleanup;
