@@ -29,6 +29,7 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 		UseApplicationMenu: false,
 		BackgroundColour:   application.NewRGBA(15, 15, 20, 255),
 		HideOnEscape:       true,
+		DisableResize:      true,
 		URL:                "/?window=settings",
 	}
 
