@@ -397,18 +397,6 @@ func (a *App) ShowSettingsWindow() {
 	ShowSettingsWindow()
 }
 
-func (a *App) SaveSettingsWindowState(x, y, w, h int) {
-	settings, err := a.db.GetSettings()
-	if err != nil {
-		return
-	}
-	settings.WindowX = x
-	settings.WindowY = y
-	settings.WindowWidth = w
-	settings.WindowHeight = h
-	a.db.SetSettings(settings)
-}
-
 // ========== Search ==========
 
 func (a *App) ResetAllData() error {

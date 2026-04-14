@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	goruntime "runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -18,7 +19,6 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 	if settingsWindow != nil {
 		return settingsWindow
 	}
-	settings, _ := appService.db.GetSettings()
 
 	windowOptions := application.WebviewWindowOptions{
 		Title: "Settings",
@@ -35,24 +35,11 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 		URL:                 "/?window=settings",
 	}
 
-	if settings.WindowX >= 0 && settings.WindowY >= 0 {
-		windowOptions.X = settings.WindowX
-		windowOptions.Y = settings.WindowY
-	} else {
-		windowOptions.InitialPosition = application.WindowCentered
-	}
+	windowOptions.InitialPosition = application.WindowCentered
 
 	settingsWindow = app.Window.NewWithOptions(windowOptions)
 
 	settingsWindow.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		x, y := settingsWindow.Position()
-		width, height := settingsWindow.Size()
-		appService.SaveSettingsWindowState(x, y, width, height)
-		// The settings window is hidden (not destroyed) on close, so the React
-		// tree keeps its state across open/close cycles. Broadcast this event
-		// so the settings page can revert any unsaved draft + DOM preview
-		// before the window disappears, regardless of how it was closed
-		// (title-bar X, Cmd+W, Cmd+Q on settings window, etc.).
 		app.Event.Emit("settings-window-hiding")
 		settingsWindow.Hide()
 	})
@@ -63,6 +50,7 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 func ShowSettingsWindow() {
 	app := application.Get()
 	w := GetOrCreateSettingsWindow(app)
+	fmt.Printf("Showing settings window: %+v\n", w)
 	w.Show()
 	w.Focus()
 }
