@@ -10,7 +10,7 @@ import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } fr
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';
-import { EventsEmit } from '../../wailsjs/runtime/runtime';
+import { Events } from '@wailsio/runtime';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -136,6 +136,7 @@ export interface SettingsPageProps {
   onUiFontChange?: (font: string) => void;
   onMonoFontChange?: (font: string) => void;
   onDensityChange?: (density: string) => void;
+  standalone?: boolean;
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -151,6 +152,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onUiFontChange,
   onMonoFontChange,
   onDensityChange,
+  standalone = false,
 }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
@@ -171,32 +173,134 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
   const [savedDensity, setSavedDensity] = useState(density);
 
+  // Tracks whether the user has edited any draft field. While true, the
+  // async GetSettings resolver below must NOT overwrite draft/saved values.
+  const userTouchedRef = useRef(false);
+  const markTouched = useCallback(() => { userTouchedRef.current = true; }, []);
+
+  // Draft change helpers. In standalone mode SettingsPage drives its own
+  // DOM preview via useEffects above, so it must NOT invoke the parent
+  // callbacks during editing (those callbacks trigger the modal parent's
+  // auto-save and the prop round-trip that broke dirty state). Parent
+  // callbacks run only on Save (in handleSave below).
+  const changeTheme = useCallback((v: string) => {
+    markTouched();
+    setDraftTheme(v);
+    if (!standalone) onThemeChange(v);
+  }, [markTouched, standalone, onThemeChange]);
+
+  const changeDensity = useCallback((v: string) => {
+    markTouched();
+    setDraftDensity(v);
+    if (!standalone) onDensityChange?.(v);
+  }, [markTouched, standalone, onDensityChange]);
+
+  const changeUiFont = useCallback((v: string) => {
+    markTouched();
+    setDraftUiFont(v);
+    if (!standalone) onUiFontChange?.(v);
+  }, [markTouched, standalone, onUiFontChange]);
+
+  const changeMonoFont = useCallback((v: string) => {
+    markTouched();
+    setDraftMonoFont(v);
+    if (!standalone) onMonoFontChange?.(v);
+  }, [markTouched, standalone, onMonoFontChange]);
+
+  const changeLocale = useCallback((v: string) => {
+    markTouched();
+    setLocale(v);
+  }, [markTouched]);
+
+  const changeTerminal = useCallback((v: string) => {
+    markTouched();
+    setTerminal(v);
+  }, [markTouched]);
+
   useEffect(() => {
     GetAvailableTerminals()
       .then(t => setTerminals(t || []))
       .catch(() => setTerminals([]));
     GetSettings()
       .then(s => {
+        if (!s) return;
+        if (userTouchedRef.current) return;
         const loc = s?.locale || i18n.language || 'en';
         const term = s?.terminal || '';
         setSavedLocale(loc);
         setSavedTerminal(term);
         setLocale(loc);
         setTerminal(term);
+        setSavedTheme(s.theme || 'vscode-dark');
+        setDraftTheme(s.theme || 'vscode-dark');
+        setSavedUiFont(s.uiFont || 'Inter');
+        setDraftUiFont(s.uiFont || 'Inter');
+        setSavedMonoFont(s.monoFont || 'JetBrains Mono');
+        setDraftMonoFont(s.monoFont || 'JetBrains Mono');
+        setSavedDensity(s.density || 'comfortable');
+        setDraftDensity(s.density || 'comfortable');
       })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // In standalone mode, SettingsPage owns the live DOM preview so the
+  // parent (SettingsWindow) never needs to round-trip through its own
+  // `theme`/`uiFont`/... state. That round-trip was the source of the
+  // prop-sync loop that zeroed out the dirty state.
   useEffect(() => {
-    setSavedTheme(theme);
-    setDraftTheme(theme);
-    setSavedUiFont(uiFont);
-    setDraftUiFont(uiFont);
-    setSavedMonoFont(monoFont);
-    setDraftMonoFont(monoFont);
-    setSavedDensity(density);
-    setDraftDensity(density);
-  }, [theme, uiFont, monoFont, density]);
+    if (!standalone) return;
+    document.documentElement.setAttribute('data-theme', draftTheme);
+    const custom = customThemes?.find(c => c.id === draftTheme);
+    if (custom) {
+      Object.entries(custom.colors).forEach(([key, value]) => {
+        document.documentElement.style.setProperty(`--${key}`, value as string);
+      });
+    } else {
+      // Built-in theme: clear any custom CSS vars that may have been set.
+      const allVarKeys = [
+        'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+        'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
+        'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
+        'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
+        'tab-active-indicator', 'status-bar-bg', 'status-bar-fg',
+      ];
+      allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
+    }
+  }, [draftTheme, customThemes, standalone]);
+
+  useEffect(() => {
+    if (!standalone) return;
+    document.documentElement.setAttribute('data-density', draftDensity);
+  }, [draftDensity, standalone]);
+
+  useEffect(() => {
+    if (!standalone) return;
+    const fontValue = draftUiFont === 'System Default'
+      ? 'system-ui, -apple-system, sans-serif'
+      : `'${draftUiFont}', system-ui, sans-serif`;
+    document.documentElement.style.setProperty('--font-sans', fontValue);
+  }, [draftUiFont, standalone]);
+
+  useEffect(() => {
+    if (!standalone) return;
+    document.documentElement.style.setProperty('--font-mono', `'${draftMonoFont}', monospace`);
+  }, [draftMonoFont, standalone]);
+
+  // In standalone mode, if the component unmounts (e.g. window closes)
+  // with unsaved changes, revert DOM preview to the saved values so the
+  // next open starts clean.
+  useEffect(() => {
+    if (!standalone) return;
+    return () => {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.documentElement.setAttribute('data-density', savedDensity);
+      const fontValue = savedUiFont === 'System Default'
+        ? 'system-ui, -apple-system, sans-serif'
+        : `'${savedUiFont}', system-ui, sans-serif`;
+      document.documentElement.style.setProperty('--font-sans', fontValue);
+      document.documentElement.style.setProperty('--font-mono', `'${savedMonoFont}', monospace`);
+    };
+  }, [standalone, savedTheme, savedDensity, savedUiFont, savedMonoFont]);
 
   const isDirty =
     locale !== savedLocale ||
@@ -209,10 +313,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleSave = useCallback(async () => {
     try {
       await i18n.changeLanguage(locale);
-      onThemeChange(draftTheme);
-      onUiFontChange?.(draftUiFont);
-      onMonoFontChange?.(draftMonoFont);
-      onDensityChange?.(draftDensity);
+      // In standalone mode SettingsPage already drives DOM preview itself,
+      // and the persisted settings-changed event notifies other windows.
+      // Parent callbacks are only needed for the in-app modal flow.
+      if (!standalone) {
+        onThemeChange(draftTheme);
+        onUiFontChange?.(draftUiFont);
+        onMonoFontChange?.(draftMonoFont);
+        onDensityChange?.(draftDensity);
+      }
       setSavedTheme(draftTheme);
       setSavedUiFont(draftUiFont);
       setSavedMonoFont(draftMonoFont);
@@ -230,16 +339,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       await SetSettings(JSON.stringify(newSettings));
-      EventsEmit('settings-changed', newSettings);
+      Events.Emit('settings-changed', newSettings);
       setSavedLocale(locale);
       setSavedTerminal(terminal);
+      userTouchedRef.current = false;
       toast.success(t('settings.title'));
     } catch (err) {
       console.error('Failed to persist settings:', err);
     }
-  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t, standalone, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
 
-  const handleCancel = useCallback(() => {
+  const revertDraftToSaved = useCallback(() => {
     setLocale(savedLocale);
     setTerminal(savedTerminal);
     setDraftTheme(savedTheme);
@@ -247,11 +357,32 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     setDraftMonoFont(savedMonoFont);
     setDraftDensity(savedDensity);
     setConfirmReset(false);
-    onThemeChange(savedTheme);
-    onUiFontChange?.(savedUiFont);
-    onMonoFontChange?.(savedMonoFont);
-    onDensityChange?.(savedDensity);
-  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
+    userTouchedRef.current = false;
+    // In standalone mode, SettingsPage's own useEffects will restore DOM
+    // preview from the new drafts; we must NOT ping parent callbacks.
+    if (!standalone) {
+      onThemeChange(savedTheme);
+      onUiFontChange?.(savedUiFont);
+      onMonoFontChange?.(savedMonoFont);
+      onDensityChange?.(savedDensity);
+    }
+  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, standalone, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
+
+  const handleCancel = revertDraftToSaved;
+
+  // Standalone-only: the settings window is hidden (not destroyed) on close,
+  // so SettingsPage never unmounts across open/close cycles. The Go side
+  // emits `settings-window-hiding` from the WindowClosing handler for every
+  // close path (title-bar X, Cmd+W, Cmd+Q on settings window). Revert the
+  // draft on that signal so the next open starts clean and DOM preview
+  // returns to the last saved values.
+  useEffect(() => {
+    if (!standalone) return;
+    const cleanup = Events.On('settings-window-hiding', () => {
+      revertDraftToSaved();
+    });
+    return cleanup;
+  }, [standalone, revertDraftToSaved]);
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -337,7 +468,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   themeType={th.type}
                   dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
                   selected={draftTheme === th.id}
-                  onSelect={() => { setDraftTheme(th.id); onThemeChange(th.id); }}
+                  onSelect={() => changeTheme(th.id)}
                 />
               ))}
             </div>
@@ -360,7 +491,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                       ct.colors.foreground ?? '#ccc',
                     ]}
                     selected={draftTheme === ct.id}
-                    onSelect={() => { setDraftTheme(ct.id); onThemeChange(ct.id); }}
+                    onSelect={() => changeTheme(ct.id)}
                     onRemove={() => onRemoveCustomTheme?.(ct.id)}
                   />
                 ))}
@@ -407,7 +538,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               variant="outline"
               size="sm"
               value={draftDensity}
-              onValueChange={(v) => { if (v) { setDraftDensity(v); onDensityChange?.(v); } }}
+              onValueChange={(v) => { if (v) changeDensity(v); }}
               className="w-full"
             >
               <ToggleGroupItem value="compact" className="flex-1">
@@ -433,10 +564,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   fontFamily={font.fontFamily}
                   label={font.label}
                   selected={draftUiFont === font.id}
-                  onSelect={() => {
-                    setDraftUiFont(font.id);
-                    onUiFontChange?.(font.id);
-                  }}
+                  onSelect={() => changeUiFont(font.id)}
                 />
               ))}
             </div>
@@ -451,7 +579,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   fontFamily={font.fontFamily}
                   label={font.label}
                   selected={draftMonoFont === font.id}
-                  onSelect={() => { setDraftMonoFont(font.id); onMonoFontChange?.(font.id); }}
+                  onSelect={() => changeMonoFont(font.id)}
                 />
               ))}
             </div>
@@ -461,7 +589,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         <TabsContent value="general" className="space-y-4 pt-4">
           <div className="space-y-2">
             <Label>{t('settings.language')}</Label>
-            <Select value={locale} onValueChange={setLocale}>
+            <Select value={locale} onValueChange={changeLocale}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -474,7 +602,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
           <div className="space-y-2">
             <Label>{t('settings.terminal')}</Label>
-            <Select value={terminal || '__auto__'} onValueChange={(v) => setTerminal(v === '__auto__' ? '' : v)}>
+            <Select value={terminal || '__auto__'} onValueChange={(v) => changeTerminal(v === '__auto__' ? '' : v)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

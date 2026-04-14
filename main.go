@@ -29,6 +29,7 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 		UseApplicationMenu: false,
 		BackgroundColour:   application.NewRGBA(15, 15, 20, 255),
 		HideOnEscape:       true,
+		URL:                "/?window=settings",
 	}
 
 	if settings.WindowX >= 0 && settings.WindowY >= 0 {
@@ -44,6 +45,12 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 		x, y := settingsWindow.Position()
 		width, height := settingsWindow.Size()
 		appService.SaveSettingsWindowState(x, y, width, height)
+		// The settings window is hidden (not destroyed) on close, so the React
+		// tree keeps its state across open/close cycles. Broadcast this event
+		// so the settings page can revert any unsaved draft + DOM preview
+		// before the window disappears, regardless of how it was closed
+		// (title-bar X, Cmd+W, Cmd+Q on settings window, etc.).
+		app.Event.Emit("settings-window-hiding")
 		settingsWindow.Hide()
 	})
 

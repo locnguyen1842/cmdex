@@ -463,17 +463,44 @@ function App() {
     }, []);
 
     useEffect(() => {
-        const cleanup = Events.On('settings-changed', (settings: any) => {
-            if (!settings) return;
-            setTheme(settings.theme || 'vscode-dark');
-            setUiFont(settings.uiFont || 'Inter');
-            setMonoFont(settings.monoFont || 'JetBrains Mono');
-            setDensity(settings.density || 'comfortable');
-            if (settings.customThemes) {
+        // Wails v3 `Events.On` delivers a `WailsEvent` wrapper: { name, data, sender }.
+        // The emitted payload is at `event.data`, not on the event object itself.
+        // Reading the payload fields directly off `event` returns undefined and would
+        // cause `||` fallbacks to kick in, overwriting user's just-saved settings
+        // with defaults. Always unwrap `.data`.
+        const cleanup = Events.On('settings-changed', (event: any) => {
+            const payload = event?.data;
+            if (!payload) return;
+            // Keep settingsRef in sync BEFORE state setters fire their auto-save
+            // useEffects — those effects read state and persist, so settingsRef
+            // must hold the correct non-theme fields first or a stale value (e.g.
+            // lastDarkTheme, locale, terminal) could be written back to the DB.
+            const current = settingsRef.current;
+            settingsRef.current = {
+                ...current,
+                locale: payload.locale ?? current.locale,
+                terminal: payload.terminal ?? current.terminal,
+                theme: payload.theme ?? current.theme,
+                lastDarkTheme: payload.lastDarkTheme ?? current.lastDarkTheme,
+                lastLightTheme: payload.lastLightTheme ?? current.lastLightTheme,
+                uiFont: payload.uiFont ?? current.uiFont,
+                monoFont: payload.monoFont ?? current.monoFont,
+                density: payload.density ?? current.density,
+            };
+            if (payload.theme) setTheme(payload.theme);
+            if (payload.uiFont) setUiFont(payload.uiFont);
+            if (payload.monoFont) setMonoFont(payload.monoFont);
+            if (payload.density) setDensity(payload.density);
+            if (payload.customThemes !== undefined) {
                 try {
-                    setCustomThemes(JSON.parse(settings.customThemes));
+                    const parsed = typeof payload.customThemes === 'string'
+                        ? JSON.parse(payload.customThemes)
+                        : payload.customThemes;
+                    setCustomThemes(Array.isArray(parsed) ? parsed : []);
+                    settingsRef.current.customThemes = Array.isArray(parsed) ? parsed : [];
                 } catch {
                     setCustomThemes([]);
+                    settingsRef.current.customThemes = [];
                 }
             }
         });
