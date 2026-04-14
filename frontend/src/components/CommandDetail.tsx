@@ -851,6 +851,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               <button
                 type="button"
                 className="script-mode-toggle"
+                hidden={isNewCommand || variables.length <= 0}
                 onClick={() => setShowPreview((p) => !p)}
                 aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
               >
