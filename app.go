@@ -12,6 +12,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
+const eventCmdOutput = "cmd-output"
+
 // App struct holds application state
 type App struct {
 	app      *application.App
@@ -260,7 +262,7 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
 
 	result := a.executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
-		a.app.Event.Emit("cmd-output", chunk)
+		a.app.Event.Emit(eventCmdOutput, chunk)
 	})
 
 	wd, _ := os.Getwd()
