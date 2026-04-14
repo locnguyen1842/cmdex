@@ -39,7 +39,7 @@ export function shortcutLabelParts(parts: readonly string[]): string[] {
 
 export function shortcutLabelString(parts: readonly string[]): string {
   const labels = shortcutLabelParts(parts);
-  return isMac ? labels.join('') : labels.join('+');
+  return isMac ? labels.join(' ') : labels.join('+');
 }
 
 // ---------------------------------------------------------------------------

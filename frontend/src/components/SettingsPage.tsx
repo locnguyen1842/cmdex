@@ -11,7 +11,7 @@ import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';
 import { Events } from '@wailsio/runtime';
-import { events } from '../wails/events';
+import { eventNames } from '../wails/events';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -137,7 +137,6 @@ export interface SettingsPageProps {
   onUiFontChange?: (font: string) => void;
   onMonoFontChange?: (font: string) => void;
   onDensityChange?: (density: string) => void;
-  standalone?: boolean;
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -153,7 +152,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onUiFontChange,
   onMonoFontChange,
   onDensityChange,
-  standalone = false,
 }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
@@ -187,121 +185,104 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const changeTheme = useCallback((v: string) => {
     markTouched();
     setDraftTheme(v);
-    if (!standalone) {
-      onThemeChange(v);
-    } else {
-      // Auto-save immediately in standalone mode
-      const newSettings = {
-        locale, terminal, theme: v,
-        lastDarkTheme: v.startsWith('vscode-dark') || v.startsWith('monokai') || v.startsWith('one-dark') || v.startsWith('classic') || v.startsWith('catppuccin') || v.startsWith('dracula') || v.startsWith('tokyo-night') ? v : savedTheme.startsWith('vscode-dark') || savedTheme.startsWith('monokai') || savedTheme.startsWith('one-dark') || savedTheme.startsWith('classic') || savedTheme.startsWith('catppuccin') || savedTheme.startsWith('dracula') || savedTheme.startsWith('tokyo-night') ? savedTheme : 'vscode-dark',
-        lastLightTheme: v.startsWith('vscode-light') ? v : savedTheme.startsWith('vscode-light') ? savedTheme : 'vscode-light',
-        customThemes: '[]',
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    }
-  }, [markTouched, standalone, onThemeChange, locale, terminal, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
+    // Auto-save immediately in standalone mode
+    const newSettings = {
+      locale, terminal, theme: v,
+      lastDarkTheme: v.startsWith('vscode-dark') || v.startsWith('monokai') || v.startsWith('one-dark') || v.startsWith('classic') || v.startsWith('catppuccin') || v.startsWith('dracula') || v.startsWith('tokyo-night') ? v : savedTheme.startsWith('vscode-dark') || savedTheme.startsWith('monokai') || savedTheme.startsWith('one-dark') || savedTheme.startsWith('classic') || savedTheme.startsWith('catppuccin') || savedTheme.startsWith('dracula') || savedTheme.startsWith('tokyo-night') ? savedTheme : 'vscode-dark',
+      lastLightTheme: v.startsWith('vscode-light') ? v : savedTheme.startsWith('vscode-light') ? savedTheme : 'vscode-light',
+      customThemes: '[]',
+      uiFont: draftUiFont,
+      monoFont: draftMonoFont,
+      density: draftDensity,
+    };
+    SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    Events.Emit(eventNames.settingsChanged, newSettings);
+  }, [markTouched, locale, terminal, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   const changeDensity = useCallback((v: string) => {
     markTouched();
     setDraftDensity(v);
-    if (!standalone) {
-      onDensityChange?.(v);
-    } else {
-      // Auto-save immediately in standalone mode
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: savedTheme,
-        lastLightTheme: savedTheme,
-        customThemes: '[]',
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: v,
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(events.settingsChanged, newSettings);
-    }
-  }, [markTouched, standalone, onDensityChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont]);
+    // Auto-save immediately in standalone mode
+    const newSettings = {
+      locale, terminal, theme: draftTheme,
+      lastDarkTheme: savedTheme,
+      lastLightTheme: savedTheme,
+      customThemes: '[]',
+      uiFont: draftUiFont,
+      monoFont: draftMonoFont,
+      density: v,
+    };
+    SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    Events.Emit(eventNames.settingsChanged, newSettings);
+  }, [markTouched, locale, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont]);
 
   const changeUiFont = useCallback((v: string) => {
     markTouched();
     setDraftUiFont(v);
-    if (!standalone) {
-      onUiFontChange?.(v);
-    } else {
-      // Auto-save immediately in standalone mode
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: savedTheme,
-        lastLightTheme: savedTheme,
-        customThemes: '[]',
-        uiFont: v,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(events.settingsChanged, newSettings);
-    }
-  }, [markTouched, standalone, onUiFontChange, locale, terminal, draftTheme, savedTheme, draftMonoFont, draftDensity]);
+    // Auto-save immediately in standalone mode
+    const newSettings = {
+      locale, terminal, theme: draftTheme,
+      lastDarkTheme: savedTheme,
+      lastLightTheme: savedTheme,
+      customThemes: '[]',
+      uiFont: v,
+      monoFont: draftMonoFont,
+      density: draftDensity,
+    };
+    SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    Events.Emit(eventNames.settingsChanged, newSettings);
+  }, [markTouched, locale, terminal, draftTheme, savedTheme, draftMonoFont, draftDensity]);
 
   const changeMonoFont = useCallback((v: string) => {
     markTouched();
     setDraftMonoFont(v);
-    if (!standalone) {
-      onMonoFontChange?.(v);
-    } else {
-      // Auto-save immediately in standalone mode
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: savedTheme,
-        lastLightTheme: savedTheme,
-        customThemes: '[]',
-        uiFont: draftUiFont,
-        monoFont: v,
-        density: draftDensity,
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(events.settingsChanged, newSettings);
-    }
-  }, [markTouched, standalone, onMonoFontChange, locale, terminal, draftTheme, savedTheme, draftUiFont, draftDensity]);
+    // Auto-save immediately in standalone mode
+    const newSettings = {
+      locale, terminal, theme: draftTheme,
+      lastDarkTheme: savedTheme,
+      lastLightTheme: savedTheme,
+      customThemes: '[]',
+      uiFont: draftUiFont,
+      monoFont: v,
+      density: draftDensity,
+    };
+    SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    Events.Emit(eventNames.settingsChanged, newSettings);
+  }, [markTouched, locale, terminal, draftTheme, savedTheme, draftUiFont, draftDensity]);
 
   const changeLocale = useCallback((v: string) => {
     markTouched();
     setLocale(v);
-    if (standalone) {
-      // Auto-save immediately in standalone mode
-      const newSettings = {
-        locale: v, terminal, theme: draftTheme,
-        lastDarkTheme: savedTheme,
-        lastLightTheme: savedTheme,
-        customThemes: '[]',
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    }
-  }, [markTouched, standalone, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
+    // Auto-save immediately in standalone mode
+    const newSettings = {
+      locale: v, terminal, theme: draftTheme,
+      lastDarkTheme: savedTheme,
+      lastLightTheme: savedTheme,
+      customThemes: '[]',
+      uiFont: draftUiFont,
+      monoFont: draftMonoFont,
+      density: draftDensity,
+    };
+    SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    Events.Emit(eventNames.settingsChanged, newSettings);
+  }, [markTouched, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   const changeTerminal = useCallback((v: string) => {
     markTouched();
     setTerminal(v);
-    if (standalone) {
-      // Auto-save immediately in standalone mode
-      const newSettings = {
-        locale, terminal: v, theme: draftTheme,
-        lastDarkTheme: savedTheme,
-        lastLightTheme: savedTheme,
-        customThemes: '[]',
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    }
-  }, [markTouched, standalone, locale, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
+    // Auto-save immediately in standalone mode
+    const newSettings = {
+      locale, terminal: v, theme: draftTheme,
+      lastDarkTheme: savedTheme,
+      lastLightTheme: savedTheme,
+      customThemes: '[]',
+      uiFont: draftUiFont,
+      monoFont: draftMonoFont,
+      density: draftDensity,
+    };
+    SetSettings(JSON.stringify(newSettings)).catch(() => {});
+    Events.Emit(eventNames.settingsChanged, newSettings);
+  }, [markTouched, locale, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   useEffect(() => {
     GetAvailableTerminals()
@@ -334,7 +315,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   // `theme`/`uiFont`/... state. That round-trip was the source of the
   // prop-sync loop that zeroed out the dirty state.
   useEffect(() => {
-    if (!standalone) return;
     document.documentElement.setAttribute('data-theme', draftTheme);
     const custom = customThemes?.find(c => c.id === draftTheme);
     if (custom) {
@@ -352,31 +332,27 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       ];
       allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
     }
-  }, [draftTheme, customThemes, standalone]);
+  }, [draftTheme, customThemes]);
 
   useEffect(() => {
-    if (!standalone) return;
     document.documentElement.setAttribute('data-density', draftDensity);
-  }, [draftDensity, standalone]);
+  }, [draftDensity]);
 
   useEffect(() => {
-    if (!standalone) return;
     const fontValue = draftUiFont === 'System Default'
       ? 'system-ui, -apple-system, sans-serif'
       : `'${draftUiFont}', system-ui, sans-serif`;
     document.documentElement.style.setProperty('--font-sans', fontValue);
-  }, [draftUiFont, standalone]);
+  }, [draftUiFont]);
 
   useEffect(() => {
-    if (!standalone) return;
     document.documentElement.style.setProperty('--font-mono', `'${draftMonoFont}', monospace`);
-  }, [draftMonoFont, standalone]);
+  }, [draftMonoFont]);
 
   // In standalone mode, if the component unmounts (e.g. window closes)
   // with unsaved changes, revert DOM preview to the saved values so the
   // next open starts clean.
   useEffect(() => {
-    if (!standalone) return;
     return () => {
       document.documentElement.setAttribute('data-theme', savedTheme);
       document.documentElement.setAttribute('data-density', savedDensity);
@@ -386,7 +362,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       document.documentElement.style.setProperty('--font-sans', fontValue);
       document.documentElement.style.setProperty('--font-mono', `'${savedMonoFont}', monospace`);
     };
-  }, [standalone, savedTheme, savedDensity, savedUiFont, savedMonoFont]);
+  }, [savedTheme, savedDensity, savedUiFont, savedMonoFont]);
 
   const isDirty =
     locale !== savedLocale ||
@@ -402,12 +378,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       // In standalone mode SettingsPage already drives DOM preview itself,
       // and the persisted settings-changed event notifies other windows.
       // Parent callbacks are only needed for the in-app modal flow.
-      if (!standalone) {
-        onThemeChange(draftTheme);
-        onUiFontChange?.(draftUiFont);
-        onMonoFontChange?.(draftMonoFont);
-        onDensityChange?.(draftDensity);
-      }
       setSavedTheme(draftTheme);
       setSavedUiFont(draftUiFont);
       setSavedMonoFont(draftMonoFont);
@@ -425,7 +395,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         density: draftDensity,
       };
       await SetSettings(JSON.stringify(newSettings));
-      Events.Emit(events.settingsChanged, newSettings);
+      Events.Emit(eventNames.settingsChanged, newSettings);
       setSavedLocale(locale);
       setSavedTerminal(terminal);
       userTouchedRef.current = false;
@@ -433,42 +403,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     } catch (err) {
       console.error('Failed to persist settings:', err);
     }
-  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t, standalone, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
-
-  const revertDraftToSaved = useCallback(() => {
-    setLocale(savedLocale);
-    setTerminal(savedTerminal);
-    setDraftTheme(savedTheme);
-    setDraftUiFont(savedUiFont);
-    setDraftMonoFont(savedMonoFont);
-    setDraftDensity(savedDensity);
-    setConfirmReset(false);
-    userTouchedRef.current = false;
-    // In standalone mode, SettingsPage's own useEffects will restore DOM
-    // preview from the new drafts; we must NOT ping parent callbacks.
-    if (!standalone) {
-      onThemeChange(savedTheme);
-      onUiFontChange?.(savedUiFont);
-      onMonoFontChange?.(savedMonoFont);
-      onDensityChange?.(savedDensity);
-    }
-  }, [savedLocale, savedTerminal, savedTheme, savedUiFont, savedMonoFont, savedDensity, standalone, onThemeChange, onUiFontChange, onMonoFontChange, onDensityChange]);
-
-  const handleCancel = revertDraftToSaved;
-
-  // Standalone-only: the settings window is hidden (not destroyed) on close,
-  // so SettingsPage never unmounts across open/close cycles. The Go side
-  // emits `settings-window-hiding` from the WindowClosing handler for every
-  // close path (title-bar X, Cmd+W, Cmd+Q on settings window). Revert the
-  // draft on that signal so the next open starts clean and DOM preview
-  // returns to the last saved values.
-  useEffect(() => {
-    if (!standalone) return;
-    const cleanup = Events.On(events.settingsWindowHiding, () => {
-      revertDraftToSaved();
-    });
-    return cleanup;
-  }, [standalone, revertDraftToSaved]);
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t]);
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -515,7 +450,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   }, []);
 
   return (
-    <div className={standalone ? "p-4 space-y-4" : "space-y-4"}>
+    <div className="p-4 space-y-4">
       <Tabs defaultValue="appearance" className="w-full">
         <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-border h-auto mb-0">
           <TabsTrigger
@@ -540,11 +475,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
         <TabsContent value="appearance" className="space-y-4 pt-4">
           <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground">{t('settings.builtinThemes')}</p>
+            <p className="text-[11px] text-muted-foreground">{t('settings.theme')}</p>
             <div
               role="group"
               aria-label="Theme selection"
-              className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-0.5"
+              className="grid grid-cols-2 gap-2 p-3 max-h-[200px] overflow-y-auto scrollbar-hide"
             >
               {THEMES.map(th => (
                 <ThemeSwatch
@@ -718,16 +653,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           )}
         </TabsContent>
       </Tabs>
-      {!standalone && (
-        <div className="flex gap-2 justify-end">
-          <Button variant="outline" onClick={handleCancel}>
-            {t('settings.close')}
-          </Button>
-          <Button disabled={!isDirty} onClick={handleSave}>
-            {t('settings.save')}
-          </Button>
-        </div>
-      )}
     </div>
   );
 };

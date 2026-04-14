@@ -4,7 +4,7 @@ export namespace main {
 	    cmdOutput: string;
 	    openSettings: string;
 	    settingsChanged: string;
-	    settingsWindowHiding: string;
+	    settingsWindowClosing: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EventNames(source);
@@ -15,7 +15,7 @@ export namespace main {
 	        this.cmdOutput = source["cmdOutput"];
 	        this.openSettings = source["openSettings"];
 	        this.settingsChanged = source["settingsChanged"];
-	        this.settingsWindowHiding = source["settingsWindowHiding"];
+	        this.settingsWindowClosing = source["settingsWindowClosing"];
 	    }
 	}
 	export class AppSettings {

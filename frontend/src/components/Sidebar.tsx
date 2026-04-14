@@ -156,7 +156,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
           <Button
             size="sm"
             variant="ghost"
-            className="cmd-delete-btn cmd-delete-btn--confirm"
+            className="cmd-delete-btn text-destructive hover:border-destructive hover:text-secondary-foreground dark:hover:bg-destructive/50"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
             {t('common.delete')}
@@ -164,7 +164,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
           <Button
             size="sm"
             variant="ghost"
-            className="cmd-delete-btn"
+            className="cmd-delete-btn hover:border-secondary hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/50"
             onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
           >
             {t('common.cancel')}

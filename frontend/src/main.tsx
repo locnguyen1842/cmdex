@@ -107,7 +107,6 @@ if (isSettingsWindow) {
                 monoFont={monoFont}
                 onUiFontChange={handleUiFontChange}
                 onMonoFontChange={handleMonoFontChange}
-                standalone
             />
         )
     }

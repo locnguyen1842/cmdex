@@ -1,16 +1,16 @@
 import { GetEventNames } from '../../wailsjs/go/main/App';
 
-export const events = {
+export const eventNames = {
     cmdOutput: 'cmd-output',
     openSettings: 'open-settings',
     settingsChanged: 'settings-changed',
-    settingsWindowHiding: 'settings-window-hiding',
+    settingsWindowClosing: 'settings-window-closing',
 };
 
 export async function initEventNames(): Promise<void> {
     const names = await GetEventNames();
-    events.cmdOutput = names.cmdOutput;
-    events.openSettings = names.openSettings;
-    events.settingsChanged = names.settingsChanged;
-    events.settingsWindowHiding = names.settingsWindowHiding;
+    eventNames.cmdOutput = names.cmdOutput;
+    eventNames.openSettings = names.openSettings;
+    eventNames.settingsChanged = names.settingsChanged;
+    eventNames.settingsWindowClosing = names.settingsWindowClosing;
 }

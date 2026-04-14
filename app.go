@@ -12,26 +12,25 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-const eventCmdOutput = "cmd-output"
-const eventSettingsWindowHiding = "settings-window-hiding"
-
 // EventNames holds all Wails event name constants, exposed to frontend via GetEventNames().
 type EventNames struct {
-	CmdOutput            string `json:"cmdOutput"`
-	OpenSettings         string `json:"openSettings"`
-	SettingsChanged      string `json:"settingsChanged"`
-	SettingsWindowHiding string `json:"settingsWindowHiding"`
+	CmdOutput             string `json:"cmdOutput"`
+	OpenSettings          string `json:"openSettings"`
+	SettingsChanged       string `json:"settingsChanged"`
+	SettingsWindowClosing string `json:"settingsWindowClosing"`
+}
+
+var eventNames = EventNames{
+	CmdOutput:             "cmd-output",
+	OpenSettings:          "open-settings",
+	SettingsChanged:       "settings-changed",
+	SettingsWindowClosing: "settings-window-closing",
 }
 
 // GetEventNames returns all event name constants so the frontend can use
 // them via Wails bindings instead of hardcoded strings.
 func (a *App) GetEventNames() EventNames {
-	return EventNames{
-		CmdOutput:            eventCmdOutput,
-		OpenSettings:         "open-settings",
-		SettingsChanged:      "settings-changed",
-		SettingsWindowHiding: "settings-window-hiding",
-	}
+	return eventNames
 }
 
 type App struct {
@@ -281,7 +280,7 @@ func (a *App) RunCommand(commandID string, variables map[string]string) Executio
 	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
 
 	result := a.executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
-		a.app.Event.Emit(eventCmdOutput, chunk)
+		a.app.Event.Emit(eventNames.CmdOutput, chunk)
 	})
 
 	wd, _ := os.Getwd()

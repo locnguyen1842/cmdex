@@ -6,7 +6,7 @@ includes:
     optional: true
 
 vars:
-  APP_NAME: cmdex
+  APP_NAME: CmDex
   BIN_DIR: bin
   VITE_PORT: 9245
 

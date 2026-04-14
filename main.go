@@ -2,8 +2,6 @@ package main
 
 import (
 	"embed"
-	"fmt"
-	goruntime "runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -12,10 +10,11 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-var settingsWindow *application.WebviewWindow
 var appService *App
 
-func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow {
+var settingsWindow *application.WebviewWindow
+
+func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
 	if settingsWindow != nil {
 		return settingsWindow
 	}
@@ -33,15 +32,24 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 		MinimiseButtonState: application.ButtonDisabled,
 		MaximiseButtonState: application.ButtonDisabled,
 		URL:                 "/?window=settings",
+		Name:                "settings",
 	}
 
 	windowOptions.InitialPosition = application.WindowCentered
 
 	settingsWindow = app.Window.NewWithOptions(windowOptions)
 
+	settingsWindow.OnWindowEvent(events.Common.WindowHide, func(event *application.WindowEvent) {
+		app.Event.Emit(eventNames.SettingsWindowClosing)
+		settingsWindow.Close()
+
+		settingsWindow = nil
+	})
+
 	settingsWindow.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		app.Event.Emit(eventSettingsWindowHiding)
-		settingsWindow.Hide()
+		app.Event.Emit(eventNames.SettingsWindowClosing)
+
+		settingsWindow = nil
 	})
 
 	return settingsWindow
@@ -49,19 +57,9 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 
 func ShowSettingsWindow() {
 	app := application.Get()
-	w := GetOrCreateSettingsWindow(app)
-	fmt.Printf("Showing settings window: %+v\n", w)
+	w := CreateSettingsWindow(app)
 	w.Show()
 	w.Focus()
-}
-
-func GetSettingsWindowState() (x, y, w, h int) {
-	if settingsWindow == nil {
-		return -1, -1, 640, 520
-	}
-	x, y = settingsWindow.Position()
-	w, h = settingsWindow.Size()
-	return
 }
 
 func main() {
@@ -81,34 +79,27 @@ func main() {
 	})
 
 	menu := app.NewMenu()
-	if goruntime.GOOS == "darwin" {
-		cmdexMenu := menu.AddSubmenu("Cmdex")
-		cmdexMenu.AddRole(application.About)
-		cmdexMenu.AddSeparator()
 
-		cmdexMenu.Add("Settings...").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
-			ShowSettingsWindow()
-		})
-		cmdexMenu.AddSeparator()
+	cmdexMenu := menu.AddSubmenu("CmDex")
+	cmdexMenu.AddRole(application.About)
+	cmdexMenu.AddSeparator()
+	cmdexMenu.Add("Settings...").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
+		ShowSettingsWindow()
+	})
+	cmdexMenu.AddSeparator()
+	cmdexMenu.AddRole(application.Hide)
+	cmdexMenu.AddRole(application.HideOthers)
+	cmdexMenu.AddSeparator()
+	cmdexMenu.AddRole(application.Reload)
+	cmdexMenu.AddRole(application.Quit)
 
-		cmdexMenu.Add("Hide Cmdex").SetAccelerator("CmdOrCtrl+h")
-		cmdexMenu.Add("Hide Others").SetAccelerator("Alt+h")
-		cmdexMenu.AddSeparator()
+	menu.AddRole(application.EditMenu)
 
-		cmdexMenu.Add("Quit Cmdex").SetAccelerator("CmdOrCtrl+q").OnClick(func(ctx *application.Context) {
-			app.Quit()
-		})
-		menu.AddRole(application.EditMenu)
-	} else {
-		fileMenu := menu.AddSubmenu("File")
-		fileMenu.Add("Settings").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
-			ShowSettingsWindow()
-		})
-		fileMenu.AddSeparator()
-		fileMenu.Add("Quit").SetAccelerator("CmdOrCtrl+q").OnClick(func(ctx *application.Context) {
-			app.Quit()
-		})
-	}
+	helpMenu := menu.AddSubmenu("Help")
+	helpMenu.Add("Open Dev Tools").OnClick(func(ctx *application.Context) {
+		app.Window.Current().OpenDevTools()
+	})
+
 	app.Menu.Set(menu)
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{

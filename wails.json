@@ -1,13 +1,15 @@
 {
-  "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "cmdex",
+  "name": "CmDex",
   "outputfilename": "cmdex",
-  "frontend:install": "pnpm install",
-  "frontend:build": "pnpm run build",
-  "frontend:dev:watcher": "pnpm run dev",
-  "frontend:dev:serverUrl": "auto",
   "author": {
     "name": "Loco",
     "email": "locnguyen1842@gmail.com"
+  },
+  "frontend": {
+    "dir": "./frontend",
+    "install": "pnpm install",
+    "build": "pnpm run build",
+    "dev": "pnpm run dev",
+    "devServerUrl": "http://localhost:9245"
   }
 }

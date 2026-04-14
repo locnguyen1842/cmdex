@@ -781,9 +781,6 @@ body {
   font-size: 11px !important;
   min-width: 0 !important;
 }
-.cmd-delete-btn--confirm {
-  color: var(--destructive) !important;
-}
 
 .cmd-tags-row {
   display: flex;
