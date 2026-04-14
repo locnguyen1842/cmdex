@@ -21,16 +21,18 @@ func GetOrCreateSettingsWindow(app *application.App) *application.WebviewWindow 
 	settings, _ := appService.db.GetSettings()
 
 	windowOptions := application.WebviewWindowOptions{
-		Title:              "Settings",
-		Width:              settings.WindowWidth,
-		Height:             settings.WindowHeight,
-		MinWidth:           480,
-		MinHeight:          400,
-		UseApplicationMenu: false,
-		BackgroundColour:   application.NewRGBA(15, 15, 20, 255),
-		HideOnEscape:       true,
-		DisableResize:      true,
-		URL:                "/?window=settings",
+		Title: "Settings",
+		// Width:  settings.WindowWidth,
+		// Height: settings.WindowHeight,
+		// MinWidth:            480,
+		// MinHeight:           400,
+		UseApplicationMenu:  false,
+		BackgroundColour:    application.NewRGBA(15, 15, 20, 255),
+		HideOnEscape:        true,
+		DisableResize:       true,
+		MinimiseButtonState: application.ButtonDisabled,
+		MaximiseButtonState: application.ButtonDisabled,
+		URL:                 "/?window=settings",
 	}
 
 	if settings.WindowX >= 0 && settings.WindowY >= 0 {
@@ -62,6 +64,7 @@ func ShowSettingsWindow() {
 	app := application.Get()
 	w := GetOrCreateSettingsWindow(app)
 	w.Show()
+	w.Focus()
 }
 
 func GetSettingsWindowState() (x, y, w, h int) {
@@ -91,22 +94,26 @@ func main() {
 
 	menu := app.NewMenu()
 	if goruntime.GOOS == "darwin" {
-		menu.AddRole(application.AppMenu)
 		cmdexMenu := menu.AddSubmenu("Cmdex")
-		cmdexMenu.Add("Preferences...").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
+		cmdexMenu.AddRole(application.About)
+		cmdexMenu.AddSeparator()
+
+		cmdexMenu.Add("Settings...").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
 			ShowSettingsWindow()
 		})
 		cmdexMenu.AddSeparator()
+
 		cmdexMenu.Add("Hide Cmdex").SetAccelerator("CmdOrCtrl+h")
 		cmdexMenu.Add("Hide Others").SetAccelerator("Alt+h")
 		cmdexMenu.AddSeparator()
+
 		cmdexMenu.Add("Quit Cmdex").SetAccelerator("CmdOrCtrl+q").OnClick(func(ctx *application.Context) {
 			app.Quit()
 		})
 		menu.AddRole(application.EditMenu)
 	} else {
 		fileMenu := menu.AddSubmenu("File")
-		fileMenu.Add("Preferences").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
+		fileMenu.Add("Settings").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
 			ShowSettingsWindow()
 		})
 		fileMenu.AddSeparator()
