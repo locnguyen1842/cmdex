@@ -5,7 +5,7 @@ milestone_name: Build Settings Window
 status: In progress
 stopped_at: "Phase 7 context gathered"
 last_updated: "2026-04-13T06:00:00.000Z"
-last_activity: 2026-04-14 — Completed quick task 260414-h5v: auto-save settings on change, remove close/save buttons
+last_activity: 2026-04-14 — Fixed settings window reopen issue with Focus() after Show()
 progress:
   total_phases: 2
   completed_phases: 0
@@ -68,6 +68,7 @@ Progress: [░░░░░░░░░░] 0%
 | 260414-fvh | check setting dialogs linking to wails setting window | 2026-04-14 | bebe4a4 | [260414-fvh-check-setting-dialogs-linking-to-wails-s](./quick/260414-fvh-check-setting-dialogs-linking-to-wails-s/) |
 | 260414-g2s | add padding to setting window, remove old SettingsDialog | 2026-04-14 | 8df32fe | [260414-g2s-add-padding-to-setting-window-remove-old](./quick/260414-g2s-add-padding-to-setting-window-remove-old/) |
 | 260414-h5v | auto-save settings on change, remove close/save buttons | 2026-04-14 | 8a3dcb4 | [260414-h5v-auto-save-settings-on-change-remove-clos](./quick/260414-h5v-auto-save-settings-on-change-remove-clos/) |
+| 260414-hlh | fix settings: density/font selects not updating main window (PARTIAL - Bug 2 BringToFront not available in Wails v3) | 2026-04-14 | 7171560 | [260414-hlh-fix-settings-density-font-selects-not-up](./quick/260414-hlh-fix-settings-density-font-selects-not-up/) |
 
 ---
 
