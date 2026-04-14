@@ -5,7 +5,7 @@ milestone_name: Build Settings Window
 status: In progress
 stopped_at: "Phase 7 context gathered"
 last_updated: "2026-04-13T06:00:00.000Z"
-last_activity: 2026-04-14 — Completed quick task 260414-fvh: check setting dialogs linking to wails setting window
+last_activity: 2026-04-14 — Completed quick task 260414-g2s: add padding to setting window, remove old SettingsDialog
 progress:
   total_phases: 2
   completed_phases: 0
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 Phase: 7 — Settings Window (context gathered)
 Plan: —
 Status: Ready for planning
-Last activity: 2026-04-13 — Phase 7 context gathered
+Last activity: 2026-04-14 — Completed quick task 260414-g2s: add padding to setting window, remove old SettingsDialog
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -66,6 +66,7 @@ Progress: [░░░░░░░░░░] 0%
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260414-fvh | check setting dialogs linking to wails setting window | 2026-04-14 | bebe4a4 | [260414-fvh-check-setting-dialogs-linking-to-wails-s](./quick/260414-fvh-check-setting-dialogs-linking-to-wails-s/) |
+| 260414-g2s | add padding to setting window, remove old SettingsDialog | 2026-04-14 | 8df32fe | [260414-g2s-add-padding-to-setting-window-remove-old](./quick/260414-g2s-add-padding-to-setting-window-remove-old/) |
 
 ---
 
