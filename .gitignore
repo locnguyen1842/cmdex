@@ -21,3 +21,5 @@ todos/
 !.planning/codebase/
 
 .claude/settings.local.json
+
+.env
