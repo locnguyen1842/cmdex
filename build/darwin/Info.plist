@@ -1,56 +1,29 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-	<dict>
-		<key>CFBundleDocumentTypes</key>
-		<array>
-			<dict>
-				<key>CFBundleTypeExtensions</key>
-				<array>
-					<string>{{.Ext}}</string>
-				</array>
-				<key>CFBundleTypeIconFile</key>
-				<string>{{.IconName}}</string>
-				<key>CFBundleTypeName</key>
-				<string>{{.Name}}</string>
-				<key>CFBundleTypeRole</key>
-				<string>{{.Role}}</string>
-			</dict>
-		</array>
-		<key>CFBundleExecutable</key>
-		<string/>
-		<key>CFBundleGetInfoString</key>
-		<string>This is a comment</string>
-		<key>CFBundleIconFile</key>
-		<string>icons</string>
-		<key>CFBundleIdentifier</key>
-		<string/>
-		<key>CFBundleName</key>
-		<string>My Product</string>
-		<key>CFBundlePackageType</key>
-		<string>APPL</string>
-		<key>CFBundleShortVersionString</key>
-		<string>0.1.0</string>
-		<key>CFBundleURLTypes</key>
-		<array>
-			<dict>
-				<key>CFBundleTypeRole</key>
-				<string>{{.Role}}</string>
-				<key>CFBundleURLName</key>
-				<string>com.wails.{{.Scheme}}</string>
-				<key>CFBundleURLSchemes</key>
-				<array>
-					<string>{{.Scheme}}</string>
-				</array>
-			</dict>
-		</array>
-		<key>CFBundleVersion</key>
-		<string>0.1.0</string>
-		<key>LSMinimumSystemVersion</key>
-		<string>10.15.0</string>
-		<key>NSHighResolutionCapable</key>
-		<string>true</string>
-		<key>NSHumanReadableCopyright</key>
-		<string>© now, My Company</string>
-	</dict>
+    <dict>
+        <key>CFBundlePackageType</key>
+            <string>APPL</string>
+        <key>CFBundleName</key>
+            <string>CmDex</string>
+        <key>CFBundleExecutable</key>
+            <string>CmDex</string>
+        <key>CFBundleIdentifier</key>
+            <string>com.fenv.cmdex</string>
+        <key>CFBundleVersion</key>
+            <string>0.1.0</string>
+        <key>CFBundleGetInfoString</key>
+            <string>CmDex - Command Manager</string>
+        <key>CFBundleShortVersionString</key>
+            <string>0.1.0</string>
+        <key>CFBundleIconFile</key>
+            <string>icons</string>
+        <key>CFBundleIconName</key>
+            <string>appicon</string>
+        <key>LSMinimumSystemVersion</key>
+            <string>10.15.0</string>
+        <key>NSHighResolutionCapable</key>
+            <string>true</string>
+        <key>NSHumanReadableCopyright</key>
+            <string>© 2026, fenv</string>
+    </dict>
 </plist>

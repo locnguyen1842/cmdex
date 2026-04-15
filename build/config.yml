@@ -2,12 +2,12 @@
 version: '3'
 
 info:
-  companyName: "Cmdex"
-  productName: "Cmdex"
-  productIdentifier: "com.cmdex.app"
+  companyName: "fenv"
+  productName: "CmDex"
+  productIdentifier: "com.fenv.cmdex"
   description: "CLI command manager with variable placeholders"
   copyright: "(c) 2026"
-  comments: "Cmdex - Command Manager"
+  comments: "CmDex - Command Manager"
   version: "0.1.0"
 
 dev_mode:

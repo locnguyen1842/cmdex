@@ -1,52 +1,60 @@
 version: '3'
 
 includes:
-  common:
-    taskfile: ./build/Taskfile.yml
-    optional: true
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+  # ios: ./build/ios/Taskfile.yml
+  # android: ./build/android/Taskfile.yml
 
 vars:
-  APP_NAME: CmDex
-  BIN_DIR: bin
-  VITE_PORT: 9245
+  APP_NAME: "CmDex"
+  BIN_DIR: "bin"
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
 
 tasks:
-  darwin:build:
-    summary: Build for Darwin/macOS
-    cmds:
-      - task: common:build
-        vars:
-          DEV: "false"
-          OUTPUT: "{{.BIN_DIR}}/{{.APP_NAME}}"
-
   build:
-    summary: Builds the application for current platform
+    summary: Builds the application
     cmds:
-      - task: darwin:build
+      - task: "{{OS}}:build"
 
-  build:frontend:
-    dir: frontend
-    deps:
-      - install:deps
-      - generate:bindings
+  package:
+    summary: Packages a production build of the application
     cmds:
-      - pnpm run build
-
-  install:deps:
-    dir: frontend
-    cmds:
-      - pnpm install
-
-  generate:bindings:
-    cmds:
-      - wails3 generate bindings -clean=true
-
-  dev:
-    summary: Run in development mode
-    cmds:
-      - wails3 dev
+      - task: "{{OS}}:package"
 
   run:
-    summary: Run the built binary
+    summary: Runs the application
     cmds:
-      - ./{{.BIN_DIR}}/{{.APP_NAME}}
+      - task: "{{OS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  setup:docker:
+    summary: Builds Docker image for cross-compilation (~800MB download)
+    cmds:
+      - task: common:setup:docker
+
+  build:server:
+    summary: Builds the application in server mode (no GUI, HTTP server only)
+    cmds:
+      - task: common:build:server
+
+  run:server:
+    summary: Runs the application in server mode
+    cmds:
+      - task: common:run:server
+
+  build:docker:
+    summary: Builds a Docker image for server mode deployment
+    cmds:
+      - task: common:build:docker
+
+  run:docker:
+    summary: Builds and runs the Docker image
+    cmds:
+      - task: common:run:docker
