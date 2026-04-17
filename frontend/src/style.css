@@ -147,6 +147,9 @@
   --var-missing-fg: #ffc66d;
   --var-missing-border: rgba(255, 198, 109, 0.35);
 
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
+
   --sidebar-width: 300px;
   --header-height: 35px;
   --tab-bar-height: 35px;
@@ -203,6 +206,9 @@
   --var-missing-bg: rgba(161, 90, 0, 0.1);
   --var-missing-fg: #7c3800;
   --var-missing-border: rgba(161, 90, 0, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.25);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.45);
 }
 
 /* ========== Monokai ========== */
@@ -243,6 +249,9 @@
   --var-missing-bg: rgba(230, 219, 116, 0.15);
   --var-missing-fg: #e6db74;
   --var-missing-border: rgba(230, 219, 116, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Tokyo Night ========== */
@@ -283,6 +292,9 @@
   --var-missing-bg: rgba(224, 175, 104, 0.18);
   --var-missing-fg: #e0af68;
   --var-missing-border: rgba(224, 175, 104, 0.35);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== One Dark Pro ========== */
@@ -323,6 +335,9 @@
   --var-missing-bg: rgba(229, 192, 123, 0.18);
   --var-missing-fg: #e5c07b;
   --var-missing-border: rgba(229, 192, 123, 0.35);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Classic (original purple) ========== */
@@ -363,6 +378,9 @@
   --var-missing-bg: rgba(251, 189, 35, 0.15);
   --var-missing-fg: #fbbd23;
   --var-missing-border: rgba(251, 189, 35, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Catppuccin Mocha ========== */
@@ -403,6 +421,9 @@
   --var-missing-bg: rgba(249, 226, 175, 0.18);
   --var-missing-fg: #f9e2af;
   --var-missing-border: rgba(249, 226, 175, 0.35);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Dracula ========== */
@@ -443,6 +464,9 @@
   --var-missing-bg: rgba(241, 250, 140, 0.15);
   --var-missing-fg: #f1fa8c;
   --var-missing-border: rgba(241, 250, 140, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Density Overrides ========== */
@@ -484,8 +508,8 @@ body {
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.18); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.35); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* ========== Layout ========== */
 
@@ -728,7 +752,7 @@ body {
 
 .command-item.dragging {
   opacity: 0.4;
-  cursor: grabbing!important;
+  cursor: grabbing;
 }
 
 .command-item.active {
@@ -802,12 +826,6 @@ body {
 }
 .cmd-cancel-delete-icon-btn:hover {
   background: color-mix(in srgb, var(--foreground) 12%, transparent);
-}
-.cmd-cancel-delete-icon-btn.text-destructive {
-  color: var(--foreground);
-}
-.cmd-cancel-delete-icon-btn.text-destructive:hover {
-  background: color-mix(in srgb, var(--foreground) 20%, transparent);
 }
 
 .cmd-delete-icon-btn {
@@ -2121,10 +2139,6 @@ textarea.inline-edit-input {
   display: flex;
   gap: 5px;
   align-items: center;
-}
-
-.command-item.dragging {
-  opacity: 0.4;
 }
 
 .dragging-ghost {

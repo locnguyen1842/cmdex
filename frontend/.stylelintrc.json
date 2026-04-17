@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": ["plugin", "custom-variant", "theme", "apply", "variants", "responsive", "screen"]
+      }
+    ]
+  }
+}

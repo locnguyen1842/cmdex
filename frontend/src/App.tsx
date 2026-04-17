@@ -192,6 +192,10 @@ function App() {
         uiFont: 'Inter',
         monoFont: 'JetBrains Mono',
         density: 'comfortable',
+        windowX: -1,
+        windowY: -1,
+        windowWidth: 640,
+        windowHeight: 520,
     });
 
     // Persists all current settings from settingsRef to the DB.
@@ -209,6 +213,10 @@ function App() {
             uiFont: r.uiFont,
             monoFont: r.monoFont,
             density: r.density,
+            windowX: r.windowX,
+            windowY: r.windowY,
+            windowWidth: r.windowWidth,
+            windowHeight: r.windowHeight,
         })).catch(() => {});
     };
 
@@ -428,6 +436,10 @@ function App() {
                     uiFont: migratedUiFont,
                     monoFont: migratedMonoFont,
                     density: migratedDensity,
+                    windowX: s.windowX ?? -1,
+                    windowY: s.windowY ?? -1,
+                    windowWidth: s.windowWidth ?? 640,
+                    windowHeight: s.windowHeight ?? 520,
                 };
                 settingsLoadedRef.current = true;
 
@@ -455,6 +467,10 @@ function App() {
                     uiFont: migratedUiFont,
                     monoFont: migratedMonoFont,
                     density: migratedDensity,
+                    windowX: settingsRef.current.windowX,
+                    windowY: settingsRef.current.windowY,
+                    windowWidth: settingsRef.current.windowWidth,
+                    windowHeight: settingsRef.current.windowHeight,
                 })).catch(() => {});
 
                 // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
@@ -924,6 +940,7 @@ function App() {
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         const prev = commands;
+        const prevAll = allCommandsRef.current;
         const optimistic = prev.map(cmd => {
             if (cmd.id === id) {
                 return { ...cmd, categoryId: newCategoryId, position: newPosition };
@@ -940,7 +957,7 @@ function App() {
             }
         } catch (err) {
             console.error('Failed to reorder command:', err);
-            allCommandsRef.current = prev;
+            allCommandsRef.current = prevAll;
             setCommands(prev);
         }
     };

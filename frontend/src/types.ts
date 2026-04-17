@@ -131,4 +131,8 @@ export interface SettingsPayload {
   uiFont?: string;
   monoFont?: string;
   density?: string;
+  windowX?: number;
+  windowY?: number;
+  windowWidth?: number;
+  windowHeight?: number;
 }

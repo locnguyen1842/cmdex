@@ -1363,8 +1363,12 @@ func (db *DB) GetSettings() (AppSettings, error) {
 		Locale: "en", Terminal: "",
 		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
-		WindowX: -1, WindowY: -1, WindowWidth: 640, WindowHeight: 520,
 	}
+	x, y, w, h := -1, -1, 640, 520
+	defaults.WindowX = &x
+	defaults.WindowY = &y
+	defaults.WindowWidth = &w
+	defaults.WindowHeight = &h
 
 	var raw string
 	err := db.conn.QueryRow(`SELECT data FROM app_settings LIMIT 1`).Scan(&raw)
@@ -1380,10 +1384,6 @@ func (db *DB) GetSettings() (AppSettings, error) {
 		return defaults, fmt.Errorf("get settings: %w", err)
 	}
 
-	var s AppSettings
-	if err := json.Unmarshal([]byte(raw), &s); err != nil {
-		return defaults, fmt.Errorf("unmarshal settings: %w", err)
-	}
 	merged := defaults
 	if err := json.Unmarshal([]byte(raw), &merged); err != nil {
 		return defaults, fmt.Errorf("unmarshal settings: %w", err)
@@ -1392,7 +1392,52 @@ func (db *DB) GetSettings() (AppSettings, error) {
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
-	data, err := json.Marshal(s)
+	existing, err := db.GetSettings()
+	if err != nil {
+		return fmt.Errorf("get existing settings: %w", err)
+	}
+
+	if s.Locale != "" {
+		existing.Locale = s.Locale
+	}
+	if s.Terminal != "" {
+		existing.Terminal = s.Terminal
+	}
+	if s.Theme != "" {
+		existing.Theme = s.Theme
+	}
+	if s.LastDarkTheme != "" {
+		existing.LastDarkTheme = s.LastDarkTheme
+	}
+	if s.LastLightTheme != "" {
+		existing.LastLightTheme = s.LastLightTheme
+	}
+	if s.CustomThemes != "" {
+		existing.CustomThemes = s.CustomThemes
+	}
+	if s.UIFont != "" {
+		existing.UIFont = s.UIFont
+	}
+	if s.MonoFont != "" {
+		existing.MonoFont = s.MonoFont
+	}
+	if s.Density != "" {
+		existing.Density = s.Density
+	}
+	if s.WindowX != nil {
+		existing.WindowX = s.WindowX
+	}
+	if s.WindowY != nil {
+		existing.WindowY = s.WindowY
+	}
+	if s.WindowWidth != nil {
+		existing.WindowWidth = s.WindowWidth
+	}
+	if s.WindowHeight != nil {
+		existing.WindowHeight = s.WindowHeight
+	}
+
+	data, err := json.Marshal(existing)
 	if err != nil {
 		return fmt.Errorf("marshal settings: %w", err)
 	}
@@ -1428,11 +1473,13 @@ func (db *DB) ResetAll() error {
 		}
 	}
 
+	defaultSettingsX, defaultSettingsY := -1, -1
+	defaultSettingsW, defaultSettingsH := 640, 520
 	defaultSettings, _ := json.Marshal(AppSettings{
 		Locale: "en", Terminal: "", Theme: "vscode-dark",
 		LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
-		WindowX: -1, WindowY: -1, WindowWidth: 640, WindowHeight: 520,
+		WindowX: &defaultSettingsX, WindowY: &defaultSettingsY, WindowWidth: &defaultSettingsW, WindowHeight: &defaultSettingsH,
 	})
 	if _, err := tx.Exec(`INSERT INTO app_settings (data) VALUES (?)`, string(defaultSettings)); err != nil {
 		return fmt.Errorf("insert default settings: %w", err)
