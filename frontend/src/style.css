@@ -1670,9 +1670,9 @@ textarea.inline-edit-input {
 .terminal-dot { width: 9px; height: 9px; border-radius: 50%; }
 
 .output-resize-handle {
-  height: 4px;
+  height: 1px;
   cursor: ns-resize;
-  background: transparent;
+  background: var(--muted);
   transition: background 0.15s;
   flex-shrink: 0;
 }
@@ -1972,7 +1972,7 @@ textarea.inline-edit-input {
 
 /* The draggable strip — wider hit area, but visually thin */
 .resize-handle-wrap {
-  width: 8px;
+  width: 1px;
   flex-shrink: 0;
   cursor: col-resize;
   position: relative;

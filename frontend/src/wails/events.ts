@@ -1,4 +1,3 @@
-import { GetEventNames } from '../../wailsjs/go/main/App';
 import { toast } from 'sonner';
 
 export const eventNames = {
@@ -10,6 +9,7 @@ export const eventNames = {
 
 export async function initEventNames(): Promise<void> {
     try {
+        const { GetEventNames } = await import('../../bindings/cmdex/app');
         const names = await GetEventNames();
         eventNames.cmdOutput = names.cmdOutput;
         eventNames.openSettings = names.openSettings;
