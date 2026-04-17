@@ -893,7 +893,6 @@ body {
 .main-body {
   flex: 1;
   overflow-y: auto;
-  padding: calc(var(--density-padding-md) * 3);
 }
 
 .main-body.command-tab-shell {
@@ -908,7 +907,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 56px;
+  padding: var(--density-padding-md) calc(var(--density-padding-md) * 3) var(--density-padding-md) calc(var(--density-padding-md) * 3);
 }
 
 /* ========== Inline edit + hover actions + floating save ========== */
