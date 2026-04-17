@@ -16,6 +16,9 @@ var (
 	settingsWindow   *application.WebviewWindow
 )
 
+// CreateSettingsWindow returns (and caches) a singleton settings window, sets up
+// options (title, URL, initial position), wires WindowClosing to emit
+// eventNames.SettingsWindowClosing and clear the cached settingsWindow under settingsWindowMu.
 func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
 	settingsWindowMu.Lock()
 	defer settingsWindowMu.Unlock()
@@ -40,7 +43,6 @@ func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
 	sw := app.Window.NewWithOptions(windowOptions)
 
 	sw.OnWindowEvent(events.Common.WindowHide, func(event *application.WindowEvent) {
-		sw.Close()
 	})
 
 	sw.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
@@ -54,16 +56,21 @@ func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
 	return sw
 }
 
+// ShowSettingsWindow fetches the global application via application.Get(), returns
+// the cached window or calls CreateSettingsWindow if nil, then calls Show() and
+// Focus() on the window.
 func ShowSettingsWindow() {
 	app := application.Get()
 	settingsWindowMu.Lock()
+	if settingsWindow == nil {
+		settingsWindow = CreateSettingsWindow(app)
+	}
 	w := settingsWindow
 	settingsWindowMu.Unlock()
-	if w == nil {
-		w = CreateSettingsWindow(app)
+	if w != nil {
+		w.Show()
+		w.Focus()
 	}
-	w.Show()
-	w.Focus()
 }
 
 func main() {

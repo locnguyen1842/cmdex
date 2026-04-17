@@ -74,7 +74,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
+          name: ${{ matrix.artifact }}-${{ inputs.tag || 'untagged' }}
           path: |
             bin/
             build/windows/nsis/*.exe

@@ -2,7 +2,7 @@
 # Multi-stage build for minimal image size
 
 # Build stage
-FROM golang:alpine AS builder
+FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 
@@ -12,11 +12,8 @@ RUN apk add --no-cache git
 # Copy source code
 COPY . .
 
-# Remove local replace directive if present (for production builds)
-RUN sed -i '/^replace/d' go.mod || true
-
-# Download dependencies
-RUN go mod tidy
+# Download dependencies from committed go.sum
+RUN go mod download
 
 # Build the server binary
 RUN go build -tags server -ldflags="-s -w" -o server .

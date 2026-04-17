@@ -186,104 +186,111 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const changeTheme = useCallback((v: string) => {
     markTouched();
     setDraftTheme(v);
-    // Auto-save immediately in standalone mode
-    const newSettings = {
-      locale, terminal, theme: v,
-      lastDarkTheme: v.startsWith('vscode-dark') || v.startsWith('monokai') || v.startsWith('one-dark') || v.startsWith('classic') || v.startsWith('catppuccin') || v.startsWith('dracula') || v.startsWith('tokyo-night') ? v : savedTheme.startsWith('vscode-dark') || savedTheme.startsWith('monokai') || savedTheme.startsWith('one-dark') || savedTheme.startsWith('classic') || savedTheme.startsWith('catppuccin') || savedTheme.startsWith('dracula') || savedTheme.startsWith('tokyo-night') ? savedTheme : 'vscode-dark',
-      lastLightTheme: v.startsWith('vscode-light') ? v : savedTheme.startsWith('vscode-light') ? savedTheme : 'vscode-light',
-      customThemes: customThemesStrRef.current,
-      uiFont: draftUiFont,
-      monoFont: draftMonoFont,
-      density: draftDensity,
-    };
-    SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    Events.Emit(eventNames.settingsChanged, newSettings);
-  }, [markTouched, locale, terminal, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: v,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftUiFont, draftMonoFont, draftDensity]);
 
   const changeDensity = useCallback((v: string) => {
     markTouched();
     setDraftDensity(v);
-    // Auto-save immediately in standalone mode
-    const newSettings = {
-      locale, terminal, theme: draftTheme,
-      lastDarkTheme: savedTheme,
-      lastLightTheme: savedTheme,
-      customThemes: customThemesStrRef.current,
-      uiFont: draftUiFont,
-      monoFont: draftMonoFont,
-      density: v,
-    };
-    SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    Events.Emit(eventNames.settingsChanged, newSettings);
-  }, [markTouched, locale, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont]);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: v,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftMonoFont]);
 
   const changeUiFont = useCallback((v: string) => {
     markTouched();
     setDraftUiFont(v);
-    // Auto-save immediately in standalone mode
-    const newSettings = {
-      locale, terminal, theme: draftTheme,
-      lastDarkTheme: savedTheme,
-      lastLightTheme: savedTheme,
-      customThemes: customThemesStrRef.current,
-      uiFont: v,
-      monoFont: draftMonoFont,
-      density: draftDensity,
-    };
-    SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    Events.Emit(eventNames.settingsChanged, newSettings);
-  }, [markTouched, locale, terminal, draftTheme, savedTheme, draftMonoFont, draftDensity]);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: v,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftTheme, draftMonoFont, draftDensity]);
 
   const changeMonoFont = useCallback((v: string) => {
     markTouched();
     setDraftMonoFont(v);
-    // Auto-save immediately in standalone mode
-    const newSettings = {
-      locale, terminal, theme: draftTheme,
-      lastDarkTheme: savedTheme,
-      lastLightTheme: savedTheme,
-      customThemes: customThemesStrRef.current,
-      uiFont: draftUiFont,
-      monoFont: v,
-      density: draftDensity,
-    };
-    SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    Events.Emit(eventNames.settingsChanged, newSettings);
-  }, [markTouched, locale, terminal, draftTheme, savedTheme, draftUiFont, draftDensity]);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: v,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftDensity]);
 
   const changeLocale = useCallback((v: string) => {
     markTouched();
     setLocale(v);
-    // Auto-save immediately in standalone mode
-    const newSettings = {
-      locale: v, terminal, theme: draftTheme,
-      lastDarkTheme: savedTheme,
-      lastLightTheme: savedTheme,
-      customThemes: customThemesStrRef.current,
-      uiFont: draftUiFont,
-      monoFont: draftMonoFont,
-      density: draftDensity,
-    };
-    SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    Events.Emit(eventNames.settingsChanged, newSettings);
-  }, [markTouched, terminal, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
+    i18n.changeLanguage(v).catch(() => {});
+    GetSettings().then(current => {
+      const newSettings = {
+        locale: v, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n]);
 
   const changeTerminal = useCallback((v: string) => {
     markTouched();
     setTerminal(v);
-    // Auto-save immediately in standalone mode
-    const newSettings = {
-      locale, terminal: v, theme: draftTheme,
-      lastDarkTheme: savedTheme,
-      lastLightTheme: savedTheme,
-      customThemes: customThemesStrRef.current,
-      uiFont: draftUiFont,
-      monoFont: draftMonoFont,
-      density: draftDensity,
-    };
-    SetSettings(JSON.stringify(newSettings)).catch(() => {});
-    Events.Emit(eventNames.settingsChanged, newSettings);
-  }, [markTouched, locale, draftTheme, savedTheme, draftUiFont, draftMonoFont, draftDensity]);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal: v, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, draftTheme, draftUiFont, draftMonoFont, draftDensity]);
 
   useEffect(() => {
     GetAvailableTerminals()
@@ -425,18 +432,34 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         if (
           typeof data.name !== 'string' ||
           (data.type !== 'dark' && data.type !== 'light') ||
-          typeof data.colors?.background !== 'string' ||
-          typeof data.colors?.foreground !== 'string' ||
-          typeof data.colors?.primary !== 'string'
+          typeof data.colors?.background !== 'string'
         ) {
           toast.error(t('settings.themeInvalidFields'));
           return;
+        }
+        const allVarKeys = [
+          'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+          'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
+          'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
+          'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
+          'tab-active-indicator', 'status-bar-bg', 'status-bar-fg',
+        ];
+        const defaultTheme = data.type === 'dark'
+          ? { background: '#1e1e1e', foreground: '#d4d4d4', card: '#252526', primary: '#007acc', accent: '#2a2d2e', border: 'rgba(255,255,255,0.1)', muted: '#3c3c3c', 'muted-foreground': '#858585', ring: '#007acc', destructive: '#f44747', success: '#4ec9b0', 'tab-bar-bg': '#2d2d2d', 'tab-active-bg': '#1e1e1e', 'tab-active-indicator': '#007acc', 'status-bar-bg': '#007acc' }
+          : { background: '#ffffff', foreground: '#1f1f1f', card: '#f3f3f3', primary: '#0078d4', accent: '#e5e5e5', border: 'rgba(0,0,0,0.1)', muted: '#f0f0f0', 'muted-foreground': '#616161', ring: '#0078d4', destructive: '#d13438', success: '#0f7b0f', 'tab-bar-bg': '#f3f3f3', 'tab-active-bg': '#ffffff', 'tab-active-indicator': '#0078d4', 'status-bar-bg': '#0078d4' };
+        const filledColors: Record<string, string> = {};
+        for (const key of allVarKeys) {
+          if (typeof data.colors?.[key] === 'string') {
+            filledColors[key] = data.colors[key];
+          } else if (defaultTheme[key as keyof typeof defaultTheme]) {
+            filledColors[key] = defaultTheme[key as keyof typeof defaultTheme];
+          }
         }
         const newTheme: CustomTheme = {
           id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           name: data.name,
           type: data.type,
-          colors: data.colors,
+          colors: filledColors,
         };
         onImportTheme?.(newTheme);
         onThemeChange(newTheme.id);
@@ -660,6 +683,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                       className="flex-1"
                       onClick={async () => {
                         await onResetAllData();
+                        GetSettings().then(s => {
+                          if (!s) return;
+                          const t = s.theme || 'vscode-dark';
+                          setSavedTheme(t);
+                          setDraftTheme(t);
+                          setSavedUiFont(s.uiFont || 'Inter');
+                          setDraftUiFont(s.uiFont || 'Inter');
+                          setSavedMonoFont(s.monoFont || 'JetBrains Mono');
+                          setDraftMonoFont(s.monoFont || 'JetBrains Mono');
+                          setSavedDensity(s.density || 'comfortable');
+                          setDraftDensity(s.density || 'comfortable');
+                          setSavedLocale(s.locale || 'en');
+                          setLocale(s.locale || 'en');
+                          setSavedTerminal(s.terminal || '');
+                          setTerminal(s.terminal || '');
+                        }).catch(() => {});
+                        GetAvailableTerminals().then(t => setTerminals(t || [])).catch(() => setTerminals([]));
+                        userTouchedRef.current = false;
                         setConfirmReset(false);
                         if (fileInputRef.current) fileInputRef.current.value = '';
                       }}

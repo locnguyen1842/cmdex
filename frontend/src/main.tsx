@@ -95,10 +95,13 @@ if (isSettingsWindow) {
                 allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`))
             }
             setTheme(newTheme)
+            const currentBuiltIn = THEMES.find(t => t.id === theme)
+            const currentCustom = customThemes.find(t => t.id === theme)
+            const currentType = currentBuiltIn?.type ?? currentCustom?.type ?? 'dark'
             const newSettings = {
                 locale, terminal, theme: newTheme,
-                lastDarkTheme: newTheme.startsWith('vscode-dark') || newTheme.startsWith('monokai') || newTheme.startsWith('one-dark') || newTheme.startsWith('classic') || newTheme.startsWith('catppuccin') || newTheme.startsWith('dracula') || newTheme.startsWith('tokyo-night') ? newTheme : theme.startsWith('vscode-dark') || theme.startsWith('monokai') || theme.startsWith('one-dark') || theme.startsWith('classic') || theme.startsWith('catppuccin') || theme.startsWith('dracula') || theme.startsWith('tokyo-night') ? theme : 'vscode-dark',
-                lastLightTheme: newTheme.startsWith('vscode-light') ? newTheme : theme.startsWith('vscode-light') ? theme : 'vscode-light',
+                lastDarkTheme: themeType === 'dark' ? newTheme : currentType === 'dark' ? theme : 'vscode-dark',
+                lastLightTheme: themeType === 'light' ? newTheme : currentType === 'light' ? theme : 'vscode-light',
                 customThemes: customThemesStrRef.current,
                 uiFont, monoFont, density,
             }
@@ -135,11 +138,25 @@ if (isSettingsWindow) {
             persistSettings(newSettings)
         }, [locale, terminal, theme, uiFont, density, persistSettings])
 
+        const handleImportTheme = useCallback((importedTheme: CustomTheme) => {
+            const updated = [...customThemes, importedTheme]
+            setCustomThemes(updated)
+            customThemesStrRef.current = JSON.stringify(updated)
+        }, [customThemes])
+
+        const handleRemoveCustomTheme = useCallback((themeId: string) => {
+            const updated = customThemes.filter(t => t.id !== themeId)
+            setCustomThemes(updated)
+            customThemesStrRef.current = JSON.stringify(updated)
+        }, [customThemes])
+
         return (
             <SettingsPage
                 theme={theme}
                 onThemeChange={handleThemeChange}
                 customThemes={customThemes}
+                onImportTheme={handleImportTheme}
+                onRemoveCustomTheme={handleRemoveCustomTheme}
                 density={density}
                 onDensityChange={handleDensityChange}
                 uiFont={uiFont}

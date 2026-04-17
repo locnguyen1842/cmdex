@@ -71,8 +71,10 @@ func (s *ImportExportService) ExportCommands(commandIDs []string) error {
 		SetFilename("cmdex-commands.json").
 		AddFilter("JSON Files (*.json)", "*.json").
 		PromptForSingleSelection()
-	if err != nil || path == "" {
-		// User cancelled
+	if err != nil {
+		return err
+	}
+	if path == "" {
 		return nil
 	}
 
@@ -171,8 +173,10 @@ func (s *ImportExportService) ImportCommands() ([]Command, error) {
 		CanChooseFiles(true).
 		AddFilter("JSON Files (*.json)", "*.json").
 		PromptForSingleSelection()
-	if err != nil || path == "" {
-		// User cancelled
+	if err != nil {
+		return nil, err
+	}
+	if path == "" {
 		return nil, nil
 	}
 

@@ -15,6 +15,7 @@ type CommandService struct {
 
 // ========== Category Operations ==========
 
+// GetCategories returns all categories from the DB.
 func (s *CommandService) GetCategories() []Category {
 	cats, err := s.db.GetCategories()
 	if err != nil {
@@ -24,6 +25,7 @@ func (s *CommandService) GetCategories() []Category {
 	return cats
 }
 
+// CreateCategory creates a new Category with the given name, icon, color and returns the created Category or an error.
 func (s *CommandService) CreateCategory(name string, icon string, color string) (Category, error) {
 	cat := Category{
 		ID:        uuid.New().String(),
@@ -39,6 +41,7 @@ func (s *CommandService) CreateCategory(name string, icon string, color string) 
 	return cat, nil
 }
 
+// UpdateCategory updates a Category's name, icon, and color by id and returns the updated Category or an error.
 func (s *CommandService) UpdateCategory(id string, name string, icon string, color string) (Category, error) {
 	cat := Category{
 		ID:        id,
@@ -59,12 +62,14 @@ func (s *CommandService) UpdateCategory(id string, name string, icon string, col
 	return cat, nil
 }
 
+// DeleteCategory deletes the category with the given id.
 func (s *CommandService) DeleteCategory(id string) error {
 	return s.db.DeleteCategory(id)
 }
 
 // ========== Command Operations ==========
 
+// GetCommands returns all commands from the DB.
 func (s *CommandService) GetCommands() []Command {
 	cmds, err := s.db.GetCommands()
 	if err != nil {
@@ -74,6 +79,7 @@ func (s *CommandService) GetCommands() []Command {
 	return cmds
 }
 
+// GetCommandsByCategory returns all commands belonging to the given categoryID.
 func (s *CommandService) GetCommandsByCategory(categoryID string) []Command {
 	cmds, err := s.db.GetCommandsByCategory(categoryID)
 	if err != nil {
@@ -83,6 +89,7 @@ func (s *CommandService) GetCommandsByCategory(categoryID string) []Command {
 	return cmds
 }
 
+// CreateCommand creates a new Command with the given fields and returns the created Command or an error.
 func (s *CommandService) CreateCommand(title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition) (Command, error) {
 	if tags == nil {
 		tags = []string{}
@@ -116,6 +123,7 @@ func (s *CommandService) CreateCommand(title, description, scriptBody, categoryI
 	return cmd, nil
 }
 
+// UpdateCommand updates a Command's fields by id and returns the updated Command or an error.
 func (s *CommandService) UpdateCommand(id, title, description, scriptBody, categoryID string, tags []string, variables []VariableDefinition) (Command, error) {
 	if tags == nil {
 		tags = []string{}
@@ -148,6 +156,7 @@ func (s *CommandService) UpdateCommand(id, title, description, scriptBody, categ
 	return s.db.GetCommand(id)
 }
 
+// RenameCommand sets a new title for the command with the given id and returns the updated Command.
 func (s *CommandService) RenameCommand(id string, newTitle string) (Command, error) {
 	if err := s.db.RenameCommand(id, newTitle); err != nil {
 		return Command{}, err
@@ -155,6 +164,7 @@ func (s *CommandService) RenameCommand(id string, newTitle string) (Command, err
 	return s.db.GetCommand(id)
 }
 
+// DeleteCommand deletes the command with the given id.
 func (s *CommandService) DeleteCommand(id string) error {
 	return s.db.DeleteCommand(id)
 }
@@ -189,6 +199,7 @@ func (s *CommandService) GetScriptBody(commandID string) (string, error) {
 
 // ========== Search ==========
 
+// SearchCommands returns commands matching the given query string.
 func (s *CommandService) SearchCommands(query string) []Command {
 	if query == "" {
 		return s.GetCommands()
@@ -204,14 +215,17 @@ func (s *CommandService) SearchCommands(query string) []Command {
 
 // ========== Variable Presets ==========
 
+// GetPresets returns all variable presets for the given commandID.
 func (s *CommandService) GetPresets(commandID string) []VariablePreset {
 	presets, err := s.db.GetPresets(commandID)
 	if err != nil {
+		fmt.Println("Error getting presets:", err)
 		return []VariablePreset{}
 	}
 	return presets
 }
 
+// SavePreset creates a new VariablePreset for the given commandID and returns it or an error.
 func (s *CommandService) SavePreset(commandID string, name string, values map[string]string) (VariablePreset, error) {
 	preset := VariablePreset{
 		ID:     uuid.New().String(),
@@ -224,6 +238,7 @@ func (s *CommandService) SavePreset(commandID string, name string, values map[st
 	return preset, nil
 }
 
+// UpdatePreset updates an existing VariablePreset by presetID and returns it or an error.
 func (s *CommandService) UpdatePreset(commandID string, presetID string, name string, values map[string]string) (VariablePreset, error) {
 	presets, err := s.db.GetPresets(commandID)
 	if err != nil {
@@ -250,6 +265,7 @@ func (s *CommandService) UpdatePreset(commandID string, presetID string, name st
 	return preset, nil
 }
 
+// DeletePreset deletes the VariablePreset with the given presetID after validating it belongs to commandID.
 func (s *CommandService) DeletePreset(commandID string, presetID string) error {
 	presets, err := s.db.GetPresets(commandID)
 	if err != nil {
@@ -268,6 +284,7 @@ func (s *CommandService) DeletePreset(commandID string, presetID string) error {
 	return s.db.DeletePreset(presetID)
 }
 
+// ReorderPresets reorders the presets for commandID to match the given presetIDs slice.
 func (s *CommandService) ReorderPresets(commandID string, presetIDs []string) error {
 	existing, err := s.db.GetPresets(commandID)
 	if err != nil {
@@ -295,6 +312,7 @@ func (s *CommandService) ReorderPresets(commandID string, presetIDs []string) er
 
 // ========== Reset ==========
 
+// ResetAllData deletes all data from the database.
 func (s *CommandService) ResetAllData() error {
 	return s.db.ResetAll()
 }

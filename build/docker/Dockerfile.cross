@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # Cross-compile Wails v3 apps to any platform
 #
 # Darwin: Zig + macOS SDK
@@ -82,6 +83,44 @@ exec zig cc -fno-sanitize=all -target x86_64-macos-none -isysroot /opt/macos-sdk
 ZIGWRAP
 RUN chmod +x /usr/local/bin/zcc-darwin-amd64
 
+# Linux arm64
+COPY <<'ZIGWRAP' /usr/local/bin/zcc-linux-arm64
+#!/bin/sh
+ARGS=""
+SKIP_NEXT=0
+for arg in "$@"; do
+    if [ $SKIP_NEXT -eq 1 ]; then
+        SKIP_NEXT=0
+        continue
+    fi
+    case "$arg" in
+        -target) SKIP_NEXT=1 ;;
+        *) ARGS="$ARGS $arg" ;;
+    esac
+done
+exec zig cc -fno-sanitize=all -target aarch64-linux-musl $ARGS
+ZIGWRAP
+RUN chmod +x /usr/local/bin/zcc-linux-arm64
+
+# Linux amd64
+COPY <<'ZIGWRAP' /usr/local/bin/zcc-linux-amd64
+#!/bin/sh
+ARGS=""
+SKIP_NEXT=0
+for arg in "$@"; do
+    if [ $SKIP_NEXT -eq 1 ]; then
+        SKIP_NEXT=0
+        continue
+    fi
+    case "$arg" in
+        -target) SKIP_NEXT=1 ;;
+        *) ARGS="$ARGS $arg" ;;
+    esac
+done
+exec zig cc -fno-sanitize=all -target x86_64-linux-musl $ARGS
+ZIGWRAP
+RUN chmod +x /usr/local/bin/zcc-linux-amd64
+
 # Windows amd64 - uses Zig's bundled mingw
 COPY <<'ZIGWRAP' /usr/local/bin/zcc-windows-amd64
 #!/bin/sh
@@ -94,7 +133,7 @@ for arg in "$@"; do
     fi
     case "$arg" in
         -target) SKIP_NEXT=1 ;;
-        -Wl,*) ;;
+        -Wl,--no-seh) ;;
         *) ARGS="$ARGS $arg" ;;
     esac
 done
@@ -114,7 +153,7 @@ for arg in "$@"; do
     fi
     case "$arg" in
         -target) SKIP_NEXT=1 ;;
-        -Wl,*) ;;
+        -Wl,--no-seh) ;;
         *) ARGS="$ARGS $arg" ;;
     esac
 done
@@ -142,12 +181,12 @@ case "${OS}-${ARCH}" in
         export GOOS=darwin
         ;;
     linux-arm64|linux-aarch64)
-        export CC=gcc
+        export CC=zcc-linux-arm64
         export GOARCH=arm64
         export GOOS=linux
         ;;
     linux-amd64|linux-x86_64)
-        export CC=gcc
+        export CC=zcc-linux-amd64
         export GOARCH=amd64
         export GOOS=linux
         ;;
