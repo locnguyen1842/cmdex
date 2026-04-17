@@ -45,7 +45,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
-import { ExportCommands, ImportCommands } from '../../bindings/cmdex/app';
+import { ExportCommands, ImportCommands } from '../../bindings/cmdex/importexportservice';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 
@@ -128,7 +128,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
       ref={setNodeRef}
       style={style}
       className={`command-item ${isSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
-      onClick={isPendingDelete ? undefined : onSelect}
+      onClick={onSelect}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -153,22 +153,20 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
       </span>
       {isPendingDelete ? (
         <span className="cmd-delete-actions">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="cmd-delete-btn text-destructive hover:border-destructive hover:text-secondary-foreground dark:hover:bg-destructive/50"
+          <button
+            className="cmd-delete-icon-btn text-destructive"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title={t('common.delete')}
           >
-            {t('common.delete')}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="cmd-delete-btn hover:border-secondary hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/50"
+            <Trash2 className="size-3" />
+          </button>
+          <button
+            className="cmd-delete-icon-btn"
             onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
+            title={t('common.cancel')}
           >
-            {t('common.cancel')}
-          </Button>
+            <X className="size-3" />
+          </button>
         </span>
       ) : isHovered ? (
         <button

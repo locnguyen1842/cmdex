@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,14 +11,15 @@ import (
 )
 
 // ImportExportService handles importing and exporting commands and theme templates.
-type ImportExportService struct {
-	db  *DB
-	app *application.App
+type ImportExportService struct{}
+
+func (s *ImportExportService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	return nil
 }
 
 // SaveThemeTemplate saves a default theme template to a JSON file.
 func (s *ImportExportService) SaveThemeTemplate() error {
-	path, err := s.app.Dialog.SaveFile().
+	path, err := wailsApp.Dialog.SaveFile().
 		SetFilename("cmdex-theme-template.json").
 		AddFilter("JSON Files (*.json)", "*.json").
 		PromptForSingleSelection()
@@ -67,7 +69,7 @@ type ExportCommand struct {
 
 // ExportCommands exports selected commands to a JSON file.
 func (s *ImportExportService) ExportCommands(commandIDs []string) error {
-	path, err := s.app.Dialog.SaveFile().
+	path, err := wailsApp.Dialog.SaveFile().
 		SetFilename("cmdex-commands.json").
 		AddFilter("JSON Files (*.json)", "*.json").
 		PromptForSingleSelection()
@@ -78,7 +80,7 @@ func (s *ImportExportService) ExportCommands(commandIDs []string) error {
 		return nil
 	}
 
-	cmds, err := s.db.GetCommandsByIDs(commandIDs)
+	cmds, err := db.GetCommandsByIDs(commandIDs)
 	if err != nil {
 		return fmt.Errorf("get commands: %w", err)
 	}
@@ -93,7 +95,7 @@ func (s *ImportExportService) ExportCommands(commandIDs []string) error {
 		Commands:   make([]ExportCommand, 0, len(cmds)),
 	}
 
-	cats, err := s.db.GetCategories()
+	cats, err := db.GetCategories()
 	if err != nil {
 		return fmt.Errorf("get categories: %w", err)
 	}
@@ -169,7 +171,7 @@ type ImportData struct {
 
 // ImportCommands imports commands from a JSON file.
 func (s *ImportExportService) ImportCommands() ([]Command, error) {
-	path, err := s.app.Dialog.OpenFile().
+	path, err := wailsApp.Dialog.OpenFile().
 		CanChooseFiles(true).
 		AddFilter("JSON Files (*.json)", "*.json").
 		PromptForSingleSelection()
@@ -242,10 +244,10 @@ func (s *ImportExportService) ImportCommands() ([]Command, error) {
 		}
 	}
 
-	if err := s.db.ImportCommands(commands); err != nil {
+	if err := db.ImportCommands(commands); err != nil {
 		return nil, fmt.Errorf("import commands: %w", err)
 	}
 
 	// Return all commands to refresh UI
-	return s.db.GetCommands()
+	return db.GetCommands()
 }

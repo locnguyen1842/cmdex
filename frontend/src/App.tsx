@@ -50,23 +50,29 @@ import {
     CreateCommand,
     UpdateCommand,
     DeleteCommand,
-    GetVariables,
-    RunCommand,
-    GetExecutionHistory,
-    ClearExecutionHistory,
     GetPresets,
     SavePreset,
     UpdatePreset,
     DeletePreset,
-    GetSettings,
-    SetSettings,
-    RunInTerminal,
     ReorderCommand,
     GetScriptBody,
     ResetAllData,
     ReorderPresets,
+} from '../bindings/cmdex/commandservice';
+import {
+    GetSettings,
+    SetSettings,
+} from '../bindings/cmdex/settingsservice';
+import {
     ShowSettingsWindow,
 } from '../bindings/cmdex/app';
+import {
+    GetVariables,
+    RunCommand,
+    GetExecutionHistory,
+    ClearExecutionHistory,
+    RunInTerminal,
+} from '../bindings/cmdex/executionservice';
 import i18n from './i18n';
 import {
     emptyDraft,

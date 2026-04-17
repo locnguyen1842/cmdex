@@ -9,7 +9,7 @@ export const eventNames = {
 
 export async function initEventNames(): Promise<void> {
     try {
-        const { GetEventNames } = await import('../../bindings/cmdex/app');
+        const { GetEventNames } = await import('../../bindings/cmdex/eventservice');
         const names = await GetEventNames();
         eventNames.cmdOutput = names.cmdOutput;
         eventNames.openSettings = names.openSettings;

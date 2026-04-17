@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Upload, Download, X } from 'lucide-react';
-import { SetSettings, GetSettings, GetAvailableTerminals, SaveThemeTemplate } from '../../bindings/cmdex/app';
+import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
+import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
 import { TerminalInfo } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';

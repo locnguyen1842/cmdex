@@ -1,19 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // SettingsService handles user preferences and settings window.
-type SettingsService struct {
-	db       *DB
-	executor *Executor
+type SettingsService struct{}
+
+func (s *SettingsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	return nil
 }
 
 // GetSettings returns the current app settings.
 func (s *SettingsService) GetSettings() AppSettings {
-	settings, err := s.db.GetSettings()
+	settings, err := db.GetSettings()
 	if err != nil {
 		return AppSettings{Locale: "en"}
 	}
@@ -26,15 +30,10 @@ func (s *SettingsService) SetSettings(jsonStr string) error {
 	if err := json.Unmarshal([]byte(jsonStr), &settings); err != nil {
 		return fmt.Errorf("invalid settings JSON: %w", err)
 	}
-	return s.db.SetSettings(settings)
+	return db.SetSettings(settings)
 }
 
 // GetAvailableTerminals returns all detected terminal emulators.
 func (s *SettingsService) GetAvailableTerminals() []TerminalInfo {
-	return s.executor.GetAvailableTerminals()
-}
-
-// ShowSettingsWindow opens the settings window.
-func (s *SettingsService) ShowSettingsWindow() {
-	ShowSettingsWindow()
+	return executor.GetAvailableTerminals()
 }

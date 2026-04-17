@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -10,15 +11,15 @@ import (
 )
 
 // ExecutionService handles running commands and execution history.
-type ExecutionService struct {
-	db       *DB
-	executor *Executor
-	app      *application.App
+type ExecutionService struct{}
+
+func (s *ExecutionService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	return nil
 }
 
 // GetVariables returns variable prompts for a command.
 func (s *ExecutionService) GetVariables(commandID string) []VariablePrompt {
-	cmd, err := s.db.GetCommand(commandID)
+	cmd, err := db.GetCommand(commandID)
 	if err != nil {
 		return []VariablePrompt{}
 	}
@@ -27,7 +28,7 @@ func (s *ExecutionService) GetVariables(commandID string) []VariablePrompt {
 		return []VariablePrompt{}
 	}
 
-	evaluated := s.executor.EvalDefaults(cmd.Variables)
+	evaluated := executor.EvalDefaults(cmd.Variables)
 
 	var prompts []VariablePrompt
 	for _, v := range cmd.Variables {
@@ -50,7 +51,7 @@ func (s *ExecutionService) GetVariables(commandID string) []VariablePrompt {
 
 // RunCommand executes a command with resolved variables and streams output via event.
 func (s *ExecutionService) RunCommand(commandID string, variables map[string]string) ExecutionRecord {
-	cmd, err := s.db.GetCommand(commandID)
+	cmd, err := db.GetCommand(commandID)
 	if err != nil {
 		return ExecutionRecord{
 			ID:       uuid.New().String(),
@@ -62,8 +63,8 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
 	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
 
-	result := s.executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
-		s.app.Event.Emit(eventNames.CmdOutput, chunk)
+	result := executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
+		wailsApp.Event.Emit(eventNames.CmdOutput, chunk)
 	})
 
 	wd, _ := os.Getwd()
@@ -79,7 +80,7 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 		ExecutedAt:    time.Now(),
 	}
 
-	if err := s.db.AddExecution(record); err != nil {
+	if err := db.AddExecution(record); err != nil {
 		fmt.Printf("failed to persist execution record: %v\n", err)
 	}
 
@@ -88,23 +89,23 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 
 // RunInTerminal opens the command in the system terminal.
 func (s *ExecutionService) RunInTerminal(commandID string, variables map[string]string) error {
-	cmd, err := s.db.GetCommand(commandID)
+	cmd, err := db.GetCommand(commandID)
 	if err != nil {
 		return err
 	}
 
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
 
-	settings, err := s.db.GetSettings()
+	settings, err := db.GetSettings()
 	if err != nil {
 		return fmt.Errorf("failed to get settings: %w", err)
 	}
-	return s.executor.OpenInTerminal(settings.Terminal, resolvedScript)
+	return executor.OpenInTerminal(settings.Terminal, resolvedScript)
 }
 
 // GetExecutionHistory returns all past execution records.
 func (s *ExecutionService) GetExecutionHistory() []ExecutionRecord {
-	records, err := s.db.GetExecutions()
+	records, err := db.GetExecutions()
 	if err != nil {
 		fmt.Println("Error getting executions:", err)
 		return []ExecutionRecord{}
@@ -114,5 +115,5 @@ func (s *ExecutionService) GetExecutionHistory() []ExecutionRecord {
 
 // ClearExecutionHistory deletes all execution history.
 func (s *ExecutionService) ClearExecutionHistory() error {
-	return s.db.ClearExecutions()
+	return db.ClearExecutions()
 }

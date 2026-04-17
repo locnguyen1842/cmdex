@@ -719,6 +719,7 @@ body {
   transition: all var(--transition-fast);
   font-size: 13px;
   color: var(--muted-foreground);
+  position: relative;
 }
 
 .command-item:hover {
@@ -763,6 +764,12 @@ body {
   flex-shrink: 0;
   padding: 0;
   transition: color var(--transition-fast), background var(--transition-fast);
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  pointer-events: auto;
 }
 .cmd-trash-btn:hover {
   color: var(--destructive);
@@ -771,17 +778,38 @@ body {
 
 .cmd-delete-actions {
   display: flex;
-  gap: 2px;
-  flex-shrink: 0;
+  gap: 1px;
   align-items: center;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  pointer-events: auto;
 }
-.cmd-delete-btn {
-  height: 20px !important;
-  padding: 0 7px !important;
-  font-size: 11px !important;
-  min-width: 0 !important;
+.cmd-delete-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
-
+.cmd-delete-icon-btn:hover {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+}
+.cmd-delete-icon-btn.text-destructive {
+  color: var(--destructive);
+}
+.cmd-delete-icon-btn.text-destructive:hover {
+  background: color-mix(in srgb, var(--destructive) 20%, transparent);
+}
 .cmd-tags-row {
   display: flex;
   gap: 4px;
