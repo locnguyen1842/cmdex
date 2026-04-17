@@ -916,12 +916,25 @@ function App() {
     };
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
+        const prev = commands;
+        const optimistic = prev.map(cmd => {
+            if (cmd.id === id) {
+                return { ...cmd, categoryId: newCategoryId, position: newPosition };
+            }
+            return cmd;
+        });
+        allCommandsRef.current = optimistic;
+        setCommands(optimistic);
         try {
-            const updated = await ReorderCommand(id, newPosition, newCategoryId);
-            allCommandsRef.current = updated || [];
-            setCommands(updated || []);
+            const reordered = await ReorderCommand(id, newPosition, newCategoryId);
+            if (reordered) {
+                allCommandsRef.current = reordered;
+                setCommands(reordered);
+            }
         } catch (err) {
             console.error('Failed to reorder command:', err);
+            allCommandsRef.current = prev;
+            setCommands(prev);
         }
     };
 
@@ -1383,7 +1396,7 @@ function App() {
                     <ResizablePanel
                         side="left"
                         defaultWidth={280}
-                        minWidth={320}
+                        minWidth={180}
                         maxWidth={460}
                         storageKey="cmdex-sidebar"
                         collapsedIcon={

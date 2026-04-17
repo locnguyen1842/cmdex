@@ -23,7 +23,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { Category, Command, getCommandDisplayTitle } from '../types';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
@@ -32,7 +31,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '@/components/ui/context-menu';
-import { Plus, Pencil, X, ChevronRight, Terminal, Settings, GripVertical, Group, Info, Trash2, Download, Upload } from 'lucide-react';
+import { Plus, Pencil, X, ChevronRight, Terminal, Settings, Group, Info, Trash2, Download, Upload } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import {
   AlertDialog,
@@ -128,18 +127,12 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
       ref={setNodeRef}
       style={style}
       className={`command-item ${isSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+      {...attributes}
+      {...listeners}
       onClick={onSelect}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <span
-        className="drag-handle"
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="size-3.5" />
-      </span>
       <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="cmd-body">
         <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
@@ -151,32 +144,35 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
           </span>
         )}
       </span>
-      {isPendingDelete ? (
-        <span className="cmd-delete-actions">
+      <span className="cmd-actions">
+        {isPendingDelete ? (
+          <>
           <button
-            className="cmd-delete-icon-btn text-destructive"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            title={t('common.delete')}
+              className="cmd-cancel-delete-icon-btn"
+              onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
+              title={t('common.cancel')}
+            >
+              <X className="size-3" />
+            </button>
+            <button
+              className="cmd-delete-icon-btn text-destructive"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              title={t('common.delete')}
+            >
+              <Trash2 className="size-3" />
+            </button>
+            
+          </>
+        ) : isHovered ? (
+          <button
+            className="cmd-trash-btn"
+            onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+            title={t('sidebar.contextMenu.delete')}
           >
             <Trash2 className="size-3" />
           </button>
-          <button
-            className="cmd-delete-icon-btn"
-            onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
-            title={t('common.cancel')}
-          >
-            <X className="size-3" />
-          </button>
-        </span>
-      ) : isHovered ? (
-        <button
-          className="cmd-trash-btn"
-          onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
-          title={t('sidebar.contextMenu.delete')}
-        >
-          <Trash2 className="size-3" />
-        </button>
-      ) : null}
+        ) : null}
+      </span>
     </div>
   );
 };
@@ -351,7 +347,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
             </svg>
           </div>
-          <h1>Cmdex</h1>
+          <h1>CmDex</h1>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -417,7 +413,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       >
         <ContextMenu>
           <ContextMenuTrigger asChild>
-            <ScrollArea className="sidebar-content">
+            <div className="sidebar-content overflow-y-auto scrollbar-thin scrollbar-w-1 scrollbar-thumb-border scrollbar-track-transparent">
               {categories.map(cat => {
                 const catCommands = getCommandsForCategory(cat.id);
                 const isOpen = openCategories.has(cat.id);
@@ -560,7 +556,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 </DroppableCategoryHeader>
               </Collapsible>
-            </ScrollArea>
+            </div>
           </ContextMenuTrigger>
           {/* Empty-space context menu (scoped to scroll area) */}
           <ContextMenuContent>
@@ -592,7 +588,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         <DragOverlay>
           {activeCommand && (
             <div className="command-item dragging-ghost">
-              <GripVertical className="size-3.5 text-muted-foreground" />
               <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="cmd-title">{getCommandDisplayTitle(activeCommand)}</span>
             </div>

@@ -512,7 +512,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <div
               role="group"
               aria-label="Theme selection"
-              className="grid grid-cols-2 gap-2 p-3 max-h-[200px] overflow-y-auto scrollbar-hide"
+              className="grid grid-cols-4 gap-2 p-3 max-h-[200px] overflow-y-auto scrollbar-hide"
             >
               {THEMES.map(th => (
                 <ThemeSwatch
@@ -611,7 +611,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         <TabsContent value="typography" className="space-y-5 pt-4">
           <div className="space-y-2">
             <Label className="text-xs font-semibold">{t('settings.uiFontLabel')}</Label>
-            <div role="group" aria-label="UI font selection" className="grid grid-cols-2 gap-2">
+            <div role="group" aria-label="UI font selection" className="grid grid-cols-3 gap-2">
               {UI_FONTS.map(font => (
                 <FontPickerCard
                   key={font.id}
@@ -626,7 +626,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
           <div className="space-y-2">
             <Label className="text-xs font-semibold">{t('settings.monoFontLabel')}</Label>
-            <div role="group" aria-label="Editor font selection" className="grid grid-cols-2 gap-2">
+            <div role="group" aria-label="Editor font selection" className="grid grid-cols-3 gap-2">
               {MONO_FONTS.map(font => (
                 <FontPickerCard
                   key={font.id}

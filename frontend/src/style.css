@@ -72,6 +72,7 @@
 }
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin 'tailwind-scrollbar';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -481,10 +482,10 @@ body {
   font-size: var(--density-font-size-base, 13px);
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.5); }
+::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.18); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.35); }
 
 /* ========== Layout ========== */
 
@@ -655,7 +656,7 @@ body {
 
 .sidebar-content {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
   padding: var(--density-padding-sm);
 }
 
@@ -705,7 +706,6 @@ body {
   border-left: 1px solid var(--border);
   padding-left: 0;
   margin-top: 1px;
-  overflow: hidden;
 }
 
 .command-item {
@@ -719,7 +719,16 @@ body {
   transition: all var(--transition-fast);
   font-size: 13px;
   color: var(--muted-foreground);
-  position: relative;
+}
+
+.command-item:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.command-item.dragging {
+  opacity: 0.4;
+  cursor: grabbing!important;
 }
 
 .command-item:hover {
@@ -740,59 +749,78 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
 }
 
 .command-item .cmd-title {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   font-weight: 400;
 }
 
-/* Inline delete confirmation — right side of command item */
+.command-item .cmd-actions {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 3px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* Inline delete — inside cmd-title-row */
 .cmd-trash-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: none;
   background: transparent;
   color: var(--muted-foreground);
   border-radius: 3px;
   cursor: pointer;
-  flex-shrink: 0;
   padding: 0;
+  flex-shrink: 0;
   transition: color var(--transition-fast), background var(--transition-fast);
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  pointer-events: auto;
 }
 .cmd-trash-btn:hover {
   color: var(--destructive);
   background: color-mix(in srgb, var(--destructive) 12%, transparent);
 }
 
-.cmd-delete-actions {
+.cmd-cancel-delete-icon-btn {
+  margin-right: 0px;
   display: flex;
-  gap: 1px;
   align-items: center;
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  pointer-events: auto;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
+.cmd-cancel-delete-icon-btn:hover {
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.cmd-cancel-delete-icon-btn.text-destructive {
+  color: var(--foreground);
+}
+.cmd-cancel-delete-icon-btn.text-destructive:hover {
+  background: color-mix(in srgb, var(--foreground) 20%, transparent);
+}
+
 .cmd-delete-icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: none;
   background: transparent;
   color: var(--muted-foreground);
@@ -823,7 +851,6 @@ body {
   opacity: 0.75;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .sidebar-footer {
@@ -1940,7 +1967,6 @@ textarea.inline-edit-input {
 
 .vp-vars-scroll {
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
 }
 
@@ -2101,22 +2127,6 @@ textarea.inline-edit-input {
   display: flex;
   gap: 5px;
   align-items: center;
-}
-
-/* ========== Drag handle on command items ========== */
-
-.drag-handle {
-  display: flex;
-  align-items: center;
-  cursor: grab;
-  color: transparent;
-  flex-shrink: 0;
-  padding: 0 2px;
-  transition: color var(--transition-fast);
-}
-
-.command-item:hover .drag-handle {
-  color: var(--muted-foreground);
 }
 
 .command-item.dragging {
