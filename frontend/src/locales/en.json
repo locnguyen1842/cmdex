@@ -148,7 +148,10 @@
     "execute": "Execute",
     "examplePrefix": "e.g. {{example}}",
     "enterValueFor": "Enter value for {{name}}",
-    "default": "default:"
+    "default": "default:",
+    "deletePresetTitle": "Delete Preset",
+    "deletePresetDescription": "Are you sure you want to delete this preset? This cannot be undone.",
+    "deletePresetAction": "Delete"
   },
   "historyPane": {
     "title": "History",

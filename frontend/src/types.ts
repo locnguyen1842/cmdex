@@ -120,3 +120,15 @@ export function isNewCommandTabId(tabId: string): boolean {
 export function createNewTabId(): string {
   return `${NEW_TAB_PREFIX}${crypto.randomUUID()}`;
 }
+
+export interface SettingsPayload {
+  locale?: string;
+  terminal?: string;
+  theme?: string;
+  lastDarkTheme?: string;
+  lastLightTheme?: string;
+  customThemes?: string;
+  uiFont?: string;
+  monoFont?: string;
+  density?: string;
+}

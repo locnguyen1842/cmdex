@@ -11,6 +11,8 @@ import (
 // SettingsService handles user preferences and settings window.
 type SettingsService struct{}
 
+// ServiceStartup implements the Wails v3 service lifecycle hook for startup.
+// Currently a no-op as settings are initialized on-demand.
 func (s *SettingsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	return nil
 }
@@ -19,6 +21,7 @@ func (s *SettingsService) ServiceStartup(ctx context.Context, options applicatio
 func (s *SettingsService) GetSettings() AppSettings {
 	settings, err := db.GetSettings()
 	if err != nil {
+		fmt.Println("GetSettings error:", err)
 		return AppSettings{Locale: "en"}
 	}
 	return settings

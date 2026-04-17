@@ -21,6 +21,8 @@ type App struct {
 	settingsWindow   *application.WebviewWindow
 }
 
+// ServiceStartup initializes the Wails application, database, and executor.
+// Returns an error if database initialization fails.
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	wailsApp = application.Get()
 	var err error
@@ -32,6 +34,7 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	return nil
 }
 
+// ServiceShutdown closes the database connection if non-nil.
 func (a *App) ServiceShutdown() error {
 	if db != nil {
 		db.Close()
@@ -43,9 +46,7 @@ func (a *App) ServiceShutdown() error {
 func (a *App) ShowSettingsWindow() {
 	a.settingsWindowMu.Lock()
 	if a.settingsWindow == nil {
-		a.settingsWindowMu.Unlock()
-		a.createSettingsWindow()
-		a.settingsWindowMu.Lock()
+		a.createSettingsWindowLocked()
 	}
 	w := a.settingsWindow
 	a.settingsWindowMu.Unlock()
@@ -56,9 +57,8 @@ func (a *App) ShowSettingsWindow() {
 	}
 }
 
-func (a *App) createSettingsWindow() {
-	a.settingsWindowMu.Lock()
-	defer a.settingsWindowMu.Unlock()
+// createSettingsWindowLocked creates the settings window. Caller must hold settingsWindowMu.
+func (a *App) createSettingsWindowLocked() {
 	if a.settingsWindow != nil {
 		return
 	}
@@ -82,10 +82,10 @@ func (a *App) createSettingsWindow() {
 
 	sw.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		a.settingsWindowMu.Lock()
-		defer a.settingsWindowMu.Unlock()
+		a.settingsWindow = nil
+		a.settingsWindowMu.Unlock()
 
 		wailsApp.Event.Emit(eventNames.SettingsWindowClosing)
-		a.settingsWindow = nil
 	})
 
 	a.settingsWindow = sw

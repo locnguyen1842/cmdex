@@ -49,7 +49,10 @@ func main() {
 
 	helpMenu := menu.AddSubmenu("Help")
 	helpMenu.Add("Open Dev Tools").OnClick(func(ctx *application.Context) {
-		app.Window.Current().OpenDevTools()
+		w := app.Window.Current()
+		if w != nil {
+			w.OpenDevTools()
+		}
 	})
 
 	app.Menu.Set(menu)

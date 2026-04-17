@@ -397,16 +397,16 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     <AlertDialog open={confirmDeletePreset} onOpenChange={setConfirmDeletePreset}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Preset</AlertDialogTitle>
-          <AlertDialogDescription>Are you sure you want to delete this preset? This cannot be undone.</AlertDialogDescription>
+          <AlertDialogTitle>{t('variablePrompt.deletePresetTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>{t('variablePrompt.deletePresetDescription')}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => { handleDeletePreset(); setConfirmDeletePreset(false); }}
           >
-            Delete
+            {t('variablePrompt.deletePresetAction')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -588,19 +588,25 @@ func (db *DB) GetCommandsByIDs(ids []string) ([]Command, error) {
 	return cmds, nil
 }
 
-// ImportCommands imports commands from import data structure
-func (db *DB) ImportCommands(commands []struct {
+// ImportPresetInput is the input format for importing a preset.
+type ImportPresetInput struct {
+	Name   string
+	Values map[string]string
+}
+
+// ImportCommandInput is the input format for importing a command.
+type ImportCommandInput struct {
 	Title         string
 	Description   string
 	ScriptContent string
 	Tags          []string
 	Variables     []VariableDefinition
-	Presets       []struct {
-		Name   string
-		Values map[string]string
-	}
-	CategoryName string
-}) error {
+	Presets       []ImportPresetInput
+	CategoryName  string
+}
+
+// ImportCommands imports commands from import data structure
+func (db *DB) ImportCommands(commands []ImportCommandInput) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)

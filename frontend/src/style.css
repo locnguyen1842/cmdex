@@ -731,11 +731,6 @@ body {
   cursor: grabbing!important;
 }
 
-.command-item:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
 .command-item.active {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   color: var(--foreground);

@@ -39,6 +39,7 @@ import {
     createNewTabId,
     isNewCommandTabId,
     getCommandDisplayTitle,
+    SettingsPayload,
 } from './types';
 
 import {
@@ -211,8 +212,11 @@ function App() {
         })).catch(() => {});
     };
 
+    // Tracks whether event names have been initialized from backend
+    const [eventsInitialized, setEventsInitialized] = useState(false);
+
     useEffect(() => {
-        initEventNames();
+        initEventNames().then(() => setEventsInitialized(true));
     }, []);
 
     useEffect(() => {
@@ -474,20 +478,22 @@ function App() {
     };
 
     useEffect(() => {
+        if (!eventsInitialized) return;
         const cleanup = Events.On(eventNames.openSettings, async () => {
             await openSettingsWithToast();
         });
         return cleanup;
-    }, []);
+    }, [eventsInitialized]);
 
     useEffect(() => {
+        if (!eventsInitialized) return;
         // Wails v3 `Events.On` delivers a `WailsEvent` wrapper: { name, data, sender }.
         // The emitted payload is at `event.data`, not on the event object itself.
         // Reading the payload fields directly off `event` returns undefined and would
         // cause `||` fallbacks to kick in, overwriting user's just-saved settings
         // with defaults. Always unwrap `.data`.
-        const cleanup = Events.On(eventNames.settingsChanged, (event: any) => {
-            const payload = event?.data;
+        const cleanup = Events.On(eventNames.settingsChanged, (event: { name: string; data: unknown; sender: string }) => {
+            const payload = event?.data as Partial<SettingsPayload> | undefined;
             if (!payload) return;
             // Keep settingsRef in sync BEFORE state setters fire their auto-save
             // useEffects — those effects read state and persist, so settingsRef
@@ -515,16 +521,17 @@ function App() {
                     const parsed = typeof payload.customThemes === 'string'
                         ? JSON.parse(payload.customThemes)
                         : payload.customThemes;
-                    setCustomThemes(Array.isArray(parsed) ? parsed : []);
-                    settingsRef.current.customThemes = Array.isArray(parsed) ? parsed : [];
+                    if (Array.isArray(parsed)) {
+                        setCustomThemes(parsed);
+                        settingsRef.current.customThemes = parsed;
+                    }
                 } catch {
-                    setCustomThemes([]);
-                    settingsRef.current.customThemes = [];
+                    // Do not overwrite existing customThemes on parse failure
                 }
             }
         });
         return cleanup;
-    }, []);
+    }, [eventsInitialized]);
 
 
     const updateDraft = useCallback((tabId: string, partial: Partial<TabDraft>) => {

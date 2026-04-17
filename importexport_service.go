@@ -13,6 +13,8 @@ import (
 // ImportExportService handles importing and exporting commands and theme templates.
 type ImportExportService struct{}
 
+// ServiceStartup implements the Wails v3 service lifecycle hook for startup.
+// Currently a no-op as import/export services are initialized on-demand.
 func (s *ImportExportService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	return nil
 }
@@ -198,42 +200,14 @@ func (s *ImportExportService) ImportCommands() ([]Command, error) {
 	}
 
 	// Convert to db-compatible format
-	commands := make([]struct {
-		Title         string
-		Description   string
-		ScriptContent string
-		Tags          []string
-		Variables     []VariableDefinition
-		Presets       []struct {
-			Name   string
-			Values map[string]string
-		}
-		CategoryName string
-	}, len(importData.Commands))
+	commands := make([]ImportCommandInput, len(importData.Commands))
 
 	for i, cmd := range importData.Commands {
-		presets := make([]struct {
-			Name   string
-			Values map[string]string
-		}, len(cmd.Presets))
+		presets := make([]ImportPresetInput, len(cmd.Presets))
 		for j, p := range cmd.Presets {
-			presets[j] = struct {
-				Name   string
-				Values map[string]string
-			}{Name: p.Name, Values: p.Values}
+			presets[j] = ImportPresetInput{Name: p.Name, Values: p.Values}
 		}
-		commands[i] = struct {
-			Title         string
-			Description   string
-			ScriptContent string
-			Tags          []string
-			Variables     []VariableDefinition
-			Presets       []struct {
-				Name   string
-				Values map[string]string
-			}
-			CategoryName string
-		}{
+		commands[i] = ImportCommandInput{
 			Title:         cmd.Title,
 			Description:   cmd.Description,
 			ScriptContent: cmd.ScriptContent,
