@@ -44,6 +44,11 @@ jobs:
       - name: Go build check
         run: go build ./...
 
+      - name: Generate Wails bindings
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
+          wails3 generate bindings -clean=true
+
       - name: TypeScript check
         run: cd frontend && pnpm tsc --noEmit
 
@@ -53,7 +58,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
           - os: macos-latest
           - os: windows-latest
 
