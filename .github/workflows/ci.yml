@@ -32,6 +32,12 @@ jobs:
       - name: Install frontend deps
         run: cd frontend && pnpm install
 
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
       - name: Create frontend/dist placeholder for go build
         run: mkdir -p frontend/dist && touch frontend/dist/.gitkeep
 
