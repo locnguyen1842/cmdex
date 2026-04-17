@@ -55,7 +55,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Wails v3 CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
 
       - name: Install Linux build deps
         if: runner.os == 'Linux'
@@ -75,5 +75,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
-          path: bin/
+          path: |
+            bin/
+            build/windows/nsis/*.exe
           if-no-files-found: warn

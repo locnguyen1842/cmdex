@@ -11,7 +11,7 @@ includes:
 vars:
   APP_NAME: "CmDex"
   BIN_DIR: "bin"
-  VITE_PORT: "$VITE_PORT"
+  VITE_PORT: "{{env `VITE_PORT`}}"
 
 tasks:
   build:

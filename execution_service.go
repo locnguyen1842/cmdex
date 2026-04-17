@@ -79,7 +79,9 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 		ExecutedAt:    time.Now(),
 	}
 
-	_ = s.db.AddExecution(record)
+	if err := s.db.AddExecution(record); err != nil {
+		fmt.Printf("failed to persist execution record: %v\n", err)
+	}
 
 	return record
 }
@@ -93,7 +95,10 @@ func (s *ExecutionService) RunInTerminal(commandID string, variables map[string]
 
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
 
-	settings, _ := s.db.GetSettings()
+	settings, err := s.db.GetSettings()
+	if err != nil {
+		return fmt.Errorf("failed to get settings: %w", err)
+	}
 	return s.executor.OpenInTerminal(settings.Terminal, resolvedScript)
 }
 

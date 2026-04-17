@@ -10,11 +10,11 @@
         <key>CFBundleIdentifier</key>
             <string>com.fenv.cmdex</string>
         <key>CFBundleVersion</key>
-            <string>0.1.0</string>
+            <string>1.1.0</string>
         <key>CFBundleGetInfoString</key>
             <string>CmDex - Command Manager</string>
         <key>CFBundleShortVersionString</key>
-            <string>0.1.0</string>
+            <string>1.1.0</string>
         <key>CFBundleIconFile</key>
             <string>icons</string>
         <key>CFBundleIconName</key>
@@ -22,7 +22,7 @@
         <key>LSMinimumSystemVersion</key>
             <string>10.15.0</string>
         <key>NSHighResolutionCapable</key>
-            <string>true</string>
+            <true/>
         <key>NSHumanReadableCopyright</key>
             <string>© 2026, fenv</string>
     </dict>

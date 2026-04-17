@@ -458,9 +458,18 @@ function App() {
         setActiveTabId(null);
     }, [loadData, loadHistory]);
 
+    const openSettingsWithToast = async () => {
+        try {
+            await ShowSettingsWindow();
+        } catch (err) {
+            toast.error('Failed to open settings window');
+            console.error('ShowSettingsWindow error:', err);
+        }
+    };
+
     useEffect(() => {
         const cleanup = Events.On(eventNames.openSettings, async () => {
-            await ShowSettingsWindow();
+            await openSettingsWithToast();
         });
         return cleanup;
     }, []);
@@ -490,6 +499,7 @@ function App() {
                 monoFont: payload.monoFont ?? current.monoFont,
                 density: payload.density ?? current.density,
             };
+            if (payload.locale) i18n.changeLanguage(payload.locale);
             if (payload.theme) setTheme(payload.theme);
             if (payload.uiFont) setUiFont(payload.uiFont);
             if (payload.monoFont) setMonoFont(payload.monoFont);
@@ -1288,7 +1298,7 @@ function App() {
         [`${cmdOrCtrl}+f`]: () => setPaletteOpen(true),
 
         [`${cmdOrCtrl}+,`]: async () => {
-            await ShowSettingsWindow();
+            await openSettingsWithToast();
         },
 
         'ctrl+w': () => {
@@ -1391,7 +1401,7 @@ function App() {
                             onAddCommand={(catId) => openNewCommandTab(catId)}
                             onDeleteCommand={handleDeleteCommand}
                             onReorderCommand={handleReorderCommand}
-                            onOpenSettings={() => ShowSettingsWindow()}
+                            onOpenSettings={() => openSettingsWithToast()}
                             onImport={async () => {
                                 const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
                                 setCategories(cats || []);

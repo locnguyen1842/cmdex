@@ -22,7 +22,7 @@ RUN go mod tidy
 RUN go build -tags server -ldflags="-s -w" -o server .
 
 # Runtime stage - minimal image
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12:nonroot
 
 # Copy the binary
 COPY --from=builder /app/server /server
@@ -37,5 +37,6 @@ EXPOSE 8080
 # Can be overridden at runtime with -e WAILS_SERVER_HOST=...
 ENV WAILS_SERVER_HOST=0.0.0.0
 
-# Run the server
+# Run the server as non-root
+USER 65534:65534
 ENTRYPOINT ["/server"]

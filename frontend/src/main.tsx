@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {createRoot} from 'react-dom/client'
 import './i18n'
 import './style.css'
@@ -6,7 +6,8 @@ import App from './App'
 import SettingsPage from './components/SettingsPage'
 import { GetSettings, SetSettings } from '../bindings/cmdex/app'
 import { THEMES, CustomTheme } from './App'
-import { EventsEmit } from '../wailsjs/runtime/runtime'
+import { Events } from '@wailsio/runtime'
+import { eventNames } from './wails/events'
 
 const container = document.getElementById('root')
 
@@ -37,6 +38,9 @@ if (isSettingsWindow) {
         const [uiFont, setUiFont] = useState('Inter')
         const [monoFont, setMonoFont] = useState('JetBrains Mono')
         const [customThemes, setCustomThemes] = useState<CustomTheme[]>([])
+        const [locale, setLocale] = useState('en')
+        const [terminal, setTerminal] = useState('')
+        const customThemesStrRef = useRef('[]')
 
         useEffect(() => {
             GetSettings().then(s => {
@@ -46,19 +50,31 @@ if (isSettingsWindow) {
                 setDensity(s.density || 'comfortable')
                 setUiFont(s.uiFont || 'Inter')
                 setMonoFont(s.monoFont || 'JetBrains Mono')
+                setLocale(s.locale || 'en')
+                setTerminal(s.terminal || '')
                 applyTheme(t)
                 applyDensity(s.density || 'comfortable')
                 applyFonts(s.uiFont || 'Inter', s.monoFont || 'JetBrains Mono')
                 if (s.customThemes && s.customThemes !== '[]') {
-                    try { setCustomThemes(JSON.parse(s.customThemes)) } catch {}
+                    try {
+                        const parsed = JSON.parse(s.customThemes)
+                        setCustomThemes(Array.isArray(parsed) ? parsed : [])
+                        customThemesStrRef.current = s.customThemes
+                    } catch {}
                 }
             }).catch(() => {})
+        }, [])
+
+        const persistSettings = useCallback((newSettings: Record<string, unknown>) => {
+            SetSettings(JSON.stringify(newSettings)).catch(() => {})
+            Events.Emit(eventNames.settingsChanged, newSettings)
         }, [])
 
         const handleThemeChange = useCallback((newTheme: string) => {
             const builtIn = THEMES.find(t => t.id === newTheme)
             const custom = customThemes.find(t => t.id === newTheme)
             const themeType = builtIn?.type ?? custom?.type ?? 'dark'
+            applyTheme(newTheme)
             if (themeType === 'dark') {
                 document.documentElement.style.setProperty('--cmdex-last-dark-theme', newTheme)
             } else {
@@ -79,22 +95,45 @@ if (isSettingsWindow) {
                 allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`))
             }
             setTheme(newTheme)
-        }, [customThemes])
+            const newSettings = {
+                locale, terminal, theme: newTheme,
+                lastDarkTheme: newTheme.startsWith('vscode-dark') || newTheme.startsWith('monokai') || newTheme.startsWith('one-dark') || newTheme.startsWith('classic') || newTheme.startsWith('catppuccin') || newTheme.startsWith('dracula') || newTheme.startsWith('tokyo-night') ? newTheme : theme.startsWith('vscode-dark') || theme.startsWith('monokai') || theme.startsWith('one-dark') || theme.startsWith('classic') || theme.startsWith('catppuccin') || theme.startsWith('dracula') || theme.startsWith('tokyo-night') ? theme : 'vscode-dark',
+                lastLightTheme: newTheme.startsWith('vscode-light') ? newTheme : theme.startsWith('vscode-light') ? theme : 'vscode-light',
+                customThemes: customThemesStrRef.current,
+                uiFont, monoFont, density,
+            }
+            persistSettings(newSettings)
+        }, [customThemes, locale, terminal, theme, uiFont, monoFont, density, persistSettings])
 
         const handleDensityChange = useCallback((d: string) => {
             setDensity(d)
             applyDensity(d)
-        }, [])
+            const newSettings = {
+                locale, terminal, theme, lastDarkTheme: theme, lastLightTheme: theme,
+                customThemes: customThemesStrRef.current, uiFont, monoFont, density: d,
+            }
+            persistSettings(newSettings)
+        }, [locale, terminal, theme, uiFont, monoFont, persistSettings])
 
         const handleUiFontChange = useCallback((font: string) => {
             setUiFont(font)
             applyFonts(font, monoFont)
-        }, [monoFont])
+            const newSettings = {
+                locale, terminal, theme, lastDarkTheme: theme, lastLightTheme: theme,
+                customThemes: customThemesStrRef.current, uiFont: font, monoFont, density,
+            }
+            persistSettings(newSettings)
+        }, [locale, terminal, theme, monoFont, density, persistSettings])
 
         const handleMonoFontChange = useCallback((font: string) => {
             setMonoFont(font)
             applyFonts(uiFont, font)
-        }, [uiFont])
+            const newSettings = {
+                locale, terminal, theme, lastDarkTheme: theme, lastLightTheme: theme,
+                customThemes: customThemesStrRef.current, uiFont, monoFont: font, density,
+            }
+            persistSettings(newSettings)
+        }, [locale, terminal, theme, uiFont, density, persistSettings])
 
         return (
             <SettingsPage

@@ -1378,7 +1378,11 @@ func (db *DB) GetSettings() (AppSettings, error) {
 	if err := json.Unmarshal([]byte(raw), &s); err != nil {
 		return defaults, fmt.Errorf("unmarshal settings: %w", err)
 	}
-	return s, nil
+	merged := defaults
+	if err := json.Unmarshal([]byte(raw), &merged); err != nil {
+		return defaults, fmt.Errorf("unmarshal settings: %w", err)
+	}
+	return merged, nil
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
@@ -1422,6 +1426,7 @@ func (db *DB) ResetAll() error {
 		Locale: "en", Terminal: "", Theme: "vscode-dark",
 		LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		WindowX: -1, WindowY: -1, WindowWidth: 640, WindowHeight: 520,
 	})
 	if _, err := tx.Exec(`INSERT INTO app_settings (data) VALUES (?)`, string(defaultSettings)); err != nil {
 		return fmt.Errorf("insert default settings: %w", err)

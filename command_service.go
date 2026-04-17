@@ -225,6 +225,20 @@ func (s *CommandService) SavePreset(commandID string, name string, values map[st
 }
 
 func (s *CommandService) UpdatePreset(commandID string, presetID string, name string, values map[string]string) (VariablePreset, error) {
+	presets, err := s.db.GetPresets(commandID)
+	if err != nil {
+		return VariablePreset{}, fmt.Errorf("get presets for validation: %w", err)
+	}
+	found := false
+	for _, p := range presets {
+		if p.ID == presetID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return VariablePreset{}, fmt.Errorf("preset %s does not belong to command %s", presetID, commandID)
+	}
 	preset := VariablePreset{
 		ID:     presetID,
 		Name:   name,
@@ -237,6 +251,20 @@ func (s *CommandService) UpdatePreset(commandID string, presetID string, name st
 }
 
 func (s *CommandService) DeletePreset(commandID string, presetID string) error {
+	presets, err := s.db.GetPresets(commandID)
+	if err != nil {
+		return fmt.Errorf("get presets for validation: %w", err)
+	}
+	found := false
+	for _, p := range presets {
+		if p.ID == presetID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("preset %s does not belong to command %s", presetID, commandID)
+	}
 	return s.db.DeletePreset(presetID)
 }
 

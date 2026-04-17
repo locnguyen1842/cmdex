@@ -91,17 +91,19 @@ func (s *ImportExportService) ExportCommands(commandIDs []string) error {
 		Commands:   make([]ExportCommand, 0, len(cmds)),
 	}
 
+	cats, err := s.db.GetCategories()
+	if err != nil {
+		return fmt.Errorf("get categories: %w", err)
+	}
+	catMap := make(map[string]string, len(cats))
+	for _, c := range cats {
+		catMap[c.ID] = c.Name
+	}
+
 	for _, cmd := range cmds {
-		// Get category name
 		categoryName := ""
 		if cmd.CategoryID != "" {
-			cats, _ := s.db.GetCategories()
-			for _, c := range cats {
-				if c.ID == cmd.CategoryID {
-					categoryName = c.Name
-					break
-				}
-			}
+			categoryName = catMap[cmd.CategoryID]
 		}
 
 		presets := make([]ExportPreset, 0, len(cmd.Presets))

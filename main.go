@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -10,19 +11,20 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-var settingsWindow *application.WebviewWindow
+var (
+	settingsWindowMu sync.Mutex
+	settingsWindow   *application.WebviewWindow
+)
 
 func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
+	settingsWindowMu.Lock()
+	defer settingsWindowMu.Unlock()
 	if settingsWindow != nil {
 		return settingsWindow
 	}
 
 	windowOptions := application.WebviewWindowOptions{
-		Title: "Settings",
-		// Width:  settings.WindowWidth,
-		// Height: settings.WindowHeight,
-		// MinWidth:            480,
-		// MinHeight:           400,
+		Title:               "Settings",
 		UseApplicationMenu:  false,
 		BackgroundColour:    application.NewRGBA(15, 15, 20, 255),
 		HideOnEscape:        true,
@@ -35,27 +37,31 @@ func CreateSettingsWindow(app *application.App) *application.WebviewWindow {
 
 	windowOptions.InitialPosition = application.WindowCentered
 
-	settingsWindow = app.Window.NewWithOptions(windowOptions)
+	sw := app.Window.NewWithOptions(windowOptions)
 
-	settingsWindow.OnWindowEvent(events.Common.WindowHide, func(event *application.WindowEvent) {
-		app.Event.Emit(eventNames.SettingsWindowClosing)
-		settingsWindow.Close()
-
-		settingsWindow = nil
+	sw.OnWindowEvent(events.Common.WindowHide, func(event *application.WindowEvent) {
+		sw.Close()
 	})
 
-	settingsWindow.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
+	sw.OnWindowEvent(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		app.Event.Emit(eventNames.SettingsWindowClosing)
-
+		settingsWindowMu.Lock()
 		settingsWindow = nil
+		settingsWindowMu.Unlock()
 	})
 
-	return settingsWindow
+	settingsWindow = sw
+	return sw
 }
 
 func ShowSettingsWindow() {
 	app := application.Get()
-	w := CreateSettingsWindow(app)
+	settingsWindowMu.Lock()
+	w := settingsWindow
+	settingsWindowMu.Unlock()
+	if w == nil {
+		w = CreateSettingsWindow(app)
+	}
 	w.Show()
 	w.Focus()
 }

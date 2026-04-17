@@ -178,7 +178,7 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ] && [ ! -d "frontend/dist"
 fi
 
 # Build
-APP=${APP_NAME:-$(basename $(pwd))}
+APP=${APP_NAME:-$(basename "$(pwd)")}
 mkdir -p bin
 
 EXT=""

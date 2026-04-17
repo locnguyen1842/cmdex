@@ -161,6 +161,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [terminal, setTerminal] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const customThemesStrRef = useRef('[]');
 
   const [draftTheme, setDraftTheme] = useState(theme);
   const [draftUiFont, setDraftUiFont] = useState(uiFont);
@@ -190,7 +191,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       locale, terminal, theme: v,
       lastDarkTheme: v.startsWith('vscode-dark') || v.startsWith('monokai') || v.startsWith('one-dark') || v.startsWith('classic') || v.startsWith('catppuccin') || v.startsWith('dracula') || v.startsWith('tokyo-night') ? v : savedTheme.startsWith('vscode-dark') || savedTheme.startsWith('monokai') || savedTheme.startsWith('one-dark') || savedTheme.startsWith('classic') || savedTheme.startsWith('catppuccin') || savedTheme.startsWith('dracula') || savedTheme.startsWith('tokyo-night') ? savedTheme : 'vscode-dark',
       lastLightTheme: v.startsWith('vscode-light') ? v : savedTheme.startsWith('vscode-light') ? savedTheme : 'vscode-light',
-      customThemes: '[]',
+      customThemes: customThemesStrRef.current,
       uiFont: draftUiFont,
       monoFont: draftMonoFont,
       density: draftDensity,
@@ -207,7 +208,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       locale, terminal, theme: draftTheme,
       lastDarkTheme: savedTheme,
       lastLightTheme: savedTheme,
-      customThemes: '[]',
+      customThemes: customThemesStrRef.current,
       uiFont: draftUiFont,
       monoFont: draftMonoFont,
       density: v,
@@ -224,7 +225,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       locale, terminal, theme: draftTheme,
       lastDarkTheme: savedTheme,
       lastLightTheme: savedTheme,
-      customThemes: '[]',
+      customThemes: customThemesStrRef.current,
       uiFont: v,
       monoFont: draftMonoFont,
       density: draftDensity,
@@ -241,7 +242,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       locale, terminal, theme: draftTheme,
       lastDarkTheme: savedTheme,
       lastLightTheme: savedTheme,
-      customThemes: '[]',
+      customThemes: customThemesStrRef.current,
       uiFont: draftUiFont,
       monoFont: v,
       density: draftDensity,
@@ -258,7 +259,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       locale: v, terminal, theme: draftTheme,
       lastDarkTheme: savedTheme,
       lastLightTheme: savedTheme,
-      customThemes: '[]',
+      customThemes: customThemesStrRef.current,
       uiFont: draftUiFont,
       monoFont: draftMonoFont,
       density: draftDensity,
@@ -275,7 +276,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       locale, terminal: v, theme: draftTheme,
       lastDarkTheme: savedTheme,
       lastLightTheme: savedTheme,
-      customThemes: '[]',
+      customThemes: customThemesStrRef.current,
       uiFont: draftUiFont,
       monoFont: draftMonoFont,
       density: draftDensity,
@@ -371,6 +372,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     draftUiFont !== savedUiFont ||
     draftMonoFont !== savedMonoFont ||
     draftDensity !== savedDensity;
+
+  useEffect(() => {
+    if (customThemes && customThemes.length > 0) {
+      customThemesStrRef.current = JSON.stringify(customThemes);
+    } else {
+      customThemesStrRef.current = '[]';
+    }
+  }, [customThemes]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -641,14 +650,42 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           {onResetAllData && (
             <div className="border-t border-border pt-4 mt-2">
               <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
-                onClick={() => setConfirmReset(true)}
-              >
-                {t('settings.resetAllData')}
-              </Button>
+              {confirmReset ? (
+                <div className="mt-2 p-3 rounded-md border border-destructive/40 bg-destructive/5 space-y-2">
+                  <p className="text-sm text-destructive">{t('settings.resetConfirm')}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="flex-1"
+                      onClick={async () => {
+                        await onResetAllData();
+                        setConfirmReset(false);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                    >
+                      {t('settings.resetConfirmYes')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setConfirmReset(false)}
+                    >
+                      {t('settings.resetConfirmNo')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
+                  onClick={() => setConfirmReset(true)}
+                >
+                  {t('settings.resetAllData')}
+                </Button>
+              )}
             </div>
           )}
         </TabsContent>
