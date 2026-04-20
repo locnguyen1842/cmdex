@@ -83,6 +83,7 @@ import {
     makePlaceholderCommand,
 } from './utils/tabDraft';
 import { mergeDetectedVariables, variableDefinitionsToPrompts } from './utils/templateVars';
+import { MainLogo } from './assets/images/main-logo';
 
 type ModalState =
     | { type: 'none' }
@@ -1425,11 +1426,7 @@ function App() {
                         storageKey="cmdex-sidebar"
                         collapsedIcon={
                             <div className="logo-icon" style={{ width: 22, height: 22 }}>
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="22" height="22">
-                                    <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.1" />
-                                    <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
-                                    <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
-                                </svg>
+                                <MainLogo width="22" height="22" />
                             </div>
                         }
                     >

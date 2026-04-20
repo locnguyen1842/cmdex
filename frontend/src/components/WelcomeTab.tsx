@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
+import { MainLogo } from '@/assets/images/main-logo';
 
 interface WelcomeTabProps {
   onNewCommand: () => void;
@@ -27,11 +28,7 @@ const WelcomeTab: React.FC<WelcomeTabProps> = ({ onNewCommand }) => {
   return (
     <div className="welcome-tab">
       <div className="welcome-tab-inner">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="64" height="64" aria-hidden="true" focusable="false">
-          <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.05" />
-          <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
-          <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
-        </svg>
+        <MainLogo width="64" height="64" />
         <h2 className="welcome-tab-title">{t('welcome.title')}</h2>
         <p className="welcome-tab-subtitle">{t('welcome.subtitle')}</p>
 
