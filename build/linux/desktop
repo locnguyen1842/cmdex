@@ -7,4 +7,4 @@ Terminal=false
 Type=Application
 Icon=cmdex
 Categories=Utility;Development;
-StartupWMClass=CmDex
+StartupWMClass=cmdex

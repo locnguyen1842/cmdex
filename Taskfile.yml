@@ -9,7 +9,7 @@ includes:
   linux: ./build/linux/Taskfile.yml
 
 vars:
-  APP_NAME: "CmDex"
+  APP_NAME: '{{env `APP_NAME` | default "cmdex"}}'
   BIN_DIR: "bin"
   VITE_PORT: "{{env `VITE_PORT`}}"
 
