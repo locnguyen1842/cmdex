@@ -6,7 +6,7 @@
         <key>CFBundleName</key>
             <string>CmDex</string>
         <key>CFBundleExecutable</key>
-            <string>CmDex</string>
+            <string>cmdex</string>
         <key>CFBundleIdentifier</key>
             <string>com.fenv.cmdex</string>
         <key>CFBundleVersion</key>
