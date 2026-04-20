@@ -30,7 +30,7 @@ function ShortcutLabel({ id, keys, className }: { id?: ShortcutId; keys?: readon
   const parts = shortcutLabelParts(id ? SHORTCUTS[id].keys : keys ?? []);
   return (
     <KbdGroup className={className}>
-      {parts.map((p, i) => <Kbd key={i}>{p}</Kbd>)}
+      {parts.map((p, i) => p.trim() !== "" && <Kbd key={i}>{p}</Kbd>)}
     </KbdGroup>
   );
 }

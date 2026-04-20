@@ -72,6 +72,7 @@
 }
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin 'tailwind-scrollbar';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -146,6 +147,9 @@
   --var-missing-fg: #ffc66d;
   --var-missing-border: rgba(255, 198, 109, 0.35);
 
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
+
   --sidebar-width: 300px;
   --header-height: 35px;
   --tab-bar-height: 35px;
@@ -160,6 +164,7 @@
   --density-font-size-sm: 11px;
   --density-padding-sm: 4px;
   --density-padding-md: 8px;
+  --density-padding-lg: 12px;
   --density-gap-sm: 4px;
   --density-gap-md: 8px;
 }
@@ -202,6 +207,9 @@
   --var-missing-bg: rgba(161, 90, 0, 0.1);
   --var-missing-fg: #7c3800;
   --var-missing-border: rgba(161, 90, 0, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.25);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.45);
 }
 
 /* ========== Monokai ========== */
@@ -242,6 +250,9 @@
   --var-missing-bg: rgba(230, 219, 116, 0.15);
   --var-missing-fg: #e6db74;
   --var-missing-border: rgba(230, 219, 116, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Tokyo Night ========== */
@@ -282,6 +293,9 @@
   --var-missing-bg: rgba(224, 175, 104, 0.18);
   --var-missing-fg: #e0af68;
   --var-missing-border: rgba(224, 175, 104, 0.35);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== One Dark Pro ========== */
@@ -322,6 +336,9 @@
   --var-missing-bg: rgba(229, 192, 123, 0.18);
   --var-missing-fg: #e5c07b;
   --var-missing-border: rgba(229, 192, 123, 0.35);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Classic (original purple) ========== */
@@ -362,6 +379,9 @@
   --var-missing-bg: rgba(251, 189, 35, 0.15);
   --var-missing-fg: #fbbd23;
   --var-missing-border: rgba(251, 189, 35, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Catppuccin Mocha ========== */
@@ -402,6 +422,9 @@
   --var-missing-bg: rgba(249, 226, 175, 0.18);
   --var-missing-fg: #f9e2af;
   --var-missing-border: rgba(249, 226, 175, 0.35);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Dracula ========== */
@@ -442,6 +465,9 @@
   --var-missing-bg: rgba(241, 250, 140, 0.15);
   --var-missing-fg: #f1fa8c;
   --var-missing-border: rgba(241, 250, 140, 0.3);
+
+  --scrollbar-thumb: rgba(128, 128, 128, 0.18);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.35);
 }
 
 /* ========== Density Overrides ========== */
@@ -451,6 +477,7 @@
   --density-font-size-sm: 10px;
   --density-padding-sm: 4px;
   --density-padding-md: 4px;
+  --density-padding-lg: 8px;
   --density-gap-sm: 4px;
   --density-gap-md: 4px;
 }
@@ -460,6 +487,7 @@
   --density-font-size-sm: 12px;
   --density-padding-sm: 8px;
   --density-padding-md: 12px;
+  --density-padding-lg: 16px;
   --density-gap-sm: 8px;
   --density-gap-md: 12px;
 }
@@ -481,10 +509,10 @@ body {
   font-size: var(--density-font-size-base, 13px);
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.5); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* ========== Layout ========== */
 
@@ -646,16 +674,17 @@ body {
 }
 
 .sidebar-logo h1 {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  font-size: calc(var(--density-font-size-base) * 1.5);
+  font-weight: 1000;
+  letter-spacing: 1px;
+  font-style: italic;
+  font-family: var(--font-mono);
   color: var(--muted-foreground);
 }
 
 .sidebar-content {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
   padding: var(--density-padding-sm);
 }
 
@@ -680,10 +709,9 @@ body {
   display: flex;
   align-items: center;
   gap: var(--density-gap-sm);
-  font-size: var(--density-font-size-sm, 11px);
+  /* font-size: var(--density-font-size-sm, 11px); */
   font-weight: 700;
   color: var(--muted-foreground);
-  text-transform: uppercase;
   letter-spacing: 0.6px;
 }
 
@@ -705,7 +733,6 @@ body {
   border-left: 1px solid var(--border);
   padding-left: 0;
   margin-top: 1px;
-  overflow: hidden;
 }
 
 .command-item {
@@ -726,6 +753,11 @@ body {
   color: var(--foreground);
 }
 
+.command-item.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
 .command-item.active {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   color: var(--foreground);
@@ -739,29 +771,40 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
 }
 
 .command-item .cmd-title {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   font-weight: 400;
 }
 
-/* Inline delete confirmation — right side of command item */
+.command-item .cmd-actions {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 3px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* Inline delete — inside cmd-title-row */
 .cmd-trash-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: none;
   background: transparent;
   color: var(--muted-foreground);
   border-radius: 3px;
   cursor: pointer;
-  flex-shrink: 0;
   padding: 0;
+  flex-shrink: 0;
   transition: color var(--transition-fast), background var(--transition-fast);
 }
 .cmd-trash-btn:hover {
@@ -769,22 +812,48 @@ body {
   background: color-mix(in srgb, var(--destructive) 12%, transparent);
 }
 
-.cmd-delete-actions {
+.cmd-cancel-delete-icon-btn {
+  margin-right: 0px;
   display: flex;
-  gap: 2px;
-  flex-shrink: 0;
   align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
-.cmd-delete-btn {
-  height: 20px !important;
-  padding: 0 7px !important;
-  font-size: 11px !important;
-  min-width: 0 !important;
-}
-.cmd-delete-btn--confirm {
-  color: var(--destructive) !important;
+.cmd-cancel-delete-icon-btn:hover {
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
+.cmd-delete-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.cmd-delete-icon-btn:hover {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+}
+.cmd-delete-icon-btn.text-destructive {
+  color: var(--destructive);
+}
+.cmd-delete-icon-btn.text-destructive:hover {
+  background: color-mix(in srgb, var(--destructive) 20%, transparent);
+}
 .cmd-tags-row {
   display: flex;
   gap: 4px;
@@ -798,7 +867,6 @@ body {
   opacity: 0.75;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .sidebar-footer {
@@ -846,7 +914,6 @@ body {
 .main-body {
   flex: 1;
   overflow-y: auto;
-  padding: calc(var(--density-padding-md) * 3);
 }
 
 .main-body.command-tab-shell {
@@ -861,7 +928,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 56px;
+  padding: var(--density-padding-md) calc(var(--density-padding-md) * 3) var(--density-padding-md) calc(var(--density-padding-md) * 3);
 }
 
 /* ========== Inline edit + hover actions + floating save ========== */
@@ -1443,11 +1510,11 @@ textarea.inline-edit-input {
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--primary) 55%, transparent) 0%,
-    color-mix(in srgb, var(--primary) 8%, transparent) 55%,
-    color-mix(in srgb, var(--success) 30%, transparent) 100%
+    color-mix(in srgb, var(--primary) 20%, transparent) 55%,
+    color-mix(in srgb, var(--primary) 50%, transparent) 100%
   );
   box-shadow:
-    0 0 20px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 0 20px color-mix(in srgb, var(--primary) 15%, transparent),
     0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
@@ -1673,9 +1740,9 @@ textarea.inline-edit-input {
 .terminal-dot { width: 9px; height: 9px; border-radius: 50%; }
 
 .output-resize-handle {
-  height: 4px;
+  height: 1px;
   cursor: ns-resize;
-  background: transparent;
+  background: var(--muted);
   transition: background 0.15s;
   flex-shrink: 0;
 }
@@ -1915,7 +1982,6 @@ textarea.inline-edit-input {
 
 .vp-vars-scroll {
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
 }
 
@@ -1975,7 +2041,7 @@ textarea.inline-edit-input {
 
 /* The draggable strip — wider hit area, but visually thin */
 .resize-handle-wrap {
-  width: 8px;
+  width: 1px;
   flex-shrink: 0;
   cursor: col-resize;
   position: relative;
@@ -2076,26 +2142,6 @@ textarea.inline-edit-input {
   display: flex;
   gap: 5px;
   align-items: center;
-}
-
-/* ========== Drag handle on command items ========== */
-
-.drag-handle {
-  display: flex;
-  align-items: center;
-  cursor: grab;
-  color: transparent;
-  flex-shrink: 0;
-  padding: 0 2px;
-  transition: color var(--transition-fast);
-}
-
-.command-item:hover .drag-handle {
-  color: var(--muted-foreground);
-}
-
-.command-item.dragging {
-  opacity: 0.4;
 }
 
 .dragging-ghost {
@@ -2334,15 +2380,6 @@ textarea.inline-edit-input {
 }
 
 /* ========== Shortcuts Popup ========== */
-
-.shortcuts-popup-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  color: var(--muted-foreground);
-  margin-bottom: 10px;
-}
 
 .shortcuts-group {
   margin-bottom: 10px;

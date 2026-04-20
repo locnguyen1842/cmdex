@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -23,7 +23,7 @@ jobs:
         with:
           version: latest
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '25'
           cache: pnpm
@@ -32,11 +32,22 @@ jobs:
       - name: Install frontend deps
         run: cd frontend && pnpm install
 
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
       - name: Create frontend/dist placeholder for go build
         run: mkdir -p frontend/dist && touch frontend/dist/.gitkeep
 
       - name: Go build check
         run: go build ./...
+
+      - name: Generate Wails bindings
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
+          wails3 generate bindings -clean=true
 
       - name: TypeScript check
         run: cd frontend && pnpm tsc --noEmit
@@ -48,28 +59,43 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            platform: linux/amd64
           - os: macos-latest
-            platform: darwin/amd64
           - os: windows-latest
-            platform: windows/amd64
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
         with:
           version: latest
 
-      - name: Build
-        uses: dAppCore/build/actions/build/wails2@v4.0.0
+      - uses: actions/setup-node@v6
         with:
-          build-name: cmdex
-          build-platform: ${{ matrix.platform }}
-          node-version: '25.x'
-          go-version: '1.25'
-          wails-version: 'v2.11.0'
-          package: 'false'
+          node-version: '25'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install Wails v3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
+
+      - name: Build
+        run: task build

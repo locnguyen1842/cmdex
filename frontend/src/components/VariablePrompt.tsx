@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Plus, Check, X, Play } from 'lucide-react';
@@ -272,7 +271,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                   <TooltipContent>{t('variablePrompt.saveAsNewPreset')}</TooltipContent>
                 </Tooltip>
               </div>
-              <ScrollArea className="flex-1">
+              <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-w-1 scrollbar-thumb-border scrollbar-track-transparent">
                 <div className="vp-preset-items">
                   {presets.length === 0 ? (
                     <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">{t('variablePrompt.noPresetsYet')}</div>
@@ -314,7 +313,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                     ))
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
 
             <div className="vp-center">
@@ -344,7 +343,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                   )}
                 </div>
               )}
-              <ScrollArea className="vp-vars-scroll">
+              <div className="vp-vars-scroll overflow-y-auto scrollbar-thin scrollbar-w-1 scrollbar-thumb-border scrollbar-track-transparent">
                 <div className="space-y-3 p-4">
                   {variables.map((v, i) => (
                     <div key={v.name} className="space-y-1">
@@ -368,7 +367,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
 
               <Separator />
 
@@ -398,16 +397,16 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     <AlertDialog open={confirmDeletePreset} onOpenChange={setConfirmDeletePreset}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Preset</AlertDialogTitle>
-          <AlertDialogDescription>Are you sure you want to delete this preset? This cannot be undone.</AlertDialogDescription>
+          <AlertDialogTitle>{t('variablePrompt.deletePresetTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>{t('variablePrompt.deletePresetDescription')}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => { handleDeletePreset(); setConfirmDeletePreset(false); }}
           >
-            Delete
+            {t('variablePrompt.deletePresetAction')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

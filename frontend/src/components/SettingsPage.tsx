@@ -1,0 +1,739 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Upload, Download, X } from 'lucide-react';
+import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
+import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
+import { TerminalInfo } from '../types';
+import { toast } from 'sonner';
+import { THEMES, CustomTheme } from '../App';
+import { Events } from '@wailsio/runtime';
+import { eventNames } from '../wails/events';
+
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+];
+
+const UI_FONTS = [
+  { id: 'Inter', label: 'Inter', fontFamily: "'Inter', system-ui, sans-serif" },
+  { id: 'Geist', label: 'Geist', fontFamily: "'Geist', system-ui, sans-serif" },
+  { id: 'Nunito', label: 'Nunito', fontFamily: "'Nunito', system-ui, sans-serif" },
+  { id: 'System Default', label: 'System Default', fontFamily: 'system-ui, -apple-system, sans-serif' },
+] as const;
+
+const MONO_FONTS = [
+  { id: 'JetBrains Mono', label: 'JetBrains Mono', fontFamily: "'JetBrains Mono', monospace" },
+  { id: 'Fira Code', label: 'Fira Code', fontFamily: "'Fira Code', monospace" },
+  { id: 'Cascadia Code', label: 'Cascadia Code', fontFamily: "'Cascadia Code', monospace" },
+  { id: 'Monaspace Neon', label: 'Monaspace Neon', fontFamily: "'Monaspace Neon', monospace" },
+] as const;
+
+const THEME_DOTS: Record<string, [string, string, string, string]> = {
+  'vscode-dark':        ['#1e1e1e', '#252526', '#007acc', '#d4d4d4'],
+  'vscode-light':       ['#ffffff', '#f3f3f3', '#0078d4', '#1f1f1f'],
+  'monokai':            ['#272822', '#2d2e27', '#a6e22e', '#f8f8f2'],
+  'tokyo-night':        ['#1a1b26', '#16161e', '#7aa2f7', '#a9b1d6'],
+  'one-dark':           ['#282c34', '#21252b', '#61afef', '#abb2bf'],
+  'classic':            ['#0f0f14', '#16161e', '#7c6aef', '#e8e8f0'],
+  'catppuccin-mocha':   ['#1e1e2e', '#181825', '#cba6f7', '#cdd6f4'],
+  'dracula':            ['#282a36', '#21222c', '#bd93f9', '#f8f8f2'],
+};
+
+interface ThemeSwatchProps {
+  id: string;
+  label: string;
+  themeType: 'dark' | 'light';
+  dots: [string, string, string, string];
+  selected: boolean;
+  onSelect: () => void;
+  onRemove?: () => void;
+}
+
+function ThemeSwatch({ label, themeType, dots, selected, onSelect, onRemove }: ThemeSwatchProps) {
+  return (
+    <button
+      type="button"
+      role="button"
+      aria-label={`${label} theme, ${themeType}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={[
+        'relative flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full',
+        selected
+          ? 'ring-2 ring-primary ring-offset-1 border-primary'
+          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
+      ].join(' ')}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {dots.map((color, i) => (
+            <span
+              key={i}
+              className="w-3 h-3 rounded-full inline-block flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+        <span className="text-[10px] leading-none text-muted-foreground ml-1">
+          {themeType === 'dark' ? '🌙' : '☀️'}
+        </span>
+      </div>
+      <span className="text-[11px] mt-1 truncate leading-[1.3] pr-4">{label}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={`Remove ${label} theme`}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="absolute bottom-2 right-2 text-[14px] leading-none text-muted-foreground hover:text-destructive transition-colors"
+        >
+          <X size={12} />
+        </button>
+      )}
+    </button>
+  );
+}
+
+interface FontPickerCardProps {
+  fontFamily: string;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function FontPickerCard({ fontFamily, label, selected, onSelect }: FontPickerCardProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={[
+        'flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full min-h-[56px]',
+        selected
+          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary'
+          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
+      ].join(' ')}
+    >
+      <span style={{ fontFamily }} className="text-sm font-medium truncate leading-[1.4]">{label}</span>
+      <span style={{ fontFamily }} className="text-[11px] text-muted-foreground mt-0.5 leading-[1.3]">
+        ABC abc 012
+      </span>
+    </button>
+  );
+}
+
+export interface SettingsPageProps {
+  theme: string;
+  onThemeChange: (theme: string) => void;
+  onResetAllData?: () => Promise<void>;
+  customThemes?: CustomTheme[];
+  onImportTheme?: (theme: CustomTheme) => void;
+  onRemoveCustomTheme?: (themeId: string) => void;
+  uiFont?: string;
+  monoFont?: string;
+  density?: string;
+  onUiFontChange?: (font: string) => void;
+  onMonoFontChange?: (font: string) => void;
+  onDensityChange?: (density: string) => void;
+}
+
+const SettingsPage: React.FC<SettingsPageProps> = ({
+  theme,
+  onThemeChange,
+  onResetAllData,
+  customThemes,
+  onImportTheme,
+  onRemoveCustomTheme,
+  uiFont = 'Inter',
+  monoFont = 'JetBrains Mono',
+  density = 'comfortable',
+  onUiFontChange,
+  onMonoFontChange,
+  onDensityChange,
+}) => {
+  const { t, i18n } = useTranslation();
+  const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
+  const [savedLocale, setSavedLocale] = useState('en');
+  const [savedTerminal, setSavedTerminal] = useState('');
+  const [locale, setLocale] = useState('en');
+  const [terminal, setTerminal] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const customThemesStrRef = useRef('[]');
+
+  const [draftTheme, setDraftTheme] = useState(theme);
+  const [draftUiFont, setDraftUiFont] = useState(uiFont);
+  const [draftMonoFont, setDraftMonoFont] = useState(monoFont);
+  const [draftDensity, setDraftDensity] = useState(density);
+
+  const [savedTheme, setSavedTheme] = useState(theme);
+  const [savedUiFont, setSavedUiFont] = useState(uiFont);
+  const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
+  const [savedDensity, setSavedDensity] = useState(density);
+
+  // Tracks whether the user has edited any draft field. While true, the
+  // async GetSettings resolver below must NOT overwrite draft/saved values.
+  const userTouchedRef = useRef(false);
+  const markTouched = useCallback(() => { userTouchedRef.current = true; }, []);
+
+  // Draft change helpers. In standalone mode SettingsPage drives its own
+  // DOM preview via useEffects above, so it must NOT invoke the parent
+  // callbacks during editing (those callbacks trigger the modal parent's
+  // auto-save and the prop round-trip that broke dirty state). Parent
+  // callbacks run only on Save (in handleSave below).
+  const changeTheme = useCallback((v: string) => {
+    markTouched();
+    setDraftTheme(v);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: v,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftUiFont, draftMonoFont, draftDensity]);
+
+  const changeDensity = useCallback((v: string) => {
+    markTouched();
+    setDraftDensity(v);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: v,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftMonoFont]);
+
+  const changeUiFont = useCallback((v: string) => {
+    markTouched();
+    setDraftUiFont(v);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: v,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftTheme, draftMonoFont, draftDensity]);
+
+  const changeMonoFont = useCallback((v: string) => {
+    markTouched();
+    setDraftMonoFont(v);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: v,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftDensity]);
+
+  const changeLocale = useCallback((v: string) => {
+    markTouched();
+    setLocale(v);
+    i18n.changeLanguage(v).catch(() => {});
+    GetSettings().then(current => {
+      const newSettings = {
+        locale: v, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n]);
+
+  const changeTerminal = useCallback((v: string) => {
+    markTouched();
+    setTerminal(v);
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal: v, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [markTouched, locale, draftTheme, draftUiFont, draftMonoFont, draftDensity]);
+
+  useEffect(() => {
+    GetAvailableTerminals()
+      .then(t => setTerminals(t || []))
+      .catch(() => setTerminals([]));
+    GetSettings()
+      .then(s => {
+        if (!s) return;
+        if (userTouchedRef.current) return;
+        const loc = s?.locale || i18n.language || 'en';
+        const term = s?.terminal || '';
+        setSavedLocale(loc);
+        setSavedTerminal(term);
+        setLocale(loc);
+        setTerminal(term);
+        setSavedTheme(s.theme || 'vscode-dark');
+        setDraftTheme(s.theme || 'vscode-dark');
+        setSavedUiFont(s.uiFont || 'Inter');
+        setDraftUiFont(s.uiFont || 'Inter');
+        setSavedMonoFont(s.monoFont || 'JetBrains Mono');
+        setDraftMonoFont(s.monoFont || 'JetBrains Mono');
+        setSavedDensity(s.density || 'comfortable');
+        setDraftDensity(s.density || 'comfortable');
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // In standalone mode, SettingsPage owns the live DOM preview so the
+  // parent (SettingsWindow) never needs to round-trip through its own
+  // `theme`/`uiFont`/... state. That round-trip was the source of the
+  // prop-sync loop that zeroed out the dirty state.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', draftTheme);
+    const custom = customThemes?.find(c => c.id === draftTheme);
+    if (custom) {
+      Object.entries(custom.colors).forEach(([key, value]) => {
+        document.documentElement.style.setProperty(`--${key}`, value as string);
+      });
+    } else {
+      // Built-in theme: clear any custom CSS vars that may have been set.
+      const allVarKeys = [
+        'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+        'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
+        'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
+        'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
+        'tab-active-indicator', 'status-bar-bg', 'status-bar-fg',
+      ];
+      allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
+    }
+  }, [draftTheme, customThemes]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', draftDensity);
+  }, [draftDensity]);
+
+  useEffect(() => {
+    const fontValue = draftUiFont === 'System Default'
+      ? 'system-ui, -apple-system, sans-serif'
+      : `'${draftUiFont}', system-ui, sans-serif`;
+    document.documentElement.style.setProperty('--font-sans', fontValue);
+  }, [draftUiFont]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-mono', `'${draftMonoFont}', monospace`);
+  }, [draftMonoFont]);
+
+  // In standalone mode, if the component unmounts (e.g. window closes)
+  // with unsaved changes, revert DOM preview to the saved values so the
+  // next open starts clean.
+  useEffect(() => {
+    return () => {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.documentElement.setAttribute('data-density', savedDensity);
+      const fontValue = savedUiFont === 'System Default'
+        ? 'system-ui, -apple-system, sans-serif'
+        : `'${savedUiFont}', system-ui, sans-serif`;
+      document.documentElement.style.setProperty('--font-sans', fontValue);
+      document.documentElement.style.setProperty('--font-mono', `'${savedMonoFont}', monospace`);
+    };
+  }, [savedTheme, savedDensity, savedUiFont, savedMonoFont]);
+
+  const isDirty =
+    locale !== savedLocale ||
+    terminal !== savedTerminal ||
+    draftTheme !== savedTheme ||
+    draftUiFont !== savedUiFont ||
+    draftMonoFont !== savedMonoFont ||
+    draftDensity !== savedDensity;
+
+  useEffect(() => {
+    if (customThemes && customThemes.length > 0) {
+      customThemesStrRef.current = JSON.stringify(customThemes);
+    } else {
+      customThemesStrRef.current = '[]';
+    }
+  }, [customThemes]);
+
+  const handleSave = useCallback(async () => {
+    try {
+      await i18n.changeLanguage(locale);
+      // In standalone mode SettingsPage already drives DOM preview itself,
+      // and the persisted settings-changed event notifies other windows.
+      // Parent callbacks are only needed for the in-app modal flow.
+      setSavedTheme(draftTheme);
+      setSavedUiFont(draftUiFont);
+      setSavedMonoFont(draftMonoFont);
+      setSavedDensity(draftDensity);
+      const current = await GetSettings();
+      const newSettings = {
+        locale,
+        terminal,
+        theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || '[]',
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+      };
+      await SetSettings(JSON.stringify(newSettings));
+      Events.Emit(eventNames.settingsChanged, newSettings);
+      setSavedLocale(locale);
+      setSavedTerminal(terminal);
+      userTouchedRef.current = false;
+      toast.success(t('settings.title'));
+    } catch (err) {
+      console.error('Failed to persist settings:', err);
+    }
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t]);
+
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (
+          typeof data.name !== 'string' ||
+          (data.type !== 'dark' && data.type !== 'light') ||
+          typeof data.colors?.background !== 'string'
+        ) {
+          toast.error(t('settings.themeInvalidFields'));
+          return;
+        }
+        const allVarKeys = [
+          'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+          'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
+          'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
+          'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
+          'tab-active-indicator', 'status-bar-bg', 'status-bar-fg',
+        ];
+        const defaultTheme = data.type === 'dark'
+          ? { background: '#1e1e1e', foreground: '#d4d4d4', card: '#252526', primary: '#007acc', accent: '#2a2d2e', border: 'rgba(255,255,255,0.1)', muted: '#3c3c3c', 'muted-foreground': '#858585', ring: '#007acc', destructive: '#f44747', success: '#4ec9b0', 'tab-bar-bg': '#2d2d2d', 'tab-active-bg': '#1e1e1e', 'tab-active-indicator': '#007acc', 'status-bar-bg': '#007acc' }
+          : { background: '#ffffff', foreground: '#1f1f1f', card: '#f3f3f3', primary: '#0078d4', accent: '#e5e5e5', border: 'rgba(0,0,0,0.1)', muted: '#f0f0f0', 'muted-foreground': '#616161', ring: '#0078d4', destructive: '#d13438', success: '#0f7b0f', 'tab-bar-bg': '#f3f3f3', 'tab-active-bg': '#ffffff', 'tab-active-indicator': '#0078d4', 'status-bar-bg': '#0078d4' };
+        const filledColors: Record<string, string> = {};
+        for (const key of allVarKeys) {
+          if (typeof data.colors?.[key] === 'string') {
+            filledColors[key] = data.colors[key];
+          } else if (defaultTheme[key as keyof typeof defaultTheme]) {
+            filledColors[key] = defaultTheme[key as keyof typeof defaultTheme];
+          }
+        }
+        const newTheme: CustomTheme = {
+          id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: data.name,
+          type: data.type,
+          colors: filledColors,
+        };
+        onImportTheme?.(newTheme);
+        onThemeChange(newTheme.id);
+        setDraftTheme(newTheme.id);
+        setSavedTheme(newTheme.id);
+        toast.success(t('settings.themeApplied', { name: data.name }));
+      } catch {
+        toast.error(t('settings.themeInvalidJson'));
+      }
+    };
+    reader.readAsText(file);
+  }, [onImportTheme, onThemeChange, t]);
+
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await SaveThemeTemplate();
+    } catch (err) {
+      toast.error(String(err));
+    }
+  }, []);
+
+  return (
+    <div className="p-4 space-y-4">
+      <Tabs defaultValue="appearance" className="w-full">
+        <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-border h-auto mb-0">
+          <TabsTrigger
+            value="appearance"
+            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+          >
+            {t('settings.tabs.appearance')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="typography"
+            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+          >
+            {t('settings.tabs.typography')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="general"
+            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
+          >
+            {t('settings.tabs.general')}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="appearance" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground">{t('settings.theme')}</p>
+            <div
+              role="group"
+              aria-label="Theme selection"
+              className="grid grid-cols-4 gap-2 p-3 max-h-[200px] overflow-y-auto scrollbar-hide"
+            >
+              {THEMES.map(th => (
+                <ThemeSwatch
+                  key={th.id}
+                  id={th.id}
+                  label={th.label}
+                  themeType={th.type}
+                  dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
+                  selected={draftTheme === th.id}
+                  onSelect={() => changeTheme(th.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {(customThemes?.length ?? 0) > 0 && (
+            <div className="pt-3 border-t border-border space-y-2">
+              <p className="text-[11px] text-muted-foreground">{t('settings.customThemes')}</p>
+              <div role="group" aria-label="Custom themes" className="grid grid-cols-2 gap-2">
+                {customThemes!.map(ct => (
+                  <ThemeSwatch
+                    key={ct.id}
+                    id={ct.id}
+                    label={ct.name}
+                    themeType={ct.type}
+                    dots={[
+                      ct.colors.background ?? '#888',
+                      ct.colors.card ?? '#666',
+                      ct.colors.primary ?? '#aaa',
+                      ct.colors.foreground ?? '#ccc',
+                    ]}
+                    selected={draftTheme === ct.id}
+                    onSelect={() => changeTheme(ct.id)}
+                    onRemove={() => onRemoveCustomTheme?.(ct.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={14} className="mr-1" />
+              {t('settings.importTheme')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="flex-1"
+              onClick={handleDownloadTemplate}
+            >
+              <Download size={14} className="mr-1.5" />
+              {t('settings.downloadTemplate')}
+            </Button>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            aria-hidden="true"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+
+          <div className="pt-3 border-t border-border space-y-2">
+            <p className="text-sm font-medium">{t('settings.densityLabel')}</p>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={draftDensity}
+              onValueChange={(v) => { if (v) changeDensity(v); }}
+              className="w-full"
+            >
+              <ToggleGroupItem value="compact" className="flex-1">
+                {t('settings.densityCompact')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="comfortable" className="flex-1">
+                {t('settings.densityComfortable')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="spacious" className="flex-1">
+                {t('settings.densitySpacious')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="typography" className="space-y-5 pt-4">
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">{t('settings.uiFontLabel')}</Label>
+            <div role="group" aria-label="UI font selection" className="grid grid-cols-3 gap-2">
+              {UI_FONTS.map(font => (
+                <FontPickerCard
+                  key={font.id}
+                  fontFamily={font.fontFamily}
+                  label={font.label}
+                  selected={draftUiFont === font.id}
+                  onSelect={() => changeUiFont(font.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">{t('settings.monoFontLabel')}</Label>
+            <div role="group" aria-label="Editor font selection" className="grid grid-cols-3 gap-2">
+              {MONO_FONTS.map(font => (
+                <FontPickerCard
+                  key={font.id}
+                  fontFamily={font.fontFamily}
+                  label={font.label}
+                  selected={draftMonoFont === font.id}
+                  onSelect={() => changeMonoFont(font.id)}
+                />
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="general" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label>{t('settings.language')}</Label>
+            <Select value={locale} onValueChange={changeLocale}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map(lang => (
+                  <SelectItem key={lang.code} value={lang.code}>{lang.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('settings.terminal')}</Label>
+            <Select value={terminal || '__auto__'} onValueChange={(v) => changeTerminal(v === '__auto__' ? '' : v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__auto__">
+                  <span className="italic opacity-70">{t('settings.terminalAuto')}</span>
+                </SelectItem>
+                {terminals.map(term => (
+                  <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {onResetAllData && (
+            <div className="border-t border-border pt-4 mt-2">
+              <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
+              {confirmReset ? (
+                <div className="mt-2 p-3 rounded-md border border-destructive/40 bg-destructive/5 space-y-2">
+                  <p className="text-sm text-destructive">{t('settings.resetConfirm')}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="flex-1"
+                      onClick={async () => {
+                        await onResetAllData();
+                        GetSettings().then(s => {
+                          if (!s) return;
+                          const t = s.theme || 'vscode-dark';
+                          setSavedTheme(t);
+                          setDraftTheme(t);
+                          setSavedUiFont(s.uiFont || 'Inter');
+                          setDraftUiFont(s.uiFont || 'Inter');
+                          setSavedMonoFont(s.monoFont || 'JetBrains Mono');
+                          setDraftMonoFont(s.monoFont || 'JetBrains Mono');
+                          setSavedDensity(s.density || 'comfortable');
+                          setDraftDensity(s.density || 'comfortable');
+                          setSavedLocale(s.locale || 'en');
+                          setLocale(s.locale || 'en');
+                          setSavedTerminal(s.terminal || '');
+                          setTerminal(s.terminal || '');
+                        }).catch(() => {});
+                        GetAvailableTerminals().then(t => setTerminals(t || [])).catch(() => setTerminals([]));
+                        userTouchedRef.current = false;
+                        setConfirmReset(false);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                    >
+                      {t('settings.resetConfirmYes')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setConfirmReset(false)}
+                    >
+                      {t('settings.resetConfirmNo')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
+                  onClick={() => setConfirmReset(true)}
+                >
+                  {t('settings.resetAllData')}
+                </Button>
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default SettingsPage;

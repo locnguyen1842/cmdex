@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=CmDex
+Comment=CLI command manager with variable placeholders
+Exec=/usr/local/bin/cmdex
+Terminal=false
+Type=Application
+Icon=cmdex
+Categories=Utility;Development;
+StartupWMClass=CmDex

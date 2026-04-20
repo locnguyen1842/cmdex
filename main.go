@@ -2,69 +2,80 @@ package main
 
 import (
 	"embed"
-	goruntime "runtime"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	app := NewApp()
+	appService := &App{}
 
-	appMenu := menu.NewMenu()
-
-	if goruntime.GOOS == "darwin" {
-		firstMenu := appMenu.AddSubmenu("Cmdex")
-		firstMenu.AddText("About Cmdex", nil, nil)
-		firstMenu.AddSeparator()
-		firstMenu.AddText("Preferences…", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
-			wailsruntime.EventsEmit(app.ctx, "open-settings")
-		})
-		firstMenu.AddSeparator()
-		firstMenu.AddText("Hide Cmdex", keys.CmdOrCtrl("h"), nil)
-		firstMenu.AddText("Hide Others", keys.OptionOrAlt("h"), nil)
-		firstMenu.AddSeparator()
-		firstMenu.AddText("Quit Cmdex", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-			wailsruntime.Quit(app.ctx)
-		})
-		appMenu.Append(menu.EditMenu())
-	} else {
-		fileMenu := appMenu.AddSubmenu("File")
-		fileMenu.AddText("Preferences", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
-			wailsruntime.EventsEmit(app.ctx, "open-settings")
-		})
-		fileMenu.AddSeparator()
-		fileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-			wailsruntime.Quit(app.ctx)
-		})
-	}
-
-	err := wails.Run(&options.App{
-		Title:     "Cmdex",
-		Width:     1200,
-		Height:    800,
-		MinWidth:  900,
-		MinHeight: 600,
-		Menu:      appMenu,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	app := application.New(application.Options{
+		Name: "Cmdex",
+		Services: []application.Service{
+			application.NewService(appService),
+			application.NewService(&CommandService{}),
+			application.NewService(&ExecutionService{}),
+			application.NewService(&SettingsService{}),
+			application.NewService(&ImportExportService{}),
+			application.NewService(&EventService{}),
 		},
-		BackgroundColour: &options.RGBA{R: 15, G: 15, B: 20, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
-		Bind: []interface{}{
-			app,
+		Assets: application.AssetOptions{
+			Handler: application.BundledAssetFileServer(assets),
+		},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
 
-	if err != nil {
+	menu := app.NewMenu()
+
+	cmdexMenu := menu.AddSubmenu("CmDex")
+	cmdexMenu.AddRole(application.About)
+	cmdexMenu.AddSeparator()
+	cmdexMenu.Add("Settings...").SetAccelerator("CmdOrCtrl+,").OnClick(func(ctx *application.Context) {
+		appService.ShowSettingsWindow()
+	})
+	cmdexMenu.AddSeparator()
+	cmdexMenu.AddRole(application.Hide)
+	cmdexMenu.AddRole(application.HideOthers)
+	cmdexMenu.AddSeparator()
+	cmdexMenu.AddRole(application.Reload)
+	cmdexMenu.AddRole(application.Quit)
+
+	menu.AddRole(application.EditMenu)
+
+	helpMenu := menu.AddSubmenu("Help")
+	helpMenu.Add("Keyboard Shortcuts...").SetAccelerator("CmdOrCtrl+?").OnClick(func(ctx *application.Context) {
+		wailsApp.Event.Emit(eventNames.OpenShortcuts)
+	})
+	helpMenu.Add("Open Dev Tools").OnClick(func(ctx *application.Context) {
+		w := app.Window.Current()
+		if w != nil {
+			w.OpenDevTools()
+		}
+	})
+
+	app.Menu.Set(menu)
+
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:              "Cmdex",
+		Width:              1200,
+		Height:             800,
+		MinWidth:           900,
+		MinHeight:          600,
+		UseApplicationMenu: true,
+		BackgroundColour:   application.NewRGBA(15, 15, 20, 255),
+	})
+
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		app.Quit()
+	})
+
+	if err := app.Run(); err != nil {
 		println("Error:", err.Error())
 	}
 }

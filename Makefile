@@ -1,13 +1,13 @@
 .PHONY: dev build generate check clean
 
 dev:
-	wails dev
+	wails3 dev
 
 build:
-	wails build
+	wails3 build
 
 generate:
-	wails generate module
+	wails3 generate bindings
 
 check:
 	go build ./...

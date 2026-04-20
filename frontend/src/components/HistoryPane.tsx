@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Trash2, History } from 'lucide-react';
 import ResizablePanel from './ResizablePanel';
@@ -62,7 +61,7 @@ const HistoryPane: React.FC<HistoryPaneProps> = ({
             </Tooltip>
           )}
         </div>
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-w-1 scrollbar-thumb-border scrollbar-track-transparent">
           {records.length === 0 ? (
             <div className="history-empty">{t('historyPane.noExecutions')}</div>
           ) : (
@@ -82,7 +81,7 @@ const HistoryPane: React.FC<HistoryPaneProps> = ({
               </div>
             ))
           )}
-        </ScrollArea>
+        </div>
       </div>
     </ResizablePanel>
   );

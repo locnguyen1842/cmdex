@@ -7,12 +7,12 @@ import CategoryEditor from './components/CategoryEditor';
 import VariablePrompt from './components/VariablePrompt';
 import HistoryPane from './components/HistoryPane';
 import OutputPane from './components/OutputPane';
-import SettingsDialog from './components/SettingsDialog';
 import ResizablePanel from './components/ResizablePanel';
 import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
 import WelcomeTab from './components/WelcomeTab';
 import FloatingSaveBar from './components/FloatingSaveBar';
+import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import { useKeyboardShortcuts, cmdOrCtrl, SHORTCUTS } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -28,7 +28,8 @@ import {
     AlertDialogCancel,
     AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { EventsOn } from '../wailsjs/runtime/runtime';
+import { Events } from '@wailsio/runtime';
+import { eventNames, initEventNames } from './wails/events';
 import {
     Category,
     Command,
@@ -39,6 +40,7 @@ import {
     createNewTabId,
     isNewCommandTabId,
     getCommandDisplayTitle,
+    SettingsPayload,
 } from './types';
 
 import {
@@ -50,22 +52,29 @@ import {
     CreateCommand,
     UpdateCommand,
     DeleteCommand,
-    GetVariables,
-    RunCommand,
-    GetExecutionHistory,
-    ClearExecutionHistory,
     GetPresets,
     SavePreset,
     UpdatePreset,
     DeletePreset,
-    GetSettings,
-    SetSettings,
-    RunInTerminal,
     ReorderCommand,
     GetScriptBody,
     ResetAllData,
     ReorderPresets,
-} from '../wailsjs/go/main/App';
+} from '../bindings/cmdex/commandservice';
+import {
+    GetSettings,
+    SetSettings,
+} from '../bindings/cmdex/settingsservice';
+import {
+    ShowSettingsWindow,
+} from '../bindings/cmdex/app';
+import {
+    GetVariables,
+    RunCommand,
+    GetExecutionHistory,
+    ClearExecutionHistory,
+    RunInTerminal,
+} from '../bindings/cmdex/executionservice';
 import i18n from './i18n';
 import {
     emptyDraft,
@@ -75,6 +84,7 @@ import {
     makePlaceholderCommand,
 } from './utils/tabDraft';
 import { mergeDetectedVariables, variableDefinitionsToPrompts } from './utils/templateVars';
+import { MainLogo } from './assets/images/main-logo';
 
 type ModalState =
     | { type: 'none' }
@@ -82,8 +92,7 @@ type ModalState =
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDiscard' }
-    | { type: 'confirmClearHistory' }
-    | { type: 'settings' };
+    | { type: 'confirmClearHistory' };
 
 // Legacy localStorage keys — used only for one-time migration on startup
 const THEME_STORAGE_KEY = 'cmdex-theme';
@@ -149,6 +158,8 @@ function App() {
 
     const [openTabs, setOpenTabs] = useState<Tab[]>([]);
     const openTabsRef = useRef<Tab[]>([]);
+
+    const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
     openTabsRef.current = openTabs;
     const scriptFetchGenRef = useRef<Record<string, number>>({});
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -185,6 +196,10 @@ function App() {
         uiFont: 'Inter',
         monoFont: 'JetBrains Mono',
         density: 'comfortable',
+        windowX: -1,
+        windowY: -1,
+        windowWidth: 640,
+        windowHeight: 520,
     });
 
     // Persists all current settings from settingsRef to the DB.
@@ -202,8 +217,19 @@ function App() {
             uiFont: r.uiFont,
             monoFont: r.monoFont,
             density: r.density,
+            windowX: r.windowX,
+            windowY: r.windowY,
+            windowWidth: r.windowWidth,
+            windowHeight: r.windowHeight,
         })).catch(() => {});
     };
+
+    // Tracks whether event names have been initialized from backend
+    const [eventsInitialized, setEventsInitialized] = useState(false);
+
+    useEffect(() => {
+        initEventNames().then(() => setEventsInitialized(true));
+    }, []);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -414,6 +440,10 @@ function App() {
                     uiFont: migratedUiFont,
                     monoFont: migratedMonoFont,
                     density: migratedDensity,
+                    windowX: s.windowX ?? -1,
+                    windowY: s.windowY ?? -1,
+                    windowWidth: s.windowWidth ?? 640,
+                    windowHeight: s.windowHeight ?? 520,
                 };
                 settingsLoadedRef.current = true;
 
@@ -441,6 +471,10 @@ function App() {
                     uiFont: migratedUiFont,
                     monoFont: migratedMonoFont,
                     density: migratedDensity,
+                    windowX: settingsRef.current.windowX,
+                    windowY: settingsRef.current.windowY,
+                    windowWidth: settingsRef.current.windowWidth,
+                    windowHeight: settingsRef.current.windowHeight,
                 })).catch(() => {});
 
                 // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
@@ -454,10 +488,78 @@ function App() {
         setActiveTabId(null);
     }, [loadData, loadHistory]);
 
+    const openSettingsWithToast = async () => {
+        try {
+            await ShowSettingsWindow();
+        } catch (err) {
+            toast.error('Failed to open settings window');
+            console.error('ShowSettingsWindow error:', err);
+        }
+    };
+
     useEffect(() => {
-        const cleanup = EventsOn('open-settings', () => setModal({ type: 'settings' }));
+        if (!eventsInitialized) return;
+        const cleanup = Events.On(eventNames.openSettings, async () => {
+            await openSettingsWithToast();
+        });
         return cleanup;
-    }, []);
+    }, [eventsInitialized]);
+
+    useEffect(() => {
+        if (!eventsInitialized) return;
+        const cleanup = Events.On(eventNames.openShortcuts, () => {
+            setShortcutsDialogOpen(true);
+        });
+        return cleanup;
+    }, [eventsInitialized]);
+
+    useEffect(() => {
+        if (!eventsInitialized) return;
+        // Wails v3 `Events.On` delivers a `WailsEvent` wrapper: { name, data, sender }.
+        // The emitted payload is at `event.data`, not on the event object itself.
+        // Reading the payload fields directly off `event` returns undefined and would
+        // cause `||` fallbacks to kick in, overwriting user's just-saved settings
+        // with defaults. Always unwrap `.data`.
+        const cleanup = Events.On(eventNames.settingsChanged, (event: { name: string; data: unknown; sender: string }) => {
+            const payload = event?.data as Partial<SettingsPayload> | undefined;
+            if (!payload) return;
+            // Keep settingsRef in sync BEFORE state setters fire their auto-save
+            // useEffects — those effects read state and persist, so settingsRef
+            // must hold the correct non-theme fields first or a stale value (e.g.
+            // lastDarkTheme, locale, terminal) could be written back to the DB.
+            const current = settingsRef.current;
+            settingsRef.current = {
+                ...current,
+                locale: payload.locale ?? current.locale,
+                terminal: payload.terminal ?? current.terminal,
+                theme: payload.theme ?? current.theme,
+                lastDarkTheme: payload.lastDarkTheme ?? current.lastDarkTheme,
+                lastLightTheme: payload.lastLightTheme ?? current.lastLightTheme,
+                uiFont: payload.uiFont ?? current.uiFont,
+                monoFont: payload.monoFont ?? current.monoFont,
+                density: payload.density ?? current.density,
+            };
+            if (payload.locale) i18n.changeLanguage(payload.locale);
+            if (payload.theme) setTheme(payload.theme);
+            if (payload.uiFont) setUiFont(payload.uiFont);
+            if (payload.monoFont) setMonoFont(payload.monoFont);
+            if (payload.density) setDensity(payload.density);
+            if (payload.customThemes !== undefined) {
+                try {
+                    const parsed = typeof payload.customThemes === 'string'
+                        ? JSON.parse(payload.customThemes)
+                        : payload.customThemes;
+                    if (Array.isArray(parsed)) {
+                        setCustomThemes(parsed);
+                        settingsRef.current.customThemes = parsed;
+                    }
+                } catch {
+                    // Do not overwrite existing customThemes on parse failure
+                }
+            }
+        });
+        return cleanup;
+    }, [eventsInitialized]);
 
 
     const updateDraft = useCallback((tabId: string, partial: Partial<TabDraft>) => {
@@ -849,12 +951,26 @@ function App() {
     };
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
+        const prev = commands;
+        const prevAll = allCommandsRef.current;
+        const optimistic = prev.map(cmd => {
+            if (cmd.id === id) {
+                return { ...cmd, categoryId: newCategoryId, position: newPosition };
+            }
+            return cmd;
+        });
+        allCommandsRef.current = optimistic;
+        setCommands(optimistic);
         try {
-            const updated = await ReorderCommand(id, newPosition, newCategoryId);
-            allCommandsRef.current = updated || [];
-            setCommands(updated || []);
+            const reordered = await ReorderCommand(id, newPosition, newCategoryId);
+            if (reordered) {
+                allCommandsRef.current = reordered;
+                setCommands(reordered);
+            }
         } catch (err) {
             console.error('Failed to reorder command:', err);
+            allCommandsRef.current = prevAll;
+            setCommands(prev);
         }
     };
 
@@ -920,7 +1036,8 @@ function App() {
         setOutputPaneOpen(true);
         setHistoryPaneOpen(true);
 
-        const cleanup = EventsOn('cmd-output', (chunk: { stream: string; data: string }) => {
+        const cleanup = Events.On(eventNames.cmdOutput, (event) => {
+            const chunk = event.data as { stream: string; data: string };
             const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
             streamBufferRef.current.push(prefix + chunk.data);
             if (streamFlushRef.current === null) {
@@ -1235,8 +1352,8 @@ function App() {
 
         [`${cmdOrCtrl}+f`]: () => setPaletteOpen(true),
 
-        [`${cmdOrCtrl}+,`]: () => {
-            if (modal.type === 'none') setModal({ type: 'settings' });
+        [`${cmdOrCtrl}+,`]: async () => {
+            await openSettingsWithToast();
         },
 
         'ctrl+w': () => {
@@ -1315,16 +1432,12 @@ function App() {
                     <ResizablePanel
                         side="left"
                         defaultWidth={280}
-                        minWidth={180}
+                        minWidth={190}
                         maxWidth={460}
                         storageKey="cmdex-sidebar"
                         collapsedIcon={
                             <div className="logo-icon" style={{ width: 22, height: 22 }}>
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="22" height="22">
-                                    <rect width="1024" height="1024" rx="180" ry="180" fill="currentColor" fillOpacity="0.1" />
-                                    <text x="240" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="480" fontWeight="800" fill="currentColor" letterSpacing="-20">C</text>
-                                    <text x="530" y="620" fontFamily="SF Mono, Menlo, Monaco, Consolas, monospace" fontSize="320" fontWeight="700" fill="var(--primary)">&gt;_</text>
-                                </svg>
+                                <MainLogo width="22" height="22" />
                             </div>
                         }
                     >
@@ -1339,7 +1452,7 @@ function App() {
                             onAddCommand={(catId) => openNewCommandTab(catId)}
                             onDeleteCommand={handleDeleteCommand}
                             onReorderCommand={handleReorderCommand}
-                            onOpenSettings={() => setModal({ type: 'settings' })}
+                            onOpenSettings={() => openSettingsWithToast()}
                             onImport={async () => {
                                 const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
                                 setCategories(cats || []);
@@ -1504,22 +1617,6 @@ function App() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <SettingsDialog
-                    open={modal.type === 'settings'}
-                    onClose={() => setModal({ type: 'none' })}
-                    theme={theme}
-                    onThemeChange={handleThemeChange}
-                    onResetAllData={handleResetAllData}
-                    customThemes={customThemes}
-                    onImportTheme={handleImportTheme}
-                    onRemoveCustomTheme={handleRemoveCustomTheme}
-                    uiFont={uiFont}
-                    monoFont={monoFont}
-                    density={density}
-                    onUiFontChange={handleUiFontChange}
-                    onMonoFontChange={handleMonoFontChange}
-                    onDensityChange={handleDensityChange}
-                />
                 <CommandPalette
                     open={paletteOpen}
                     commands={allCommandsRef.current}
@@ -1528,6 +1625,7 @@ function App() {
                     onOpen={handleSelectCommand}
                 />
                 <Toaster position="bottom-right" richColors closeButton duration={3000} />
+                <KeyboardShortcutsDialog open={shortcutsDialogOpen} onOpenChange={setShortcutsDialogOpen} />
             </div>
         </TooltipProvider>
     );
