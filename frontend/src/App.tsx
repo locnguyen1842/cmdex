@@ -12,6 +12,7 @@ import TabBar, { Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
 import WelcomeTab from './components/WelcomeTab';
 import FloatingSaveBar from './components/FloatingSaveBar';
+import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import { useKeyboardShortcuts, cmdOrCtrl, SHORTCUTS } from './hooks/useKeyboardShortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -157,6 +158,8 @@ function App() {
 
     const [openTabs, setOpenTabs] = useState<Tab[]>([]);
     const openTabsRef = useRef<Tab[]>([]);
+
+    const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
     openTabsRef.current = openTabs;
     const scriptFetchGenRef = useRef<Record<string, number>>({});
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -498,6 +501,14 @@ function App() {
         if (!eventsInitialized) return;
         const cleanup = Events.On(eventNames.openSettings, async () => {
             await openSettingsWithToast();
+        });
+        return cleanup;
+    }, [eventsInitialized]);
+
+    useEffect(() => {
+        if (!eventsInitialized) return;
+        const cleanup = Events.On(eventNames.openShortcuts, () => {
+            setShortcutsDialogOpen(true);
         });
         return cleanup;
     }, [eventsInitialized]);
@@ -1421,7 +1432,7 @@ function App() {
                     <ResizablePanel
                         side="left"
                         defaultWidth={280}
-                        minWidth={180}
+                        minWidth={190}
                         maxWidth={460}
                         storageKey="cmdex-sidebar"
                         collapsedIcon={
@@ -1614,6 +1625,7 @@ function App() {
                     onOpen={handleSelectCommand}
                 />
                 <Toaster position="bottom-right" richColors closeButton duration={3000} />
+                <KeyboardShortcutsDialog open={shortcutsDialogOpen} onOpenChange={setShortcutsDialogOpen} />
             </div>
         </TooltipProvider>
     );

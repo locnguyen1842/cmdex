@@ -22,7 +22,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Category, Command, getCommandDisplayTitle } from '../types';
 import { Button } from '@/components/ui/button';
-import { Kbd } from '@/components/ui/kbd';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
@@ -31,8 +30,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '@/components/ui/context-menu';
-import { Plus, Pencil, X, ChevronRight, Terminal, Settings, Group, Info, Trash2, Download, Upload } from 'lucide-react';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Plus, Pencil, X, ChevronRight, Terminal, Settings, Group, Trash2, Download, Upload } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -43,38 +41,10 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
 import { ExportCommands, ImportCommands } from '../../bindings/cmdex/importexportservice';
 import { MainLogo } from '@/assets/images/main-logo';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
-
-const SHORTCUT_GROUPS = [
-  {
-    label: 'Navigation',
-    items: [
-      { keys: [shortcutLabel('palette')],  description: 'Command Palette' },
-      { keys: [shortcutLabel('nextTab')],  description: 'Next tab' },
-      { keys: [shortcutLabel('prevTab')],  description: 'Previous tab' },
-      { keys: [shortcutLabel('prevOpenedTab')], description: 'Previous opened tab' },
-      { keys: [shortcutLabel('closeTab')], description: 'Close tab' },
-    ],
-  },
-  {
-    label: 'Commands',
-    items: [
-      { keys: [shortcutLabel('execute')],    description: 'Run command' },
-      { keys: [shortcutLabel('save')],       description: 'Save command' },
-      { keys: [shortcutLabel('newCommand')], description: 'New command' },
-    ],
-  },
-  {
-    label: 'App',
-    items: [
-      { keys: [shortcutLabel('settings')], description: 'Settings' },
-    ],
-  },
-];
 
 /** Normalize null/undefined/'' to '' for uncategorized bucket */
 const normCatId = (id: string | null | undefined): string => id || '';
@@ -366,37 +336,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.settings')}</TooltipContent>
           </Tooltip>
-
-          <Popover>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon-sm">
-                    <Info className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{t('common.keyboardShortcuts')}</TooltipContent>
-            </Tooltip>
-            <PopoverContent side="bottom" align="end" className="shortcuts-popup w-64 p-3">
-              <div className="shortcuts-popup-title">{t('common.keyboardShortcuts')}</div>
-              {SHORTCUT_GROUPS.map((group) => (
-                <div key={group.label} className="shortcuts-group">
-                  <div className="shortcuts-group-label">{group.label}</div>
-                  {group.items.map((item) => (
-                    <div key={item.description} className="shortcut-row">
-                      <span className="shortcut-desc">{item.description}</span>
-                      <span className="shortcut-keys-row">
-                        {item.keys.map((k) => (
-                          <Kbd key={k}>{k}</Kbd>
-                        ))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </PopoverContent>
-          </Popover>
         </div>
       </div>
 
@@ -427,8 +366,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                               <div className="section-left">
                                 <ChevronRight className={`size-3.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                                 <span className="category-dot" style={{ backgroundColor: cat.color || '#7c6aef' }} />
-                                <span>{cat.name}</span>
-                                <span className="border rounded-md px-1.5 text-xs/4 font-bold">{catCommands.length}</span>
+                                <span className="text-sm">{cat.name}</span>
                               </div>
                               <div className="section-right" />
                             </div>
@@ -514,8 +452,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           <div className="section-left">
                             <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
                             <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
-                            <span>{t('sidebar.uncategorized')}</span>
-                            <span className="border rounded-md px-1.5 text-xs/4 font-bold">{uncategorizedCommands.length}</span>
+                            <span className="text-xs uppercase">{t('sidebar.uncategorized')}</span>
                           </div>
                         </div>
                       </CollapsibleTrigger>

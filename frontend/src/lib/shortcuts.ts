@@ -57,6 +57,7 @@ export const SHORTCUTS = {
   palette:        { keys: ['cmd', 'p'] },
   search:         { keys: ['cmd', 'f'] },
   settings:       { keys: ['cmd', ','] },
+  shortcuts:      { keys: ['cmd', 'shift', '?'] },
   toggleOutput:   { keys: ['ctrl', '`'] },
   escape:         { keys: ['escape'] },
   discardScript:  { keys: ['cmd', 'shift', 'backspace'] },

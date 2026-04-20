@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 export const eventNames = {
     cmdOutput: 'cmd-output',
     openSettings: 'open-settings',
+    openShortcuts: 'open-shortcuts',
     settingsChanged: 'settings-changed',
     settingsWindowClosing: 'settings-window-closing',
 };
@@ -13,6 +14,7 @@ export async function initEventNames(): Promise<void> {
         const names = await GetEventNames();
         eventNames.cmdOutput = names.cmdOutput;
         eventNames.openSettings = names.openSettings;
+        eventNames.openShortcuts = names.openShortcuts;
         eventNames.settingsChanged = names.settingsChanged;
         eventNames.settingsWindowClosing = names.settingsWindowClosing;
     } catch (err) {

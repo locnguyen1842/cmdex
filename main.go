@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -48,6 +49,9 @@ func main() {
 	menu.AddRole(application.EditMenu)
 
 	helpMenu := menu.AddSubmenu("Help")
+	helpMenu.Add("Keyboard Shortcuts...").SetAccelerator("CmdOrCtrl+?").OnClick(func(ctx *application.Context) {
+		wailsApp.Event.Emit(eventNames.OpenShortcuts)
+	})
 	helpMenu.Add("Open Dev Tools").OnClick(func(ctx *application.Context) {
 		w := app.Window.Current()
 		if w != nil {
@@ -57,7 +61,7 @@ func main() {
 
 	app.Menu.Set(menu)
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:              "Cmdex",
 		Width:              1200,
 		Height:             800,
@@ -65,6 +69,10 @@ func main() {
 		MinHeight:          600,
 		UseApplicationMenu: true,
 		BackgroundColour:   application.NewRGBA(15, 15, 20, 255),
+	})
+
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		app.Quit()
 	})
 
 	if err := app.Run(); err != nil {

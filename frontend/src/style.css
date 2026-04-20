@@ -164,6 +164,7 @@
   --density-font-size-sm: 11px;
   --density-padding-sm: 4px;
   --density-padding-md: 8px;
+  --density-padding-lg: 12px;
   --density-gap-sm: 4px;
   --density-gap-md: 8px;
 }
@@ -476,6 +477,7 @@
   --density-font-size-sm: 10px;
   --density-padding-sm: 4px;
   --density-padding-md: 4px;
+  --density-padding-lg: 8px;
   --density-gap-sm: 4px;
   --density-gap-md: 4px;
 }
@@ -485,6 +487,7 @@
   --density-font-size-sm: 12px;
   --density-padding-sm: 8px;
   --density-padding-md: 12px;
+  --density-padding-lg: 16px;
   --density-gap-sm: 8px;
   --density-gap-md: 12px;
 }
@@ -671,10 +674,11 @@ body {
 }
 
 .sidebar-logo h1 {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  font-size: calc(var(--density-font-size-base) * 1.5);
+  font-weight: 1000;
+  letter-spacing: 1px;
+  font-style: italic;
+  font-family: var(--font-mono);
   color: var(--muted-foreground);
 }
 
@@ -705,10 +709,9 @@ body {
   display: flex;
   align-items: center;
   gap: var(--density-gap-sm);
-  font-size: var(--density-font-size-sm, 11px);
+  /* font-size: var(--density-font-size-sm, 11px); */
   font-weight: 700;
   color: var(--muted-foreground);
-  text-transform: uppercase;
   letter-spacing: 0.6px;
 }
 
@@ -1507,11 +1510,11 @@ textarea.inline-edit-input {
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--primary) 55%, transparent) 0%,
-    color-mix(in srgb, var(--primary) 8%, transparent) 55%,
-    color-mix(in srgb, var(--success) 30%, transparent) 100%
+    color-mix(in srgb, var(--primary) 20%, transparent) 55%,
+    color-mix(in srgb, var(--primary) 50%, transparent) 100%
   );
   box-shadow:
-    0 0 20px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 0 20px color-mix(in srgb, var(--primary) 15%, transparent),
     0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
@@ -2377,15 +2380,6 @@ textarea.inline-edit-input {
 }
 
 /* ========== Shortcuts Popup ========== */
-
-.shortcuts-popup-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  color: var(--muted-foreground);
-  margin-bottom: 10px;
-}
 
 .shortcuts-group {
   margin-bottom: 10px;

@@ -10,6 +10,7 @@ import (
 type EventNames struct {
 	CmdOutput             string `json:"cmdOutput"`
 	OpenSettings          string `json:"openSettings"`
+	OpenShortcuts         string `json:"openShortcuts"`
 	SettingsChanged       string `json:"settingsChanged"`
 	SettingsWindowClosing string `json:"settingsWindowClosing"`
 }
@@ -17,6 +18,7 @@ type EventNames struct {
 var eventNames = EventNames{
 	CmdOutput:             "cmd-output",
 	OpenSettings:          "open-settings",
+	OpenShortcuts:         "open-shortcuts",
 	SettingsChanged:       "settings-changed",
 	SettingsWindowClosing: "settings-window-closing",
 }
