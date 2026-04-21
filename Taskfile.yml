@@ -24,6 +24,11 @@ tasks:
     cmds:
       - task: "{{OS}}:package"
 
+  package:universal:
+    summary: Packages a darwin universal binary (arm64 + amd64)
+    cmds:
+      - task: darwin:package:universal
+
   run:
     summary: Runs the application
     cmds:
