@@ -145,18 +145,20 @@ tasks:
       - rm -f "{{.BIN_DIR}}/{{.APP_NAME}}-amd64" "{{.BIN_DIR}}/{{.APP_NAME}}-arm64"
 
   package:
-    summary: Packages the application into a `.app` bundle
+    summary: Packages the application into a `.app` bundle and `.pkg` installer
     deps:
       - task: build
     cmds:
       - task: create:app:bundle
+      - task: create:pkg
 
   package:universal:
-    summary: Packages darwin universal binary (arm64 + amd64)
+    summary: Packages darwin universal binary (arm64 + amd64) into a `.pkg` installer
     deps:
       - task: build:universal
     cmds:
       - task: create:app:bundle
+      - task: create:pkg
 
 
   create:app:bundle:
@@ -172,6 +174,19 @@ tasks:
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents"
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
+
+  create:pkg:
+    summary: Creates a `.pkg` installer from the `.app` bundle
+    preconditions:
+      - sh: test "$(uname)" = "Darwin"
+      - sh: test -d "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+        msg: "Run create:app:bundle first"
+    cmds:
+      - pkgbuild --identifier "{{.BUNDLE_ID}}" --version "{{.VERSION}}" --install-location "/Applications" --component "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.BIN_DIR}}/{{.APP_NAME}}.pkg"
+    vars:
+      BUNDLE_ID: 'com.fenv.cmdex'
+      VERSION:
+        sh: '/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/darwin/Info.plist 2>/dev/null || echo "1.0.0"'
 
   codesign:adhoc:
     summary: Ad-hoc signs the app bundle (macOS only)
