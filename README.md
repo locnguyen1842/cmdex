@@ -1,88 +1,76 @@
-# Cmdex
+# CmDex
 
-Cmdex is a cross-platform desktop application for saving, organizing, and executing CLI commands with dynamic template variables. Built with Go + Wails v2 and React + TypeScript, it offers a fast, native-like experience with a modern dark-themed interface.
+<p align="center">
+  <img src="assets/demo.gif" alt="CmDex Demo" width="800">
+</p>
+
+> Your command library, everywhere. Save, organize, and run CLI commands with smart templates — on **macOS**, **Windows**, and **Linux**.
+
+CmDex is a beautiful cross-platform desktop app that turns your scattered terminal commands into a searchable, categorized library. No more digging through shell history or forgetting that one Docker command you only run once a month.
+
+## Download
+
+**Ready to use?** Grab the latest installer for your platform from the [GitHub Releases](https://github.com/fenv-org/commamer/releases) page:
+
+- **macOS** — `.dmg` disk image
+- **Windows** — `.exe` installer
+- **Linux** — `.AppImage`, `.deb`, or `.rpm`
+
+No build tools, no terminal setup — just download, install, and start saving commands.
 
 ## Features
 
-- **Template Variables**: Use `{{variableName}}` syntax in your scripts. Variables are auto-detected as you type and can also be added manually.
+- **Template Variables** — Drop `{{variableName}}` into any command. CmDex auto-detects variables as you type and prompts you when you run.
   ```bash
   docker logs -f --tail {{lines}} {{container_name}}
   ```
-- **Categorized Storage**: Organize commands into custom categories with unique colors.
-- **Variable Presets**: Save named sets of variable values for quick reuse.
-- **CEL Default Values**: Variable defaults support [CEL expressions](https://github.com/google/cel-go) with built-in functions: `now()`, `env("KEY")`, `date("2006-01-02")`.
-- **In-App Execution**: Run commands directly within the app with streaming output in an integrated terminal panel.
-- **Run in Terminal**: Open commands in your preferred terminal emulator (auto-detects Terminal, iTerm2, Warp, Alacritty, Kitty, Ghostty, and more).
-- **Full-Text Search**: Instantly filter commands by title, description, tags, or script content (powered by SQLite FTS5).
-- **Local Storage**: All data is stored locally in `~/.cmdex/cmdex.db` (SQLite). No cloud sync, no external dependencies.
-- **Dark Theme**: A premium dark UI with glassmorphism effects, smooth animations, and responsive layout.
+- **Organized Library** — Group commands into color-coded categories. Keep work scripts, deployment commands, and personal utilities in their own spaces.
+- **Variable Presets** — Save named sets of values (e.g., "staging" vs. "production" configs) and switch between them instantly.
+- **Smart Defaults** — Defaults support CEL expressions like `now()`, `env("HOME")`, and `date("2006-01-02")` so your commands are always up to date.
+- **Run Anywhere** — Execute commands inside CmDex with a built-in streaming output panel, or open them directly in your favorite terminal (Terminal, iTerm2, Warp, Alacritty, Kitty, Ghostty, and more).
+- **Lightning Search** — Find any command by title, description, tag, or script content in milliseconds (powered by SQLite FTS5).
+- **Fully Local** — Everything lives on your machine in `~/.cmdex/cmdex.db`. No accounts, no cloud, no subscriptions.
+- **Dark & Polished** — A premium dark UI with glassmorphism, smooth animations, and a layout that feels right at home on any OS.
 
-## Tech Stack
+## For Developers
 
-- **Backend**: [Go](https://go.dev/) with [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) (pure Go, no CGo)
-- **Desktop Framework**: [Wails v2](https://wails.io/)
-- **Frontend**: [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) + [Vite](https://vitejs.dev/)
-- **UI**: [shadcn/ui](https://ui.shadcn.com/) (Radix UI + Tailwind CSS)
+Want to hack on CmDex or build from source?
 
-## Prerequisites
+### Tech Stack
 
-- Go 1.23+
-- Node.js 18+ with [pnpm](https://pnpm.io/)
-- [Wails v2 CLI](https://wails.io/docs/gettingstarted/installation):
-  ```bash
-  go install github.com/wailsapp/wails/v2/cmd/wails@latest
-  ```
+- **Backend**: Go with SQLite (pure Go, no CGo)
+- **Desktop**: Wails v3
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI**: shadcn/ui (Radix UI + Tailwind CSS)
 
-## Getting Started
+### Build from Source
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repo-url>
-   cd cmdex
-   ```
-
-2. **Install frontend dependencies**:
-   ```bash
-   cd frontend && pnpm install && cd ..
-   ```
-
-3. **Run in development mode** (hot-reloads frontend):
-   ```bash
-   wails dev
-   ```
-
-4. **Build for production**:
-   ```bash
-   wails build
-   ```
-   The binary will be in `build/bin/`.
-
-## Variable Syntax
-
-Use `{{variableName}}` anywhere in your script body. Variables are auto-detected from the template and appear in the editor's variable panel, where you can add descriptions, examples, and default values.
-
-**Example:**
 ```bash
-redis-cli --scan --pattern "{{pattern}}" | head -n {{limit}}
+# Prerequisites: Go 1.25+, Node.js 25+, pnpm, Wails v3 CLI
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
+
+# Clone & install
+git clone <repo-url>
+cd cmdex
+cd frontend && pnpm install && cd ..
+
+# Dev mode (hot-reload)
+wails3 dev
+
+# Production build
+wails3 build
 ```
 
-When executed, Cmdex replaces `{{pattern}}` and `{{limit}}` with the values you provide (or their defaults), then runs the script.
+### Project Layout
 
-**CEL defaults** let you compute values dynamically:
-- `now()` — current timestamp (RFC3339)
-- `env("HOME")` — read environment variables
-- `date("2006-01-02")` — current date in custom format
-
-## Project Structure
-
-- `main.go` — Entry point, Wails window config, native menu
-- `app.go` — Bound methods exposed to the frontend (CRUD, execution, search, settings)
-- `models.go` — Core data types (`Command`, `Category`, `VariableDefinition`, etc.)
-- `db.go` — SQLite database layer with schema migrations and FTS5 search
-- `script.go` — `{{var}}` template extraction, replacement, and script generation
-- `executor.go` — Script execution, streaming output, terminal detection, CEL evaluation
-- `frontend/` — React + TypeScript + Vite frontend
+- `main.go` — App entry & native menu
+- `app.go` — Backend services exposed to the UI
+- `db.go` — SQLite database with FTS5 search
+- `executor.go` — Command execution, streaming output, terminal detection
+- `frontend/src/` — React frontend
 
 ## License
 
-MIT License
+CmDex is licensed under the [Apache License 2.0](LICENSE).
+
+- The **core app** is free and open source — you can use, modify, and distribute it freely.

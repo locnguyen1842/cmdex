@@ -24,6 +24,6 @@
         <key>NSHighResolutionCapable</key>
             <true/>
         <key>NSHumanReadableCopyright</key>
-            <string>© 2026, fenv</string>
+            <string>Copyright 2026 fenv. Licensed under Apache License 2.0.</string>
     </dict>
 </plist>
