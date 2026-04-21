@@ -10,7 +10,7 @@ CmDex is a beautiful cross-platform desktop app that turns your scattered termin
 
 ## Download
 
-**Ready to use?** Grab the latest installer for your platform from the [GitHub Releases](https://github.com/fenv-org/commamer/releases) page:
+**Ready to use?** Grab the latest installer for your platform from the [GitHub Releases](https://github.com/locnguyen1842/cmdex/releases) page:
 
 - **macOS** — `.dmg` disk image
 - **Windows** — `.exe` installer
