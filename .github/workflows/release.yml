@@ -60,6 +60,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
+      - name: Install Windows NSIS installer tools
+        if: runner.os == 'Windows'
+        run: |
+          choco install nsis
+
       - name: Install Wails v3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
 
