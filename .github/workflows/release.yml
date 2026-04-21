@@ -62,8 +62,15 @@ jobs:
 
       - name: Install Windows NSIS installer tools
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          choco install nsis
+          choco install nsis --no-progress -y
+          $nsisPath = Get-ChildItem "C:\Program Files*\NSIS" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($nsisPath) {
+            echo $nsisPath.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          } else {
+            echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
 
       - name: Install Wails v3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
@@ -84,3 +91,27 @@ jobs:
             bin/
             build/windows/nsis/*.exe
           if-no-files-found: warn
+
+  release:
+    name: Create Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Flatten artifact directories
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec mv {} release-assets/ \;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
