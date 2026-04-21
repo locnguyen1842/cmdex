@@ -1,6 +1,8 @@
 # CmDex
 
-
+<p align="center">
+  <img src="assets/demo.gif" alt="CmDex Demo" width="800">
+</p>
 
 > Your command library, everywhere. Save, organize, and run CLI commands with smart templates — on **macOS**, **Windows**, and **Linux**.
 
