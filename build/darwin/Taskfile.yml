@@ -96,16 +96,39 @@ tasks:
   build:universal:
     summary: Builds darwin universal binary (arm64 + amd64)
     deps:
-      - task: build
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS: '-tags production -trimpath -buildvcs=false -ldflags="-w -s"'
+      - task: common:generate:icons
+    cmds:
+      - task: build:native:arch
         vars:
           ARCH: amd64
           OUTPUT: "{{.BIN_DIR}}/{{.APP_NAME}}-amd64"
-      - task: build
+      - task: build:native:arch
         vars:
           ARCH: arm64
           OUTPUT: "{{.BIN_DIR}}/{{.APP_NAME}}-arm64"
-    cmds:
       - task: '{{if eq OS "darwin"}}build:universal:lipo:native{{else}}build:universal:lipo:go{{end}}'
+
+  build:native:arch:
+    summary: Builds a single architecture binary (skips frontend + bindings)
+    internal: true
+    deps:
+      - task: common:go:mod:tidy
+    cmds:
+      - go build {{.BUILD_FLAGS}} -o {{.OUTPUT}}
+    vars:
+      BUILD_FLAGS: '-tags production -trimpath -buildvcs=false -ldflags="-w -s"'
+      DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
+      OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
+    env:
+      GOOS: darwin
+      CGO_ENABLED: 1
+      GOARCH: '{{.ARCH | default ARCH}}'
+      CGO_CFLAGS: "-mmacosx-version-min=10.15"
+      CGO_LDFLAGS: "-mmacosx-version-min=10.15"
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
 
   build:universal:lipo:native:
     summary: Creates universal binary using native lipo (macOS)
