@@ -143,7 +143,7 @@ jobs:
             bin/*.AppImage
             bin/*.deb
             bin/*.rpm
-            bin/*.pkg
+            bin/*.dmg
             build/windows/nsis/*-installer.exe
           if-no-files-found: warn
 
@@ -164,7 +164,7 @@ jobs:
           find artifacts -type f -exec mv {} release-assets/ \;
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release-assets/*
           generate_release_notes: true
