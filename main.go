@@ -14,7 +14,7 @@ func main() {
 	appService := &App{}
 
 	app := application.New(application.Options{
-		Name: "Cmdex",
+		Name: "CmDex",
 		Services: []application.Service{
 			application.NewService(appService),
 			application.NewService(&CommandService{}),
@@ -62,7 +62,7 @@ func main() {
 	app.Menu.Set(menu)
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:              "Cmdex",
+		Title:              "CmDex",
 		Width:              1200,
 		Height:             800,
 		MinWidth:           900,

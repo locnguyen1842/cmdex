@@ -151,7 +151,7 @@ tasks:
     desc: |
       Creates a minimal Docker image containing the server mode binary.
       The image is based on distroless for security and small size.
-      Usage: task build:docker [TAG=Cmdex:latest]
+      Usage: task build:docker [TAG=cmdex:latest]
     cmds:
       - docker build -t {{.TAG | default (printf "%s:latest" .APP_NAME)}} -f build/docker/Dockerfile.server .
     vars:
@@ -166,7 +166,7 @@ tasks:
     summary: Builds and runs the Docker image
     desc: |
       Builds the Docker image and runs it, exposing port 8080.
-      Usage: task run:docker [TAG=Cmdex:latest] [PORT=8080]
+      Usage: task run:docker [TAG=cmdex:latest] [PORT=8080]
       Note: The internal container port is always 8080. The PORT variable
       only changes the host port mapping. Ensure your app uses port 8080
       or modify the Dockerfile to match your ServerOptions.Port setting.

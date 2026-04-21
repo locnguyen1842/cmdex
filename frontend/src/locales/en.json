@@ -176,7 +176,7 @@
     "emptyResponse": "Empty Response"
   },
   "app": {
-    "welcomeTitle": "Welcome to Cmdex",
+    "welcomeTitle": "Welcome to CmDex",
     "welcomeDescription": "Select a command from the sidebar or create a new one to get started.",
     "newCommand": "+ New Command",
     "confirmDeleteTitle": "Confirm Delete",
@@ -237,7 +237,7 @@
     "resizeHandleTooltip": "Drag to resize · Click to collapse"
   },
   "welcome": {
-    "title": "Cmdex",
+    "title": "CmDex",
     "subtitle": "Save, organize, and run CLI commands",
     "newCommand": "+ New Command",
     "shortcutNewTab": "New command tab",
