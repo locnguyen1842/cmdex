@@ -1,8 +1,6 @@
 # CmDex
 
-<p align="center">
-  <img src="assets/demo.gif" alt="CmDex Demo" width="800">
-</p>
+
 
 > Your command library, everywhere. Save, organize, and run CLI commands with smart templates — on **macOS**, **Windows**, and **Linux**.
 
@@ -17,6 +15,14 @@ CmDex is a beautiful cross-platform desktop app that turns your scattered termin
 - **Linux** — `.AppImage`, `.deb`, or `.rpm`
 
 No build tools, no terminal setup — just download, install, and start saving commands.
+
+> **macOS users:** Because CmDex is not signed with an Apple Developer certificate, macOS may show a security warning on first launch. If you see *"CmDex can't be opened because it was not downloaded from the App Store"* or a quarantine dialog, run this in Terminal:
+>
+> ```bash
+> xattr -d com.apple.quarantine /Applications/cmdex.app
+> ```
+>
+> Then relaunch the app.
 
 ## Features
 
@@ -74,3 +80,4 @@ wails3 build
 CmDex is licensed under the [Apache License 2.0](LICENSE).
 
 - The **core app** is free and open source — you can use, modify, and distribute it freely.
+
