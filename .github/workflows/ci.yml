@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/apt-cache
-          key: apt-libgtk3-libwebkit2gtk-${{ runner.os }}
+          key: apt-ubuntu-latest-${{ hashFiles('.github/workflows/ci.yml') }}
 
       - name: Install Linux build deps
         run: |
@@ -67,7 +67,6 @@ jobs:
             ~/go/bin/wails3
             ~/.go/bin/wails3
           key: wails3-${{ env.WAILS_VERSION }}-${{ runner.os }}
-          lookup-only: true
 
       - name: Install Wails v3 CLI
         if: steps.cache-wails.outputs.cache-hit != 'true'
@@ -124,7 +123,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/apt-cache
-          key: apt-libgtk3-libwebkit2gtk-${{ runner.os }}
+          key: apt-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
 
       - name: Install Linux build deps
         if: runner.os == 'Linux'
@@ -171,7 +170,6 @@ jobs:
             ~/go/bin/wails3
             ~/.go/bin/wails3
           key: wails3-${{ env.WAILS_VERSION }}-${{ runner.os }}
-          lookup-only: true
 
       - name: Install Wails v3 CLI
         if: steps.cache-wails.outputs.cache-hit != 'true'
@@ -187,9 +185,7 @@ jobs:
           path: |
             frontend/dist
             frontend/bindings
-          key: frontend-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml', '**/*.go', 'go.mod', 'go.sum') }}
-          restore-keys: |
-            frontend-${{ runner.os }}-
+          key: frontend-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml', 'frontend/src/**', 'frontend/index.html', 'frontend/vite.config.*', 'frontend/tsconfig*.json', 'frontend/tailwind.config.*', '**/*.go', 'go.mod', 'go.sum') }}
 
       - name: Build
         run: task build
