@@ -1,0 +1,289 @@
+<!-- generated-by: gsd-doc-writer -->
+
+# Development Guide
+
+This guide covers how to set up, build, and develop the **Cmdex** application locally.
+
+---
+
+## 1. Development Environment Setup
+
+### Prerequisites
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Go | `>= 1.25.0` | Backend services and Wails runtime |
+| Node.js | `>= 20` | Frontend build tooling (Vite, TypeScript) |
+| pnpm | latest | Frontend package manager |
+| Wails CLI | `v3` | Desktop app framework and binding generator |
+
+### Installing Wails v3
+
+```bash
+go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+```
+
+Ensure `$GOPATH/bin` (or `$HOME/go/bin`) is on your `PATH` so the `wails3` command is available.
+
+### Clone and Install Dependencies
+
+```bash
+git clone <repo-url>
+cd cmdex
+pnpm install          # Installs frontend dependencies
+```
+
+The frontend lives in `./frontend` and is managed with `pnpm`. The Go module is at the repository root.
+
+---
+
+## 2. Project Structure
+
+```
+cmdex/
+├── main.go                    # Application entry point; window & menu setup
+├── app.go                     # App lifecycle, settings window management
+├── models.go                  # Go structs (Command, Category, VariableDefinition, etc.)
+├── command_service.go         # CRUD for commands and categories
+├── execution_service.go       # Command runner and execution history
+├── settings_service.go        # User preferences persistence
+├── importexport_service.go    # Data import / export
+├── event_service.go           # Wails event definitions
+├── executor.go                # Script execution engine (os/exec wrapper)
+├── db.go                      # SQLite database layer
+├── script.go                  # Script parsing and variable substitution
+├── wails.json                 # Wails project configuration
+├── frontend/
+│   ├── package.json           # Frontend manifest (React 19, Vite 7, Tailwind v4)
+│   ├── vite.config.ts         # Vite configuration with Wails plugin
+│   ├── src/
+│   │   ├── main.tsx           # Entry point (routes between main app and settings window)
+│   │   ├── App.tsx            # Main application shell, tabs, modals, state
+│   │   ├── types.ts           # TypeScript interfaces matching Go models
+│   │   ├── i18n.ts            # i18next setup
+│   │   ├── style.css          # Global styles, CSS variables, theming
+│   │   ├── components/        # UI components (Sidebar, CommandDetail, etc.)
+│   │   ├── hooks/             # Custom React hooks
+│   │   ├── utils/             # Utility functions (tab drafts, template vars)
+│   │   └── wails/             # Event name constants and Wails helpers
+│   └── bindings/              # Auto-generated Wails TS bindings (do not edit manually)
+└── build/                     # Platform-specific build configs (Taskfile, packaging)
+```
+
+**Key files to know:**
+
+- `main.go` — Defines the main window dimensions, menu bar, and wires up all backend services.
+- `app.go` — Holds `ServiceStartup` / `ServiceShutdown`; creates the settings popup window.
+- `frontend/src/App.tsx` — Central hub for application state, tab management, and modal routing.
+- `frontend/src/types.ts` — Single source of truth for TypeScript shapes that mirror Go structs.
+
+---
+
+## 3. Frontend Development
+
+### Vite Dev Server
+
+The frontend is built with **Vite 7** and uses the official `@wailsio/runtime` plugin.
+
+```bash
+cd frontend
+pnpm dev
+```
+
+The dev server runs on the port defined by `VITE_PORT` (default `9245`). When launched via `wails3 dev`, Wails bridges the Vite dev server into the desktop window so changes hot-reload instantly.
+
+### HMR & Fast Refresh
+
+- React components support Fast Refresh out of the box.
+- CSS changes in `style.css` or component-scoped styles apply immediately.
+- **Go changes are NOT hot-reloaded** — you must restart the `wails3 dev` process after editing backend code.
+
+### Key Frontend Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start Vite dev server |
+| `pnpm build` | Production build (TypeScript compile + Vite bundle) |
+| `pnpm build:dev` | Development build (unminified) |
+| `pnpm preview` | Preview the production build locally |
+
+### Path Aliases
+
+`vite.config.ts` registers `@/` as an alias to `frontend/src/`:
+
+```ts
+import { Button } from '@/components/ui/button';
+```
+
+---
+
+## 4. Backend Development
+
+### Go Services Architecture
+
+Cmdex uses Wails v3 **Services**. Each service is a struct registered in `main.go`:
+
+| Service | File | Responsibility |
+|---------|------|----------------|
+| `App` | `app.go` | Lifecycle, settings window |
+| `CommandService` | `command_service.go` | CRUD for categories & commands |
+| `ExecutionService` | `execution_service.go` | Running commands, history |
+| `SettingsService` | `settings_service.go` | Read/write user preferences |
+| `ImportExportService` | `importexport_service.go` | JSON import / export |
+| `EventService` | `event_service.go` | Event name constants |
+
+All services receive a `ServiceStartup` context for initialization and `ServiceShutdown` for cleanup.
+
+### Rebuilding Wails Bindings
+
+Whenever you add or change a **public method** on a service struct, regenerate the TypeScript bindings:
+
+```bash
+wails3 generate bindings
+```
+
+This updates `frontend/bindings/` so the frontend can call the new Go methods with full type safety.
+
+> **Tip:** `wails3 dev` automatically regenerates bindings on startup, but running the command above is useful when you want to update types without launching the full app.
+
+### Database
+
+- SQLite via `modernc.org/sqlite` (pure Go, no CGO).
+- Data is stored in the user's home directory at `~/.cmdex/cmdex.db`.
+- See `db.go` for schema and query logic.
+
+---
+
+## 5. Adding Features
+
+### The Wails Bindings Pattern
+
+To expose a new backend capability to the frontend:
+
+1. **Add a method to the appropriate service** in Go:
+
+   ```go
+   // command_service.go
+   func (s *CommandService) DuplicateCommand(id string) (Command, error) {
+       // ... implementation
+   }
+   ```
+
+2. **Regenerate bindings**:
+
+   ```bash
+   wails3 generate bindings
+   ```
+
+3. **Import and call from React**:
+
+   ```ts
+   import { DuplicateCommand } from '../bindings/cmdex/commandservice';
+
+   const copy = await DuplicateCommand(originalId);
+   ```
+
+### Data Flow (Frontend → Backend → Frontend)
+
+```
+React Component
+      │
+      ▼
+  Wails Binding (auto-generated TS)
+      │
+      ▼
+  Go Service Method
+      │
+      ▼
+  SQLite (db.go)
+      │
+      ▼
+  Response → React State Update
+```
+
+For streaming output (e.g., command execution), the backend emits events via `wailsApp.Event.Emit(...)` and the frontend listens with `Events.On(...)`.
+
+### Adding a New Field to a Model
+
+When adding a field to `Command`, `Category`, or any shared model:
+
+1. Update the Go struct in `models.go`.
+2. Update the corresponding TypeScript interface in `frontend/src/types.ts`.
+3. Update `Create` and `Update` method signatures in the relevant service (e.g., `command_service.go`).
+4. Update the CRUD logic and database queries in `db.go`.
+5. Update the UI components (`CommandDetail.tsx`, `CategoryEditor.tsx`) to display/edit the field.
+6. Update `App.tsx` where Create/Update calls are invoked.
+
+### Window Configuration
+
+Main window dimensions, title, background color, and macOS-specific options are set in `main.go` inside the `application.New(...)` block. The settings window is created programmatically in `app.go`.
+
+---
+
+## 6. Code Style & Conventions
+
+### Go
+
+- Standard Go formatting (`gofmt`). Run `go fmt ./...` before committing.
+- Services are named `XxxService` with exported methods in PascalCase.
+- Errors are wrapped with `fmt.Errorf("...: %w", err)`.
+- Database access is centralized in `db.go`; services call `db.*` rather than issuing SQL directly.
+
+### TypeScript / React
+
+- **No explicit ESLint or Prettier config** is present; rely on TypeScript strictness and consistent manual formatting.
+- Use functional components and hooks.
+- Custom hooks live in `frontend/src/hooks/`.
+- Utility functions live in `frontend/src/utils/`.
+- Components use the `@/` alias for cross-imports.
+- Theming is driven by CSS variables in `style.css`. Always update variables rather than hard-coding colors.
+
+### Tailwind CSS v4
+
+The project uses Tailwind v4 with the new `@tailwindcss/vite` plugin. Styles are configured via CSS in `style.css` rather than a traditional `tailwind.config.js`.
+
+---
+
+## 7. Useful Commands
+
+### Daily Development
+
+| Command | Description |
+|---------|-------------|
+| `wails3 dev` | Run the desktop app in development mode (auto-starts Vite, enables HMR) |
+| `wails3 generate bindings` | Regenerate TypeScript bindings from Go services |
+| `wails3 build` | Build a production binary |
+
+### Makefile Shortcuts
+
+| Command | Description |
+|---------|-------------|
+| `make dev` | Alias for `wails3 dev` |
+| `make build` | Alias for `wails3 build` |
+| `make generate` | Alias for `wails3 generate bindings` |
+| `make check` | Compile Go + type-check TypeScript |
+| `make clean` | Remove build artifacts and `frontend/dist` |
+
+### Taskfile (Cross-platform builds)
+
+| Command | Description |
+|---------|-------------|
+| `task dev` | Dev mode with explicit config and port |
+| `task build` | Platform-specific production build |
+| `task package` | Package the app for distribution |
+| `task run` | Run the compiled binary |
+
+### Frontend-only Checks
+
+```bash
+cd frontend
+pnpm tsc --noEmit   # Type-check without emitting
+```
+
+---
+
+## Known Limitations
+
+- The terminal output panel renders plain text stdout. It does **not** support interactive shells (e.g., `vim`, `htop`, REPLs) or advanced ANSI color sequences.
+- Go code changes require a full restart of `wails3 dev`; only the frontend benefits from HMR.
+

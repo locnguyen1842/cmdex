@@ -1,4 +1,11 @@
+<!-- generated-by: gsd-doc-writer -->
+<!-- GSD-DOC -->
+
 # CmDex
+
+<p align="center">
+  <img src="assets/logo.svg" alt="CmDex Logo" width="120">
+</p>
 
 <p align="center">
   <img src="assets/demo.gif" alt="CmDex Demo" width="800">
@@ -40,46 +47,41 @@ No build tools, no terminal setup — just download, install, and start saving c
 - **Fully Local** — Everything lives on your machine in `~/.cmdex/cmdex.db`. No accounts, no cloud, no subscriptions.
 - **Dark & Polished** — A premium dark UI with glassmorphism, smooth animations, and a layout that feels right at home on any OS.
 
-## For Developers
+## Documentation
 
-Want to hack on CmDex or build from source?
+| Doc | What you'll find |
+|-----|------------------|
+| [Getting Started](docs/GETTING-STARTED.md) | Prerequisites, install steps, and first run |
+| [Development](docs/DEVELOPMENT.md) | Daily dev workflow, build commands, and code style |
+| [Architecture](docs/ARCHITECTURE.md) | System design, data flow, and database schema |
+| [Contributing](CONTRIBUTING.md) | Bug reports, PR process, and coding standards |
+| [Agents](AGENTS.md) | Quick reference for AI agents on this codebase |
 
-### Tech Stack
+## Quick Start
 
-- **Backend**: Go with SQLite (pure Go, no CGo)
-- **Desktop**: Wails v3
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI**: shadcn/ui (Radix UI + Tailwind CSS)
-
-### Build from Source
+Want to build from source? See [Getting Started](docs/GETTING-STARTED.md) for full setup instructions.
 
 ```bash
-# Prerequisites: Go 1.25+, Node.js 25+, pnpm, Wails v3 CLI
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
-
-# Clone & install
-git clone <repo-url>
+git clone https://github.com/locnguyen1842/cmdex.git
 cd cmdex
 cd frontend && pnpm install && cd ..
-
-# Dev mode (hot-reload)
 wails3 dev
-
-# Production build
-wails3 build
 ```
 
-### Project Layout
+## Development
 
-- `main.go` — App entry & native menu
-- `app.go` — Backend services exposed to the UI
-- `db.go` — SQLite database with FTS5 search
-- `executor.go` — Command execution, streaming output, terminal detection
-- `frontend/src/` — React frontend
+See [Development](docs/DEVELOPMENT.md) for the full guide on frontend and backend workflows, rebuilding Wails bindings, and code conventions.
+
+## Architecture
+
+Curious how the pieces fit together? Read the [Architecture Overview](docs/ARCHITECTURE.md) for system design, data flow, and key decisions.
+
+## Contributing
+
+We welcome bug fixes, features, and docs improvements. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
 
 ## License
 
 CmDex is licensed under the [Apache License 2.0](LICENSE).
 
 - The **core app** is free and open source — you can use, modify, and distribute it freely.
-
