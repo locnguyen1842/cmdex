@@ -63,7 +63,7 @@ import {
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
-import { mergeDetectedVariables, extractTemplateVarNames } from '../utils/templateVars';
+import { extractTemplateVarNames } from '../utils/templateVars';
 import { cn } from '@/lib/utils';
 
 interface HighlightedTextareaProps {
@@ -432,10 +432,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     (body: string) => {
       onDraftChange({
         scriptBody: body,
-        variables: mergeDetectedVariables(body, draft.variables),
       });
     },
-    [draft.variables, onDraftChange],
+    [onDraftChange],
   );
 
   useEffect(() => {

@@ -45,6 +45,27 @@ export function mergeDetectedVariables(
   return result;
 }
 
+/** Build variable definitions from script, preserving metadata only for variables still in the script. Stale variables are dropped. */
+export function buildVariablesFromScript(
+  scriptBody: string,
+  existing: VariableDefinition[],
+): VariableDefinition[] {
+  const detected = extractTemplateVarNames(scriptBody);
+  const existingMap = new Map(existing.map((v) => [v.name, v]));
+  return detected.map((name, i) => {
+    const prev = existingMap.get(name);
+    return (
+      prev ?? {
+        name,
+        description: '',
+        example: '',
+        default: '',
+        sortOrder: i,
+      }
+    );
+  });
+}
+
 export function normalizeVariablesForCompare(vars: VariableDefinition[]) {
   return vars.map((v) => ({
     name: v.name,
