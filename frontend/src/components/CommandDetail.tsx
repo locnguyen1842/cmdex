@@ -1286,7 +1286,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 doSaveScriptEdit();
               }}
             >
-              {t('commandDetail.saveScript')}
+              {t('common.saveAnyway')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -34,6 +34,7 @@ import { eventNames, initEventNames } from './wails/events';
 import {
     Category,
     Command,
+    VariableDefinition,
     VariablePrompt as VarPromptType,
     VariablePreset,
     ExecutionRecord,
@@ -725,6 +726,25 @@ function App() {
     }, []);
 
     const skipVarRemovalCheckRef = useRef(false);
+    const pendingDirectSaveBodyRef = useRef<string | null>(null);
+
+    const computeRemovedVarsWithPresets = (
+        tabId: string,
+        newVars: VariableDefinition[],
+    ): string[] => {
+        const existingCmd = allCommandsRef.current.find((c) => c.id === tabId);
+        if (!existingCmd || !existingCmd.presets || existingCmd.presets.length === 0) return [];
+        const newVarNames = new Set(newVars.map((v) => v.name));
+        const removedVars = existingCmd.variables
+            .filter((v) => !newVarNames.has(v.name))
+            .map((v) => v.name);
+        return removedVars.filter((name) =>
+            existingCmd.presets!.some((p) => {
+                const val = p.values[name];
+                return typeof val === 'string' && val.trim() !== '';
+            }),
+        );
+    };
 
     const handleSaveTab = useCallback(
         async (tabId: string) => {
@@ -737,22 +757,11 @@ function App() {
             const vars = buildVariablesFromScript(body, d.variables);
 
             if (!isNewCommandTabId(tabId) && !skipVarRemovalCheckRef.current) {
-                const existingCmd = allCommandsRef.current.find((c) => c.id === tabId);
-                if (existingCmd && existingCmd.presets && existingCmd.presets.length > 0) {
-                    const newVarNames = new Set(vars.map((v) => v.name));
-                    const removedVars = existingCmd.variables
-                        .filter((v) => !newVarNames.has(v.name))
-                        .map((v) => v.name);
-                    const removedWithPresets = removedVars.filter((name) =>
-                        existingCmd.presets!.some((p) => {
-                            const val = p.values[name];
-                            return typeof val === 'string' && val.trim() !== '';
-                        }),
-                    );
-                    if (removedWithPresets.length > 0) {
-                        setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId });
-                        return;
-                    }
+                const removedWithPresets = computeRemovedVarsWithPresets(tabId, vars);
+                if (removedWithPresets.length > 0) {
+                    pendingDirectSaveBodyRef.current = null;
+                    setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId });
+                    return;
                 }
             }
 
@@ -1212,6 +1221,16 @@ function App() {
         if (!d) return;
         const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
         const vars = buildVariablesFromScript(strippedBody, d.variables);
+
+        if (!skipVarRemovalCheckRef.current) {
+            const removedWithPresets = computeRemovedVarsWithPresets(activeTabId, vars);
+            if (removedWithPresets.length > 0) {
+                pendingDirectSaveBodyRef.current = scriptBody;
+                setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId: activeTabId });
+                return;
+            }
+        }
+
         try {
             await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars);
             await loadData();
@@ -1669,10 +1688,14 @@ function App() {
                                 variant="destructive"
                                 onClick={async () => {
                                     if (modal.type !== 'confirmVarRemoval') return;
-                                    const tabId = modal.tabId;
                                     setModal({ type: 'none' });
                                     skipVarRemovalCheckRef.current = true;
-                                    await handleSaveTab(tabId);
+                                    if (pendingDirectSaveBodyRef.current) {
+                                        await handleSaveScriptDirect(pendingDirectSaveBodyRef.current);
+                                        pendingDirectSaveBodyRef.current = null;
+                                    } else {
+                                        await handleSaveTab(modal.tabId);
+                                    }
                                     skipVarRemovalCheckRef.current = false;
                                 }}
                             >

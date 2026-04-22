@@ -6,6 +6,7 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "deleteWithName": "Delete \"{{name}}\"",
+    "saveAnyway": "Save Anyway",
     "deleteCategoryDescription": "Are you sure you want to delete this category? This cannot be undone."
   },
   "sidebar": {
