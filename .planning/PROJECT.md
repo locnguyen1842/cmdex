@@ -30,7 +30,20 @@ Users can organize commands by project context, execute them with variable place
 
 - No automated tests exist
 
-## Current Milestone: v1.1 Build Settings Window
+## Current Milestone: v1.2 DB Migration Refactor
+
+**Goal:** Replace the monolithic inline `migrate()` function with a per-file up/down migration pattern — each migration in its own numbered Go file.
+
+**Target features:**
+- `migrations/` package with individual numbered files (e.g. `0001_initial.go`)
+- Each file has `Up(tx *sql.Tx) error` and `Down(tx *sql.Tx) error`
+- Migration runner handles discovery, ordering, and transaction wrapping automatically
+- All 9 existing migrations ported to the new format
+- `DB.RollbackTo(version int)` for dev/testing rollback
+
+---
+
+## Previous Milestone: v1.1 Build Settings Window
 
 **Goal:** Convert the settings dialog from a popup/modal to a proper application Window using Wails window management.
 
