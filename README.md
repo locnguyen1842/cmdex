@@ -4,6 +4,10 @@
 # CmDex
 
 <p align="center">
+  <img src="assets/logo.svg" alt="CmDex Logo" width="120">
+</p>
+
+<p align="center">
   <img src="assets/demo.gif" alt="CmDex Demo" width="800">
 </p>
 
