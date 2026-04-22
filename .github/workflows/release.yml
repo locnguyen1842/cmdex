@@ -144,7 +144,7 @@ jobs:
             bin/*.deb
             bin/*.rpm
             bin/*.dmg
-            build/windows/nsis/*-installer.exe
+            bin/*-installer.exe
           if-no-files-found: warn
 
   release:
