@@ -63,7 +63,7 @@ import {
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
-import { mergeDetectedVariables, extractTemplateVarNames } from '../utils/templateVars';
+
 import { cn } from '@/lib/utils';
 
 interface HighlightedTextareaProps {
@@ -282,8 +282,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const preAddPresetIdRef = useRef<string>('');
   const [scriptEditDraft, setScriptEditDraft] = useState('');
   const [showScriptDiscardConfirm, setShowScriptDiscardConfirm] = useState(false);
-  const [pendingRemovedVars, setPendingRemovedVars] = useState<string[]>([]);
-  const [showVarRemovalConfirm, setShowVarRemovalConfirm] = useState(false);
   const scriptWrapRef = useRef<HTMLDivElement>(null);
   const scriptEditDraftRef = useRef('');
   scriptEditDraftRef.current = scriptEditDraft;
@@ -432,10 +430,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     (body: string) => {
       onDraftChange({
         scriptBody: body,
-        variables: mergeDetectedVariables(body, draft.variables),
       });
     },
-    [draft.variables, onDraftChange],
+    [onDraftChange],
   );
 
   useEffect(() => {
@@ -469,18 +466,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   }, [scriptEditDraft, handleScriptBodyChange, isNewCommand, onSaveScript]);
 
   const saveScriptEdit = useCallback(() => {
-    if (!isNewCommand && command.presets && command.presets.length > 0) {
-      const oldVars = extractTemplateVarNames(scriptBody);
-      const newVars = new Set(extractTemplateVarNames(scriptEditDraft));
-      const removed = oldVars.filter((v) => !newVars.has(v));
-      if (removed.length > 0) {
-        setPendingRemovedVars(removed);
-        setShowVarRemovalConfirm(true);
-        return;
-      }
-    }
     doSaveScriptEdit();
-  }, [isNewCommand, command.presets, scriptBody, scriptEditDraft, doSaveScriptEdit]);
+  }, [doSaveScriptEdit]);
 
   const discardScriptEdit = useCallback(() => {
     setScriptEditDraft(baselineScriptBody);
@@ -1256,42 +1243,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={showVarRemovalConfirm}
-        onOpenChange={(open) => { if (!open) setShowVarRemovalConfirm(false); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('commandDetail.varRemovalTitle')}</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <span>{t('commandDetail.varRemovalDescription')}</span>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {pendingRemovedVars.map((v) => (
-                  <Badge key={v} variant="destructive" className="font-mono text-xs">
-                    {'{{' + v + '}}'}
-                  </Badge>
-                ))}
-              </div>
-              <span className="block mt-2 text-xs text-muted-foreground">
-                {t('commandDetail.varRemovalNote')}
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('commandDetail.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                setShowVarRemovalConfirm(false);
-                setPendingRemovedVars([]);
-                doSaveScriptEdit();
-              }}
-            >
-              {t('commandDetail.saveScript')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </div>
   );
 };

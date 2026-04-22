@@ -957,6 +957,21 @@ func (db *DB) UpdateCommand(cmd Command) error {
 		return err
 	}
 
+	// Clean up stale preset values for variables that no longer exist
+	_, err = tx.Exec(`
+		DELETE FROM preset_values
+		WHERE preset_id IN (
+			SELECT id FROM variable_presets WHERE command_id = ?
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM variable_definitions
+			WHERE command_id = ? AND name = preset_values.variable_name
+		)
+	`, cmd.ID, cmd.ID)
+	if err != nil {
+		return fmt.Errorf("cleanup stale preset values: %w", err)
+	}
+
 	return tx.Commit()
 }
 

@@ -18,6 +18,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
     AlertDialog,
     AlertDialogContent,
@@ -33,6 +34,7 @@ import { eventNames, initEventNames } from './wails/events';
 import {
     Category,
     Command,
+    VariableDefinition,
     VariablePrompt as VarPromptType,
     VariablePreset,
     ExecutionRecord,
@@ -83,7 +85,7 @@ import {
     cloneDraft,
     makePlaceholderCommand,
 } from './utils/tabDraft';
-import { mergeDetectedVariables, variableDefinitionsToPrompts } from './utils/templateVars';
+import { buildVariablesFromScript, variableDefinitionsToPrompts } from './utils/templateVars';
 import { MainLogo } from './assets/images/main-logo';
 
 type ModalState =
@@ -92,7 +94,8 @@ type ModalState =
     | { type: 'managePresets'; variables: VarPromptType[]; commandId: string; presets: VariablePreset[] }
     | { type: 'fillVariables'; variables: VarPromptType[]; commandId: string; initialValues: Record<string, string> }
     | { type: 'confirmDiscard' }
-    | { type: 'confirmClearHistory' };
+    | { type: 'confirmClearHistory' }
+    | { type: 'confirmVarRemoval'; removedVars: string[]; tabId: string };
 
 // Legacy localStorage keys — used only for one-time migration on startup
 const THEME_STORAGE_KEY = 'cmdex-theme';
@@ -567,9 +570,6 @@ function App() {
             const cur = prev[tabId];
             if (!cur) return prev;
             const next: TabDraft = { ...cur, ...partial };
-            if (partial.scriptBody !== undefined && partial.variables === undefined) {
-                next.variables = mergeDetectedVariables(partial.scriptBody, cur.variables);
-            }
             return { ...prev, [tabId]: next };
         });
     }, []);
@@ -725,6 +725,27 @@ function App() {
             });
     }, []);
 
+    const skipVarRemovalCheckRef = useRef(false);
+    const pendingDirectSaveBodyRef = useRef<string | null>(null);
+
+    const computeRemovedVarsWithPresets = (
+        tabId: string,
+        newVars: VariableDefinition[],
+    ): string[] => {
+        const existingCmd = allCommandsRef.current.find((c) => c.id === tabId);
+        if (!existingCmd || !existingCmd.presets || existingCmd.presets.length === 0) return [];
+        const newVarNames = new Set(newVars.map((v) => v.name));
+        const removedVars = existingCmd.variables
+            .filter((v) => !newVarNames.has(v.name))
+            .map((v) => v.name);
+        return removedVars.filter((name) =>
+            existingCmd.presets!.some((p) => {
+                const val = p.values[name];
+                return typeof val === 'string' && val.trim() !== '';
+            }),
+        );
+    };
+
     const handleSaveTab = useCallback(
         async (tabId: string) => {
             const d = tabDraftsRef.current[tabId];
@@ -733,6 +754,17 @@ function App() {
             const description = d.description.trim();
             const body = d.scriptBody.replace(/^\s+|\s+$/g, '');
             const tags = d.tags.map((tag) => tag.trim()).filter(Boolean);
+            const vars = buildVariablesFromScript(body, d.variables);
+
+            if (!isNewCommandTabId(tabId) && !skipVarRemovalCheckRef.current) {
+                const removedWithPresets = computeRemovedVarsWithPresets(tabId, vars);
+                if (removedWithPresets.length > 0) {
+                    pendingDirectSaveBodyRef.current = null;
+                    setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId });
+                    return;
+                }
+            }
+
             try {
                 if (isNewCommandTabId(tabId)) {
                     const cmd = await CreateCommand(
@@ -741,7 +773,7 @@ function App() {
                         body,
                         d.categoryId,
                         tags,
-                        d.variables,
+                        vars,
                     );
                     await loadData();
                     const savedBody = await GetScriptBody(cmd.id);
@@ -774,7 +806,7 @@ function App() {
                         body,
                         d.categoryId,
                         tags,
-                        d.variables,
+                        vars,
                     );
                     await loadData();
                     const cmd = allCommandsRef.current.find((c) => c.id === tabId);
@@ -1188,7 +1220,17 @@ function App() {
         const d = tabDraftsRef.current[activeTabId];
         if (!d) return;
         const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
-        const vars = mergeDetectedVariables(strippedBody, d.variables);
+        const vars = buildVariablesFromScript(strippedBody, d.variables);
+
+        if (!skipVarRemovalCheckRef.current) {
+            const removedWithPresets = computeRemovedVarsWithPresets(activeTabId, vars);
+            if (removedWithPresets.length > 0) {
+                pendingDirectSaveBodyRef.current = scriptBody;
+                setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId: activeTabId });
+                return;
+            }
+        }
+
         try {
             await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars);
             await loadData();
@@ -1613,6 +1655,51 @@ function App() {
                             <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
                             <AlertDialogAction onClick={confirmClearHistory} variant="destructive">
                                 {t('app.delete')}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog
+                    open={modal.type === 'confirmVarRemoval'}
+                    onOpenChange={(open) => { if (!open) setModal({ type: 'none' }); }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{t('commandDetail.varRemovalTitle')}</AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2">
+                                <span>{t('commandDetail.varRemovalDescription')}</span>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {modal.type === 'confirmVarRemoval' && modal.removedVars.map((v) => (
+                                        <Badge key={v} variant="destructive" className="font-mono text-xs">
+                                            {'{{' + v + '}}'}
+                                        </Badge>
+                                    ))}
+                                </div>
+                                <span className="block mt-2 text-xs text-muted-foreground">
+                                    {t('commandDetail.varRemovalNote')}
+                                </span>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setModal({ type: 'none' })}>
+                                {t('commandDetail.cancel')}
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                variant="destructive"
+                                onClick={async () => {
+                                    if (modal.type !== 'confirmVarRemoval') return;
+                                    setModal({ type: 'none' });
+                                    skipVarRemovalCheckRef.current = true;
+                                    if (pendingDirectSaveBodyRef.current) {
+                                        await handleSaveScriptDirect(pendingDirectSaveBodyRef.current);
+                                        pendingDirectSaveBodyRef.current = null;
+                                    } else {
+                                        await handleSaveTab(modal.tabId);
+                                    }
+                                    skipVarRemovalCheckRef.current = false;
+                                }}
+                            >
+                                {t('commandEditor.save')}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
