@@ -101,7 +101,7 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "bash", tmpPath)
+	cmd := exec.CommandContext(ctx, e.shell, tmpPath)
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
@@ -299,7 +299,7 @@ func (e *Executor) darwinTerminals() []terminalDef {
 	osa := func(appName, script string) func(*Executor, string, string) error {
 		return func(_ *Executor, body string, workingDir string) error {
 			if workingDir != "" {
-				body = fmt.Sprintf("cd %s; %s", shellQuoteDir(workingDir), body)
+				body = fmt.Sprintf("cd %s && %s", shellQuoteDir(workingDir), body)
 			}
 			asEscaped := strings.ReplaceAll(body, `\`, `\\`)
 			asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
@@ -329,15 +329,15 @@ end tell`),
 		{
 			ID: "warp", Name: "Warp", Paths: []string{"/Applications/Warp.app"}, IsApp: true,
 			LaunchFn: func(_ *Executor, body string, workingDir string) error {
+				if workingDir != "" {
+					body = fmt.Sprintf("cd %s && %s", shellQuoteDir(workingDir), body)
+				}
 				asEscaped := strings.ReplaceAll(body, `\`, `\\`)
 				asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
-				if workingDir != "" {
-					asEscaped = fmt.Sprintf("cd %s; %s", shellQuoteDir(workingDir), asEscaped)
-				}
 				s := fmt.Sprintf(`tell application "Warp" to activate
-delay 0.5
-tell application "System Events" to keystroke "%s"
-tell application "System Events" to key code 36`, asEscaped)
+	delay 0.5
+	tell application "System Events" to keystroke "%s"
+	tell application "System Events" to key code 36`, asEscaped)
 				return exec.Command("osascript", "-e", s).Start()
 			},
 		},

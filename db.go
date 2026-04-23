@@ -425,7 +425,10 @@ func (db *DB) ImportCommands(commands []ImportCommandInput) error {
 			_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM commands WHERE category_id IS NULL OR category_id = ''").Scan(&maxPos)
 		}
 
-		workingDirJSON, _ := json.Marshal(importedCmd.WorkingDir)
+		workingDirJSON, err := json.Marshal(importedCmd.WorkingDir)
+		if err != nil {
+			return fmt.Errorf("marshal working_dir: %w", err)
+		}
 
 		_, err = tx.Exec(
 			`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at, working_dir)
@@ -1207,8 +1210,11 @@ func (db *DB) SetSettings(s AppSettings) error {
 	if s.Density != "" {
 		existing.Density = s.Density
 	}
-	// Always update DefaultWorkingDir — empty OSPathMap is a valid state (cleared)
-	existing.DefaultWorkingDir = s.DefaultWorkingDir
+	// Only update DefaultWorkingDir if the caller provided a non-empty value.
+	// Empty value is ignored; to clear, use a dedicated API.
+	if !s.DefaultWorkingDir.IsEmpty() {
+		existing.DefaultWorkingDir = s.DefaultWorkingDir
+	}
 	if s.WindowX != nil {
 		existing.WindowX = s.WindowX
 	}

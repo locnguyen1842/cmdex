@@ -21,6 +21,9 @@ func (s *ExecutionService) ServiceStartup(ctx context.Context, options applicati
 // 1. Command-specific working dir for the current OS
 // 2. Global default working dir for the current OS
 // 3. OS home directory
+// 4. Current working directory
+// 5. OS temporary directory
+// The function never returns an empty string.
 func (s *ExecutionService) resolveWorkingDir(cmd Command) string {
 	// Step 1: use per-command working directory if set
 	if path := cmd.WorkingDir.GetCurrentOS(); path != "" {
@@ -29,14 +32,29 @@ func (s *ExecutionService) resolveWorkingDir(cmd Command) string {
 
 	// Step 2: fall back to global default working directory for current OS
 	settings, err := db.GetSettings()
-	if err == nil {
+	if err != nil {
+		fmt.Printf("resolveWorkingDir: GetSettings failed: %v\n", err)
+	} else {
 		if path := settings.DefaultWorkingDir.GetCurrentOS(); path != "" {
 			return path
 		}
 	}
 
 	// Step 3: final fallback to user home directory
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		if err != nil {
+			fmt.Printf("resolveWorkingDir: UserHomeDir failed: %v, trying Getwd\n", err)
+		}
+		cwd, err := os.Getwd()
+		if err != nil || cwd == "" {
+			if err != nil {
+				fmt.Printf("resolveWorkingDir: Getwd failed: %v, falling back to TempDir\n", err)
+			}
+			return os.TempDir()
+		}
+		return cwd
+	}
 	return home
 }
 

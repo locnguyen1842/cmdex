@@ -70,6 +70,7 @@ func (o OSPathMap) IsEmpty() bool {
 	return len(o.paths) == 0
 }
 
+// MarshalJSON implements json.Marshaler for OSPathMap.
 func (o OSPathMap) MarshalJSON() ([]byte, error) {
 	if o.paths == nil {
 		return []byte("{}"), nil
@@ -77,6 +78,7 @@ func (o OSPathMap) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o.paths)
 }
 
+// UnmarshalJSON implements json.Unmarshaler for OSPathMap.
 func (o *OSPathMap) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" || string(data) == "" {
 		o.paths = nil
@@ -158,7 +160,7 @@ type AppSettings struct {
 	UIFont         string `json:"uiFont"`                 // UI sans-serif font
 	MonoFont       string `json:"monoFont"`               // monospace font for editor
 	Density           string    `json:"density"`                // layout density: compact | comfortable | spacious
-	DefaultWorkingDir OSPathMap `json:"defaultWorkingDir"`
+	DefaultWorkingDir OSPathMap `json:"defaultWorkingDir"` // Empty value is ignored by SetSettings; to clear, use a dedicated API.
 	WindowX           *int      `json:"windowX,omitempty"`      // settings window X position, nil = unset (center on open)
 	WindowY        *int   `json:"windowY,omitempty"`      // settings window Y position
 	WindowWidth    *int   `json:"windowWidth,omitempty"`  // settings window width, min 480

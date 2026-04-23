@@ -63,9 +63,10 @@ export function setOSPath(map: OSPathMap | undefined, os: string, path: string):
  */
 export function shortenPath(path: string, segments: number = 2): string {
   if (!path) return '';
-  const parts = path.split('/').filter(Boolean);
+  const parts = path.split(/[\\/]/).filter(Boolean);
   if (parts.length <= segments) return path;
-  return '.../' + parts.slice(-segments).join('/');
+  const sep = path.includes('\\') ? '\\' : '/';
+  return '...' + sep + parts.slice(-segments).join(sep);
 }
 
 export interface Command {

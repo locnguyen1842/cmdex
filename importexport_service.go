@@ -66,7 +66,7 @@ type ExportCommand struct {
 	Tags          []string             `json:"tags"`
 	Variables     []VariableDefinition `json:"variables"`
 	Presets       []ExportPreset       `json:"presets"`
-	WorkingDir    OSPathMap            `json:"workingDir,omitempty"`
+	WorkingDir    OSPathMap            `json:"workingDir"`
 	CategoryName  string               `json:"categoryName"`
 }
 
@@ -163,7 +163,7 @@ type ImportedCommand struct {
 	Tags          []string             `json:"tags"`
 	Variables     []VariableDefinition `json:"variables"`
 	Presets       []ImportedPreset     `json:"presets"`
-	WorkingDir    OSPathMap            `json:"workingDir,omitempty"`
+	WorkingDir    OSPathMap            `json:"workingDir"`
 	CategoryName  string               `json:"categoryName"`
 }
 

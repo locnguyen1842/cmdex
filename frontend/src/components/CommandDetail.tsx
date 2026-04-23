@@ -278,8 +278,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 }) => {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
-  const [previewModes, setPreviewModes] = useState<Record<string, boolean>>({});
-  const showPreview = previewModes[command.id] || false;
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const showPreview = previewOpen;
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -412,7 +412,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   // Auto-switch to Preview when a preset is selected
   useEffect(() => {
     if (selectedPresetId) {
-      setPreviewModes((prev) => ({ ...prev, [command.id]: true }));
+      setPreviewOpen(true);
     }
   }, [selectedPresetId, command.id]);
 
@@ -855,7 +855,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 type="button"
                 className="script-mode-toggle"
                 hidden={isNewCommand || variables.length <= 0}
-                onClick={() => setPreviewModes((prev) => ({ ...prev, [command.id]: !showPreview }))}
+                onClick={() => setPreviewOpen(!showPreview)}
                 aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
               >
                 {showPreview ? (
@@ -1330,10 +1330,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             <Button
               type="button"
               size="sm"
+              disabled={!currentOS}
               onClick={() => {
-                if (currentOS) {
-                  onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, workingDirDraft) });
-                }
+                if (!currentOS) return;
+                onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, workingDirDraft) });
                 setWorkingDirDialogOpen(false);
               }}
             >

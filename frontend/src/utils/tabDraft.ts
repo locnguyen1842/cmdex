@@ -23,13 +23,20 @@ export function draftFromCommand(cmd: Command, scriptBody: string): TabDraft {
     categoryId: cmd.categoryId,
     scriptBody,
     variables,
-    workingDir: cmd.workingDir || {},
+    workingDir: { ...(cmd.workingDir || {}) },
     revealed: {
       title: !!(cmd.title?.Valid && cmd.title.String.trim()),
       description: !!(cmd.description?.Valid && cmd.description.String.trim()),
       tags: (cmd.tags?.length ?? 0) > 0,
     },
   };
+}
+
+function osPathMapEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const aKeys = Object.keys(a).sort();
+  const bKeys = Object.keys(b).sort();
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every(k => a[k] === b[k]);
 }
 
 export function draftsEqual(a: TabDraft, b: TabDraft): boolean {
@@ -43,7 +50,7 @@ export function draftsEqual(a: TabDraft, b: TabDraft): boolean {
   }
   if (JSON.stringify(a.tags) !== JSON.stringify(b.tags)) return false;
   if (JSON.stringify(a.revealed) !== JSON.stringify(b.revealed)) return false;
-  if (JSON.stringify(a.workingDir) !== JSON.stringify(b.workingDir)) return false;
+  if (!osPathMapEqual(a.workingDir, b.workingDir)) return false;
   if (
     JSON.stringify(normalizeVariablesForCompare(a.variables)) !==
     JSON.stringify(normalizeVariablesForCompare(b.variables))

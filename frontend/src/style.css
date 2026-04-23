@@ -887,7 +887,7 @@ body {
 }
 
 .command-item.active .cmd-working-dir-row {
-  color: var(--primary-foreground);
+  color: var(--foreground);
   opacity: 0.8;
 }
 

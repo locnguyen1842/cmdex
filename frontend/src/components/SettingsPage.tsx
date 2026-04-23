@@ -176,7 +176,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [savedDensity, setSavedDensity] = useState(density);
   const [savedWorkingDir, setSavedWorkingDir] = useState('');
   const [draftWorkingDir, setDraftWorkingDir] = useState('');
-  const [currentOS, setCurrentOS] = useState('darwin');
+  const [currentOS, setCurrentOS] = useState('');
 
   // Tracks whether the user has edited any draft field. While true, the
   // async GetSettings resolver below must NOT overwrite draft/saved values.
@@ -306,6 +306,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const changeWorkingDir = useCallback((v: string) => {
     markTouched();
     setDraftWorkingDir(v);
+  }, [markTouched]);
+
+  const handleWorkingDirBlur = useCallback(() => {
     GetSettings().then(current => {
       const newSettings = {
         locale, terminal, theme: draftTheme,
@@ -315,12 +318,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
-        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, v),
+        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
     }).catch(() => {});
-  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, currentOS]);
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, currentOS, draftWorkingDir]);
 
   useEffect(() => {
     GetAvailableTerminals()
@@ -448,7 +451,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
       };
       await SetSettings(JSON.stringify(newSettings));
-      console.log('Settings saved. Working dir:', draftWorkingDir, 'OS:', currentOS);
       Events.Emit(eventNames.settingsChanged, newSettings);
       setSavedLocale(locale);
       setSavedTerminal(terminal);
@@ -715,6 +717,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 type="text"
                 value={draftWorkingDir}
                 onChange={(e) => changeWorkingDir(e.target.value)}
+                onBlur={handleWorkingDirBlur}
                 placeholder={t('settings.workingDirectoryPlaceholder')}
                 className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
