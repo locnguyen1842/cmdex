@@ -886,6 +886,25 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           <div className="command-text-box-inner" ref={scriptWrapRef}>
             <div className="command-text-box-header">
               <div className="flex items-center gap-1.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => {
+                        setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
+                        setWorkingDirDialogOpen(true);
+                      }}
+                    >
+                      <FolderOpen className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {getOSPath(draft.workingDir, currentOS)
+                      ? shortenPath(getOSPath(draft.workingDir, currentOS))
+                      : t('commandDetail.workingDirectoryNotSet')}
+                  </TooltipContent>
+                </Tooltip>
                 <span className="command-text-box-label">
                   {showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
                 </span>
@@ -977,25 +996,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     <TooltipContent>{t('commandDetail.runInTerminal')}</TooltipContent>
                   </Tooltip>
                 )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => {
-                        setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
-                        setWorkingDirDialogOpen(true);
-                      }}
-                    >
-                      <FolderOpen className="size-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {getOSPath(draft.workingDir, currentOS)
-                      ? shortenPath(getOSPath(draft.workingDir, currentOS))
-                      : t('commandDetail.workingDirectoryNotSet')}
-                  </TooltipContent>
-                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
