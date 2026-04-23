@@ -25,15 +25,15 @@
 ### UI/UX (UIUX)
 
 - [ ] **UIUX-01**: Command Editor includes a working directory input with a browse button; user enters a plain path without seeing OS-specific abstraction
-- [ ] **UIUX-02**: Native directory picker dialog is available via Wails bindings for both Settings and Command Editor
+- [x] **UIUX-02**: Native directory picker dialog is available via Wails bindings for both Settings and Command Editor
 - [ ] **UIUX-03**: Command list and/or detail view displays the configured working directory as a plain path (current OS only)
 - [ ] **UIUX-04**: UI is completely transparent about OS-keyed storage — user never sees the JSON structure or OS keys
 
 ### Command Execution (EXEC)
 
-- [ ] **EXEC-01**: Executor runs the command subprocess in the command's stored working directory for the current OS when set
-- [ ] **EXEC-02**: When a command has no working dir for the current OS, the executor falls back to the global `default_working_dir` for the current OS
-- [ ] **EXEC-03**: When neither command nor global default is set for the current OS, the executor falls back to the OS-appropriate default directory (e.g., user's home directory)
+- [x] **EXEC-01**: Executor runs the command subprocess in the command's stored working directory for the current OS when set
+- [x] **EXEC-02**: When a command has no working dir for the current OS, the executor falls back to the global `default_working_dir` for the current OS
+- [x] **EXEC-03**: When neither command nor global default is set for the current OS, the executor falls back to the OS-appropriate default directory (e.g., user's home directory)
 
 ---
 
@@ -67,12 +67,12 @@
 | SETT-02 | Phase 12 | Pending |
 | SETT-03 | Phase 12 | Pending |
 | UIUX-01 | Phase 13 | Pending |
-| UIUX-02 | Phase 11 | Pending |
+| UIUX-02 | Phase 11 | Complete |
 | UIUX-03 | Phase 13 | Pending |
 | UIUX-04 | Phase 13 | Pending |
-| EXEC-01 | Phase 11 | Pending |
-| EXEC-02 | Phase 11 | Pending |
-| EXEC-03 | Phase 11 | Pending |
+| EXEC-01 | Phase 11 | Complete |
+| EXEC-02 | Phase 11 | Complete |
+| EXEC-03 | Phase 11 | Complete |
 
 **Coverage:** 14/14 (100%)
 
