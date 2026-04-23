@@ -28,8 +28,8 @@ func TestFreshDBMigrations(t *testing.T) {
 	if err := db.conn.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&version); err != nil {
 		t.Fatalf("query schema_version: %v", err)
 	}
-	if version != 9 {
-		t.Errorf("schema_version = %d, want 9", version)
+	if version != 10 {
+		t.Errorf("schema_version = %d, want 10", version)
 	}
 
 	expectedTables := []string{
@@ -53,11 +53,11 @@ func TestExistingDBIdempotent(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
-	// Seed schema_version to 9 without creating tables
+	// Seed schema_version to 10 without creating tables
 	if _, err := db.conn.Exec("CREATE TABLE schema_version (version INTEGER NOT NULL)"); err != nil {
 		t.Fatalf("create schema_version: %v", err)
 	}
-	if _, err := db.conn.Exec("INSERT INTO schema_version (version) VALUES (9)"); err != nil {
+	if _, err := db.conn.Exec("INSERT INTO schema_version (version) VALUES (10)"); err != nil {
 		t.Fatalf("insert schema_version: %v", err)
 	}
 
@@ -69,8 +69,8 @@ func TestExistingDBIdempotent(t *testing.T) {
 	if err := db.conn.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&version); err != nil {
 		t.Fatalf("query schema_version: %v", err)
 	}
-	if version != 9 {
-		t.Errorf("schema_version = %d, want 9", version)
+	if version != 10 {
+		t.Errorf("schema_version = %d, want 10", version)
 	}
 }
 
