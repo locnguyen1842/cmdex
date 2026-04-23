@@ -22,10 +22,12 @@ func (s *ExecutionService) ServiceStartup(ctx context.Context, options applicati
 // 2. Global default working dir for the current OS
 // 3. OS home directory
 func (s *ExecutionService) resolveWorkingDir(cmd Command) string {
+	// Step 1: use per-command working directory if set
 	if path := cmd.WorkingDir.GetCurrentOS(); path != "" {
 		return path
 	}
 
+	// Step 2: fall back to global default working directory for current OS
 	settings, err := db.GetSettings()
 	if err == nil {
 		if path := settings.DefaultWorkingDir.GetCurrentOS(); path != "" {
@@ -33,6 +35,7 @@ func (s *ExecutionService) resolveWorkingDir(cmd Command) string {
 		}
 	}
 
+	// Step 3: final fallback to user home directory
 	home, _ := os.UserHomeDir()
 	return home
 }

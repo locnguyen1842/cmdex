@@ -448,6 +448,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
       };
       await SetSettings(JSON.stringify(newSettings));
+      console.log('Settings saved. Working dir:', draftWorkingDir, 'OS:', currentOS);
       Events.Emit(eventNames.settingsChanged, newSettings);
       setSavedLocale(locale);
       setSavedTerminal(terminal);
