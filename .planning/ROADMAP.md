@@ -133,9 +133,9 @@ Plans:
 **UI hint**: no
 
 Plans:
-- [ ] 11-01: Add Wails binding for native directory picker dialog
-- [ ] 11-02: Update executor to run commands in stored working directory with fallback chain
-- [ ] 11-03: Wire executor fallback logic (command → global default → OS home)
+- [x] 11-01-PLAN.md — Add Wails binding for native directory picker dialog (2026-04-23)
+- [x] 11-02-PLAN.md — Update executor to run commands in stored working directory with fallback chain (2026-04-23)
+- [x] 11-03-PLAN.md — Wire executor fallback logic (command → global default → OS home) (2026-04-23)
 
 #### Phase 12: Settings UI
 **Goal**: Users can configure a global default working directory in the Settings window
@@ -188,6 +188,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 8. Migration Package | v1.2 | 2/2 | Complete | — |
 | 9. Runner Integration | v1.2 | 2/2 | Complete | — |
 | 10. Data Foundation | v1.3 | 3/3 | Complete | 2026-04-23 |
-| 11. Execution Engine & Directory Picker | v1.3 | 0/3 | Not started | — |
+| 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 12. Settings UI | v1.3 | 0/3 | Not started | — |
 | 13. Command Editor & List UI | v1.3 | 0/3 | Not started | — |
