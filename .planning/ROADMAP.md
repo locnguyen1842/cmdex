@@ -163,13 +163,13 @@ Plans:
   2. Command list and/or detail view displays the configured working directory as a plain path
   3. User never sees JSON structure or OS keys — only current OS path is ever exposed
   4. Working directory field can be left empty (no directory set)
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
 
 Plans:
-- [ ] 13-01: Add working directory input with browse button to Command Editor
-- [ ] 13-02: Display working directory in command list/detail view
-- [ ] 13-03: Ensure UI transparency — hide OS-keyed storage from users
+- [ ] 13-01-PLAN.md — Add working directory input with browse button to Command Editor
+- [ ] 13-02-PLAN.md — Display working directory in command list/detail view
+- [ ] 13-03-PLAN.md — Ensure UI transparency — hide OS-keyed storage from users
 
 ## Progress
 
@@ -190,4 +190,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 10. Data Foundation | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 12. Settings UI | v1.3 | 3/3 | Complete    | 2026-04-23 |
-| 13. Command Editor & List UI | v1.3 | 0/3 | Not started | — |
+| 13. Command Editor & List UI | v1.3 | 0/3 | Planned | — |
