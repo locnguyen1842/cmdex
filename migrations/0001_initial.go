@@ -8,7 +8,6 @@ import (
 var migration0001 = Migration{
 	Version:                  1,
 	Description:              "initial schema: all tables, FTS5, and triggers",
-	DisableFKDuringMigration: false,
 	Up: func(tx *sql.Tx) error {
 		stmts := []string{
 			`CREATE TABLE IF NOT EXISTS schema_version (
@@ -24,14 +23,13 @@ var migration0001 = Migration{
 )`,
 			`CREATE TABLE IF NOT EXISTS commands (
     id TEXT PRIMARY KEY,
-    title TEXT,
-    description TEXT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
     script_content TEXT NOT NULL,
-    category_id TEXT DEFAULT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
+    category_id TEXT NOT NULL DEFAULT '',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 )`,
 			`CREATE TABLE IF NOT EXISTS tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +56,6 @@ var migration0001 = Migration{
     id TEXT PRIMARY KEY,
     command_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE
 )`,
 			`CREATE TABLE IF NOT EXISTS preset_values (
@@ -76,11 +73,11 @@ var migration0001 = Migration{
     output TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
     exit_code INTEGER NOT NULL DEFAULT 0,
-    working_dir TEXT DEFAULT '',
     executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
 			`CREATE TABLE IF NOT EXISTS app_settings (
-    data TEXT NOT NULL DEFAULT '{}'
+    locale TEXT NOT NULL DEFAULT 'en',
+    terminal TEXT NOT NULL DEFAULT ''
 )`,
 			`CREATE VIRTUAL TABLE IF NOT EXISTS commands_fts USING fts5(
     title, description, script_content, content='commands', content_rowid='rowid'
