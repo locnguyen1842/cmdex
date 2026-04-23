@@ -229,7 +229,11 @@
     "uiFontLabel": "UI Font",
     "monoFontLabel": "Editor Font",
     "importTheme": "Import theme",
-    "downloadTemplate": "Download template"
+    "downloadTemplate": "Download template",
+    "workingDirectory": "Working Directory",
+    "workingDirectoryPlaceholder": "/path/to/project",
+    "browse": "Browse",
+    "workingDirectoryHint": "Default directory for command execution when no per-command directory is set."
   },
   "resizablePanel": {
     "expandPanel": "Expand panel",
