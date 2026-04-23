@@ -30,7 +30,21 @@ Users can organize commands by project context, execute them with variable place
 
 - No automated tests exist
 
-## Current Milestone: v1.2 DB Migration Refactor
+## Current Milestone: v1.3 Working Directory
+
+**Goal:** Allow users to optionally specify a working directory per command, with a global default fallback, stored persistently and used during execution.
+
+**Target features:**
+- Add `working_dir` field to the Command data model (Go + SQLite)
+- UI input in Command Editor for setting/editing working directory per command
+- Directory picker/selector integration (native file dialog via Wails)
+- Command executor uses the stored working directory when spawning subprocesses
+- Global "Default Working Directory" setting in Settings window
+- Command execution falls back to global default when command has no specific directory set
+
+---
+
+## Previous Milestone: v1.2 DB Migration Refactor
 
 **Goal:** Replace the monolithic inline `migrate()` function with a per-file up/down migration pattern — each migration in its own numbered Go file.
 
@@ -93,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-13 after v1.0 milestone*
+*Last updated: 2026-04-23 — Milestone v1.3 started*
