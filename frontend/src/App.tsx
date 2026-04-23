@@ -19,6 +19,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+
 import {
     AlertDialog,
     AlertDialogContent,
@@ -69,6 +70,7 @@ import {
 } from '../bindings/cmdex/settingsservice';
 import {
     ShowSettingsWindow,
+    GetOS,
 } from '../bindings/cmdex/app';
 import {
     GetVariables,
@@ -1504,7 +1506,6 @@ function App() {
                                 setCategories(cats || []);
                                 setCommands(cmds || []);
                             }}
-                            currentOS={currentOS}
                         />
                     </ResizablePanel>
 
@@ -1541,6 +1542,7 @@ function App() {
                                             onReorderPresets={handleReorderPresetsFromDetail}
                                             onResolvedValuesChange={setCurrentResolvedValues}
                                             onSaveScript={handleSaveScriptDirect}
+                                            currentOS={currentOS}
                                         />
                                         <FloatingSaveBar
                                             visible={activeDirty}
