@@ -9,7 +9,7 @@ import { Upload, Download, X, FolderOpen } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
 import { PickDirectory, GetOS } from '../../bindings/cmdex/app';
 import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
-import { TerminalInfo } from '../types';
+import { TerminalInfo, getOSPath, setOSPath } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';
 import { Events } from '@wailsio/runtime';
@@ -141,16 +141,6 @@ export interface SettingsPageProps {
   onDensityChange?: (density: string) => void;
 }
 
-function buildOSPathMap(existing: Record<string, string> | undefined, os: string, path: string): Record<string, string> {
-  const map: Record<string, string> = { ...(existing || {}) };
-  if (path) {
-    map[os] = path;
-  } else {
-    delete map[os];
-  }
-  return map;
-}
-
 const SettingsPage: React.FC<SettingsPageProps> = ({
   theme,
   onThemeChange,
@@ -210,6 +200,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -228,6 +219,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: v,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -246,6 +238,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: v,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -264,6 +257,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: v,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -283,6 +277,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -320,7 +315,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
-        defaultWorkingDir: buildOSPathMap(current?.defaultWorkingDir, currentOS, v),
+        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, v),
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -336,7 +331,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         if (!s) return;
         if (userTouchedRef.current) return;
         setCurrentOS(os);
-        const wd = s.defaultWorkingDir?.[os] || '';
+        const wd = getOSPath(s.defaultWorkingDir, os);
         setSavedWorkingDir(wd);
         setDraftWorkingDir(wd);
         const loc = s?.locale || i18n.language || 'en';
@@ -450,7 +445,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
-        defaultWorkingDir: buildOSPathMap(current?.defaultWorkingDir, currentOS, draftWorkingDir),
+        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
       };
       await SetSettings(JSON.stringify(newSettings));
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -780,7 +775,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           setDraftMonoFont(s.monoFont || 'JetBrains Mono');
                           setSavedDensity(s.density || 'comfortable');
                           setDraftDensity(s.density || 'comfortable');
-                          const wd = s.defaultWorkingDir?.[currentOS] || '';
+                          const wd = getOSPath(s.defaultWorkingDir, currentOS);
                           setSavedWorkingDir(wd);
                           setDraftWorkingDir(wd);
                           setSavedLocale(s.locale || 'en');
