@@ -29,6 +29,10 @@ export interface NullString {
   Valid: boolean;
 }
 
+export interface OSPathMap {
+  [os: string]: string;
+}
+
 export interface Command {
   id: string;
   title: NullString;
@@ -37,6 +41,7 @@ export interface Command {
   tags: string[];
   variables: VariableDefinition[];
   presets: VariablePreset[];
+  workingDir: OSPathMap;
   categoryId: string;
   position: number;
   createdAt: string;
@@ -131,6 +136,7 @@ export interface SettingsPayload {
   uiFont?: string;
   monoFont?: string;
   density?: string;
+  defaultWorkingDir?: OSPathMap;
   windowX?: number;
   windowY?: number;
   windowWidth?: number;
