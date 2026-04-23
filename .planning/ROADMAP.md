@@ -5,7 +5,7 @@
 - ✅ **v1.0 Premium Polish** — Phases 1-5 (shipped 2026-04-13)
 - ✅ **v1.1 Build Settings Window** — Phases 6-7 (shipped)
 - ✅ **v1.2 DB Migration Refactor** — Phases 8-9 (shipped)
-- 🚧 **v1.3 Working Directory** — Phases 10-13 (in progress)
+- ✅ **v1.3 Working Directory** — Phases 10-13 (shipped 2026-04-23)
 - 📋 **v2.0 Workspaces** — Phases (planned)
 
 ## Phases
@@ -99,77 +99,56 @@ Plans:
 
 </details>
 
-### 🚧 v1.3 Working Directory (In Progress)
+<details>
+<summary>✅ v1.3 Working Directory (Phases 10-13) — SHIPPED 2026-04-23</summary>
 
-**Milestone Goal:** Allow users to optionally specify a working directory per command, with a global default fallback, stored persistently and used during execution.
-
-#### Phase 10: Data Foundation
+### Phase 10: Data Foundation
 **Goal**: Working directory data is persistently stored and can be imported/exported across OSes
-**Depends on**: Phase 9
-**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04
-**Success Criteria** (what must be TRUE):
-  1. Command records can store and retrieve OS-keyed working directory data
-  2. Settings records can store and retrieve OS-keyed default working directory data
-  3. Database schema supports working_dir and default_working_dir columns via migration
-  4. Import/export JSON preserves working directory data in OS-keyed format
 **Plans**: 3 plans
-**UI hint**: no
 
 Plans:
-- [x] 10-01-PLAN.md — Define OSPathMap type and add working directory fields to Command/AppSettings models + TypeScript types
-- [x] 10-02-PLAN.md — Create migration 0010 and update db.go CRUD queries to persist WorkingDir
-- [x] 10-03-PLAN.md — Update import/export structs and wire WorkingDir through export/import round-trip
+- [x] 10-01: Define OSPathMap type and add working directory fields
+- [x] 10-02: Create migration 0010 and update CRUD queries
+- [x] 10-03: Update import/export structs
 
-#### Phase 11: Execution Engine & Directory Picker
+### Phase 11: Execution Engine & Directory Picker
 **Goal**: Commands execute in the correct working directory with a native directory picker available
-**Depends on**: Phase 10
-**Requirements**: EXEC-01, EXEC-02, EXEC-03, UIUX-02
-**Success Criteria** (what must be TRUE):
-  1. User can open a native directory picker dialog from the app via Wails bindings
-  2. Commands execute in their specified working directory for the current OS when set
-  3. Commands fall back to the global default working directory when none is specified per command
-  4. Commands fall back to the OS home directory when neither command nor global default is configured
-**Plans**: TBD
-**UI hint**: no
+**Plans**: 3 plans
 
 Plans:
-- [x] 11-01-PLAN.md — Add Wails binding for native directory picker dialog (2026-04-23)
-- [x] 11-02-PLAN.md — Update executor to run commands in stored working directory with fallback chain (2026-04-23)
-- [x] 11-03-PLAN.md — Wire executor fallback logic (command → global default → OS home) (2026-04-23)
+- [x] 11-01: Add Wails binding for native directory picker dialog
+- [x] 11-02: Update executor with fallback chain
+- [x] 11-03: Wire executor fallback logic
 
-#### Phase 12: Settings UI
+### Phase 12: Settings UI
 **Goal**: Users can configure a global default working directory in the Settings window
-**Depends on**: Phase 10, Phase 11
-**Requirements**: SETT-01, SETT-02, SETT-03
-**Success Criteria** (what must be TRUE):
-  1. Settings window displays a working directory input with a browse button
-  2. User can set and clear the global default working directory
-  3. Global default persists across app restarts and applies to the current OS only
-  4. UI shows only the current OS path, hiding the OS-keyed JSON abstraction
 **Plans**: 3 plans
-**UI hint**: yes
 
 Plans:
-- [x] 12-01-PLAN.md — Add GetOS binding and working directory input with browse button to Settings window
-- [x] 12-02-PLAN.md — Implement transparent OS-path read/write (hide JSON abstraction)
-- [x] 12-03-PLAN.md — Fix backend persistence and verify end-to-end round-trip
+- [x] 12-01: Add GetOS binding and working directory input to Settings
+- [x] 12-02: Implement transparent OS-path read/write
+- [x] 12-03: Fix backend persistence and verify round-trip
 
-#### Phase 13: Command Editor & List UI
+### Phase 13: Command Editor & List UI
 **Goal**: Users can set and view working directories per command transparently
-**Depends on**: Phase 10, Phase 11
-**Requirements**: UIUX-01, UIUX-03, UIUX-04
-**Success Criteria** (what must be TRUE):
-  1. Command Editor includes a working directory input with a browse button
-  2. Command list and/or detail view displays the configured working directory as a plain path
-  3. User never sees JSON structure or OS keys — only current OS path is ever exposed
-  4. Working directory field can be left empty (no directory set)
 **Plans**: 3 plans
-**UI hint**: yes
 
 Plans:
-- [x] 13-01-PLAN.md — Add working directory input with browse button to Command Editor (2026-04-23)
-- [x] 13-02-PLAN.md — Display working directory in command list/detail view (2026-04-23)
-- [x] 13-03-PLAN.md — Ensure UI transparency — hide OS-keyed storage from users (2026-04-23)
+- [x] 13-01: Add working directory input to Command Editor
+- [x] 13-02: Display working directory in command list/detail view
+- [x] 13-03: Ensure UI transparency
+
+</details>
+
+### 📋 v2.0 Workspaces (Planned)
+
+**Milestone Goal:** Named project contexts with sidebar switcher, cloud sync, and command sharing.
+
+**Target features:**
+- Named workspaces with independent command sets
+- Cloudflare Workers + D1 + R2 backend for sync
+- OAuth (Google/GitHub) authentication
+- Shareable command links
 
 ## Progress
 

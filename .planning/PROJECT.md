@@ -8,20 +8,21 @@ Cmdex is a cross-platform desktop app for saving, organizing, and executing CLI 
 
 Users can organize commands by project context, execute them with variable placeholders, and share them with the community — all in a clean, customizable interface.
 
-## Current State (v1.3 In Progress)
+## Current State (v1.3 Shipped)
 
-**Milestone:** v1.3 Working Directory
+**Milestone:** v1.3 Working Directory — SHIPPED 2026-04-23
 **Tech Stack:** Go + Wails v3 + React + TypeScript + Tailwind + SQLite
-**Status:** Phase 11 complete — execution engine supports working directory fallback chain (command → global default → home)
+**Status:** All phases complete. Working directory feature fully functional.
 
-### v1.3 Features Delivered (so far)
+### v1.3 Features Delivered
 - ✅ OSPathMap model for cross-OS working directory storage (Phase 10)
 - ✅ Native directory picker via Wails binding (Phase 11)
-- ✅ Executor runs commands in resolved working directory (Phase 11)
-- ✅ Terminal launchers honor working directory (Phase 11)
+- ✅ Executor runs commands in resolved working directory with fallback chain (Phase 11)
+- ✅ Global default working directory setting in Settings window (Phase 12)
+- ✅ Command Editor working directory input with browse/clear (Phase 13)
+- ✅ UI transparency — no OS keys or JSON ever exposed (Phase 13)
 
-### v1.0 Features Delivered
-
+### v1.0–v1.2 Features Delivered
 - ✅ Responsive sidebar (auto-collapse at ≤600px)
 - ✅ Inline delete confirmation (no modals)
 - ✅ 150ms transitions (tabs, sidebar, output pane)
@@ -31,22 +32,38 @@ Users can organize commands by project context, execute them with variable place
 - ✅ Font selection (7 bundled fonts)
 - ✅ Layout density (compact/comfortable/spacious)
 - ✅ Import/Export (JSON with variables/presets)
+- ✅ Settings as separate Wails window
+- ✅ Per-file database migration pattern with rollback
 
-### v1.0 Technical Debt
+### Technical Debt
 
-- No automated tests exist
+- No automated tests exist (manual verification only)
 
-## Current Milestone: v1.3 Working Directory
+## Next Milestone: v2.0 Workspaces (Planned)
+
+**Goal:** Named project contexts with sidebar switcher, cloud sync, and command sharing.
+
+**Target features:**
+- Named workspaces with independent command sets
+- Cloudflare Workers + D1 + R2 backend for sync
+- OAuth (Google/GitHub) authentication
+- Shareable command links
+
+---
+
+## Previous Milestone: v1.3 Working Directory
+
+**Shipped:** 2026-04-23
 
 **Goal:** Allow users to optionally specify a working directory per command, with a global default fallback, stored persistently and used during execution.
 
-**Target features:**
-- Add `working_dir` field to the Command data model (Go + SQLite)
-- UI input in Command Editor for setting/editing working directory per command
-- Directory picker/selector integration (native file dialog via Wails)
-- Command executor uses the stored working directory when spawning subprocesses
-- Global "Default Working Directory" setting in Settings window
-- Command execution falls back to global default when command has no specific directory set
+**Delivered:**
+- OSPathMap data model for cross-OS working directory storage
+- Native directory picker via Wails v3 binding
+- Executor fallback chain: command → global default → OS home
+- Settings UI for global default working directory
+- Command Editor integration with fancy popup UI
+- Complete UI transparency (no raw OS keys exposed)
 
 ---
 
@@ -113,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-23 — Phase 11 complete*
+*Last updated: 2026-04-23 — v1.3 milestone shipped*
