@@ -8,11 +8,17 @@ Cmdex is a cross-platform desktop app for saving, organizing, and executing CLI 
 
 Users can organize commands by project context, execute them with variable placeholders, and share them with the community — all in a clean, customizable interface.
 
-## Current State (v1.0 Shipped)
+## Current State (v1.3 In Progress)
 
-**Shipped:** 2026-04-13
-**Tech Stack:** Go + Wails v2 + React + TypeScript + Tailwind + SQLite
-**LOC:** ~3500 (Go + TypeScript)
+**Milestone:** v1.3 Working Directory
+**Tech Stack:** Go + Wails v3 + React + TypeScript + Tailwind + SQLite
+**Status:** Phase 11 complete — execution engine supports working directory fallback chain (command → global default → home)
+
+### v1.3 Features Delivered (so far)
+- ✅ OSPathMap model for cross-OS working directory storage (Phase 10)
+- ✅ Native directory picker via Wails binding (Phase 11)
+- ✅ Executor runs commands in resolved working directory (Phase 11)
+- ✅ Terminal launchers honor working directory (Phase 11)
 
 ### v1.0 Features Delivered
 
@@ -107,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-23 — Milestone v1.3 started*
+*Last updated: 2026-04-23 — Phase 11 complete*
