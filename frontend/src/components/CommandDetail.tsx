@@ -278,6 +278,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 }) => {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [previewModes, setPreviewModes] = useState<Record<string, boolean>>({});
+  const showPreview = previewModes[command.id] || false;
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -388,7 +390,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     } else {
       setScriptEditor(false);
     }
-    onDraftChange({ showPreview: false });
   }, [command.id, isNewCommand]);
 
   useEffect(() => {
@@ -411,9 +412,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   // Auto-switch to Preview when a preset is selected
   useEffect(() => {
     if (selectedPresetId) {
-      onDraftChange({ showPreview: true });
+      setPreviewModes((prev) => ({ ...prev, [command.id]: true }));
     }
-  }, [selectedPresetId]);
+  }, [selectedPresetId, command.id]);
 
   const commitChipRename = async () => {
     if (!renamingChipId) return;
@@ -572,7 +573,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 
   const renderScriptUnified = useMemo(() => {
     if (!scriptParts) return null;
-    if (!draft.showPreview) {
+    if (!showPreview) {
       // Template mode: same as renderScriptWithVars
       return scriptParts.map((part, i) => {
         if (/^\{\{\w+\}\}$/.test(part)) {
@@ -608,7 +609,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       }
       return <span key={i}>{part}</span>;
     });
-  }, [scriptParts, draft.showPreview, resolvedValues, focusedVarName]);
+  }, [scriptParts, showPreview, resolvedValues, focusedVarName]);
 
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return '';
@@ -618,7 +619,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   }, [scriptBody, resolvedValues]);
 
   const handleCopy = useCallback(() => {
-    const text = draft.showPreview ? getResolvedScript : scriptBody;
+    const text = showPreview ? getResolvedScript : scriptBody;
     navigator.clipboard
       .writeText(text)
       .then(() => {
@@ -629,7 +630,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         setCopied(false);
         toast.error(t('commandDetail.copyFailed'));
       });
-  }, [draft.showPreview, getResolvedScript, scriptBody, t]);
+  }, [showPreview, getResolvedScript, scriptBody, t]);
 
   const TAG_REGEX = /^[a-zA-Z0-9-]+$/;
 
@@ -854,10 +855,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 type="button"
                 className="script-mode-toggle"
                 hidden={isNewCommand || variables.length <= 0}
-                onClick={() => onDraftChange({ showPreview: !draft.showPreview })}
-                aria-label={draft.showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+                onClick={() => setPreviewModes((prev) => ({ ...prev, [command.id]: !showPreview }))}
+                aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
               >
-                {draft.showPreview ? (
+                {showPreview ? (
                   <ScanEye className="size-3" />
                 ) : (
                   <LayoutTemplate className="size-3" />
@@ -865,7 +866,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              {draft.showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+              {showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -906,7 +907,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   </TooltipContent>
                 </Tooltip>
                 <span className="command-text-box-label">
-                  {draft.showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
+                  {showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
                 </span>
                 {!isNewCommand && (
                   <Tooltip>

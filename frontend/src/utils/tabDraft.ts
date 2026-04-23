@@ -11,7 +11,6 @@ export function emptyDraft(defaultCategoryId?: string): TabDraft {
     variables: [],
     workingDir: {},
     revealed: { title: false, description: false, tags: false },
-    showPreview: false,
   };
 }
 
@@ -30,7 +29,6 @@ export function draftFromCommand(cmd: Command, scriptBody: string): TabDraft {
       description: !!(cmd.description?.Valid && cmd.description.String.trim()),
       tags: (cmd.tags?.length ?? 0) > 0,
     },
-    showPreview: false,
   };
 }
 
@@ -39,8 +37,7 @@ export function draftsEqual(a: TabDraft, b: TabDraft): boolean {
     a.title !== b.title ||
     a.description !== b.description ||
     a.categoryId !== b.categoryId ||
-    a.scriptBody !== b.scriptBody ||
-    a.showPreview !== b.showPreview
+    a.scriptBody !== b.scriptBody
   ) {
     return false;
   }
