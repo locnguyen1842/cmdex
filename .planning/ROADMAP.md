@@ -167,9 +167,9 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 13-01-PLAN.md — Add working directory input with browse button to Command Editor
-- [ ] 13-02-PLAN.md — Display working directory in command list/detail view
-- [ ] 13-03-PLAN.md — Ensure UI transparency — hide OS-keyed storage from users
+- [x] 13-01-PLAN.md — Add working directory input with browse button to Command Editor (2026-04-23)
+- [x] 13-02-PLAN.md — Display working directory in command list/detail view (2026-04-23)
+- [x] 13-03-PLAN.md — Ensure UI transparency — hide OS-keyed storage from users (2026-04-23)
 
 ## Progress
 
@@ -190,4 +190,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 10. Data Foundation | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 12. Settings UI | v1.3 | 3/3 | Complete    | 2026-04-23 |
-| 13. Command Editor & List UI | v1.3 | 0/3 | Planned | — |
+| 13. Command Editor & List UI | v1.3 | 3/3 | Complete | 2026-04-23 |
