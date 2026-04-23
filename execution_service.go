@@ -63,7 +63,7 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
 	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
 
-	result := executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
+	result := executor.ExecuteScript(resolvedScript, "", func(chunk OutputChunk) {
 		wailsApp.Event.Emit(eventNames.CmdOutput, chunk)
 	})
 
@@ -100,7 +100,7 @@ func (s *ExecutionService) RunInTerminal(commandID string, variables map[string]
 	if err != nil {
 		return fmt.Errorf("failed to get settings: %w", err)
 	}
-	return executor.OpenInTerminal(settings.Terminal, resolvedScript)
+	return executor.OpenInTerminal(settings.Terminal, resolvedScript, "")
 }
 
 // GetExecutionHistory returns all past execution records.
