@@ -146,13 +146,13 @@ Plans:
   2. User can set and clear the global default working directory
   3. Global default persists across app restarts and applies to the current OS only
   4. UI shows only the current OS path, hiding the OS-keyed JSON abstraction
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
 
 Plans:
-- [ ] 12-01: Add working directory input with browse button to Settings window
-- [ ] 12-02: Implement transparent OS-path read/write (hide JSON abstraction)
-- [ ] 12-03: Persist and load global default working directory on app start
+- [ ] 12-01-PLAN.md — Add GetOS binding and working directory input with browse button to Settings window
+- [ ] 12-02-PLAN.md — Implement transparent OS-path read/write (hide JSON abstraction)
+- [ ] 12-03-PLAN.md — Fix backend persistence and verify end-to-end round-trip
 
 #### Phase 13: Command Editor & List UI
 **Goal**: Users can set and view working directories per command transparently
@@ -189,5 +189,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 9. Runner Integration | v1.2 | 2/2 | Complete | — |
 | 10. Data Foundation | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
-| 12. Settings UI | v1.3 | 0/3 | Not started | — |
+| 12. Settings UI | v1.3 | 0/3 | Planned | — |
 | 13. Command Editor & List UI | v1.3 | 0/3 | Not started | — |
