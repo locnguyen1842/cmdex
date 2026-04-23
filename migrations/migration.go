@@ -24,4 +24,7 @@ type Migration struct {
 var Migrations = []Migration{
 	migration0001,
 	migration0002,
+	migration0003,
+	migration0005,
+	migration0006,
 }
