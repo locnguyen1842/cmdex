@@ -177,6 +177,7 @@ function App() {
     tabBaselinesRef.current = tabBaselines;
 
     const [paletteOpen, setPaletteOpen] = useState(false);
+    const [currentOS, setCurrentOS] = useState('');
     const pendingCloseTabIdRef = useRef<string | null>(null);
     const mainContentRef = useRef<HTMLDivElement>(null);
 
@@ -390,6 +391,7 @@ function App() {
     }, []);
 
     useEffect(() => {
+        GetOS().then(setCurrentOS).catch(() => setCurrentOS(''));
         loadData();
         loadHistory();
         GetSettings()
@@ -1502,6 +1504,7 @@ function App() {
                                 setCategories(cats || []);
                                 setCommands(cmds || []);
                             }}
+                            currentOS={currentOS}
                         />
                     </ResizablePanel>
 

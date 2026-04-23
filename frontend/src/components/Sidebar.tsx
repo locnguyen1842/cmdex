@@ -20,7 +20,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Category, Command, getCommandDisplayTitle } from '../types';
+import { Category, Command, getCommandDisplayTitle, getOSPath } from '../types';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -30,7 +30,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '@/components/ui/context-menu';
-import { Plus, Pencil, X, ChevronRight, Terminal, Settings, Group, Trash2, Download, Upload } from 'lucide-react';
+import { Plus, Pencil, X, ChevronRight, Terminal, Settings, Group, Trash2, Download, Upload, FolderOpen } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -62,6 +62,7 @@ interface SidebarProps {
   onReorderCommand: (id: string, newPosition: number, newCategoryId: string) => void;
   onOpenSettings: () => void;
   onImport?: () => void;
+  currentOS?: string;
 }
 
 interface SortableCommandItemProps {
@@ -72,6 +73,7 @@ interface SortableCommandItemProps {
   isPendingDelete: boolean;
   onRequestDelete: () => void;
   onCancelDelete: () => void;
+  currentOS?: string;
 }
 
 const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
@@ -82,6 +84,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
   isPendingDelete,
   onRequestDelete,
   onCancelDelete,
+  currentOS,
 }) => {
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -92,6 +95,8 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
+  const workingDirPath = getOSPath(cmd.workingDir, currentOS || '');
 
   return (
     <div
@@ -112,6 +117,12 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
             {cmd.tags.slice(0, 3).map((tag) => (
               <span key={tag} className="cmd-tag-chip">#{tag}</span>
             ))}
+          </span>
+        )}
+        {workingDirPath && (
+          <span className="cmd-working-dir-row" title={workingDirPath}>
+            <FolderOpen className="size-3 shrink-0 text-muted-foreground" />
+            <span className="cmd-working-dir-text">{workingDirPath}</span>
           </span>
         )}
       </span>
@@ -422,6 +433,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 isPendingDelete={pendingDeleteCmd === cmd.id}
                                 onRequestDelete={() => setPendingDeleteCmd(cmd.id)}
                                 onCancelDelete={() => setPendingDeleteCmd(null)}
+                                currentOS={currentOS}
                               />
                             ))}
                             {catCommands.length === 0 && (
@@ -482,6 +494,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             isPendingDelete={pendingDeleteCmd === cmd.id}
                             onRequestDelete={() => setPendingDeleteCmd(cmd.id)}
                             onCancelDelete={() => setPendingDeleteCmd(null)}
+                            currentOS={currentOS}
                           />
                         ))}
                       </DroppableCategoryZone>
