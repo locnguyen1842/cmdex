@@ -136,6 +136,7 @@ export interface TabDraft {
   categoryId: string;
   scriptBody: string;
   variables: VariableDefinition[];
+  workingDir: OSPathMap;
   revealed: TabDraftRevealed;
 }
 

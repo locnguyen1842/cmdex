@@ -22,6 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
 import type { Command, TabDraft, VariablePrompt } from '../types';
+import { getOSPath, setOSPath } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -59,7 +60,9 @@ import {
   Hash,
   LayoutTemplate,
   ScanEye,
+  FolderOpen,
 } from 'lucide-react';
+import { GetOS, PickDirectory } from '../../bindings/cmdex/app';
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
@@ -286,6 +289,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const scriptEditDraftRef = useRef('');
   scriptEditDraftRef.current = scriptEditDraft;
   const scriptBodyRef = useRef('');
+  const [currentOS, setCurrentOS] = useState('');
 
   const presetSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -366,6 +370,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     },
     [onDraftChange],
   );
+
+  useEffect(() => {
+    GetOS().then(setCurrentOS).catch(() => setCurrentOS(''));
+  }, []);
 
   useEffect(() => {
     if (isNewCommand) {
@@ -825,6 +833,57 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               placeholder={t('commandEditor.descriptionPlaceholder')}
             />
             </div>
+          )}
+
+          {currentOS && (
+            <div className="inline-icon-field mt-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <FolderOpen className="inline-icon-field-icon mt-0.5" />
+                </TooltipTrigger>
+                <TooltipContent>{t('commandDetail.workingDirectoryTooltip')}</TooltipContent>
+              </Tooltip>
+              <div className="flex gap-2 flex-1">
+                <input
+                  type="text"
+                  value={getOSPath(draft.workingDir, currentOS)}
+                  onChange={(e) => onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, e.target.value) })}
+                  placeholder={t('commandDetail.workingDirectoryPlaceholder')}
+                  className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const selected = await PickDirectory(getOSPath(draft.workingDir, currentOS));
+                      if (selected) {
+                        onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, selected) });
+                      }
+                    } catch (err) {
+                      console.error('Directory picker error:', err);
+                    }
+                  }}
+                >
+                  <FolderOpen size={14} className="mr-1" />
+                  {t('commandDetail.browse')}
+                </Button>
+                {getOSPath(draft.workingDir, currentOS) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, '') })}
+                  >
+                    <X size={14} />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          {currentOS && (
+            <p className="text-[11px] text-muted-foreground ml-7">{t('commandDetail.workingDirectoryHint')}</p>
           )}
 
         </div>

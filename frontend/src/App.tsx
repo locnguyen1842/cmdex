@@ -774,6 +774,7 @@ function App() {
                         d.categoryId,
                         tags,
                         vars,
+                        d.workingDir,
                     );
                     await loadData();
                     const savedBody = await GetScriptBody(cmd.id);
@@ -807,6 +808,7 @@ function App() {
                         d.categoryId,
                         tags,
                         vars,
+                        d.workingDir,
                     );
                     await loadData();
                     const cmd = allCommandsRef.current.find((c) => c.id === tabId);
@@ -1232,7 +1234,7 @@ function App() {
         }
 
         try {
-            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars);
+            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars, d.workingDir);
             await loadData();
             const cmd = allCommandsRef.current.find(c => c.id === activeTabId);
             if (cmd) {

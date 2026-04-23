@@ -85,7 +85,11 @@
     "varRemovalNote": "These variables will be automatically removed from all presets.",
     "titleLabel": "Title",
     "tagsLabel": "Tags",
-    "removeTag": "Remove"
+    "removeTag": "Remove",
+    "workingDirectoryTooltip": "Working Directory",
+    "workingDirectoryPlaceholder": "/path/to/project",
+    "browse": "Browse",
+    "workingDirectoryHint": "Directory where this command will be executed."
   },
   "commandEditor": {
     "newCommand": "New Command",
