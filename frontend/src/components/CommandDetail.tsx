@@ -22,7 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
 import type { Command, TabDraft, VariablePrompt } from '../types';
-import { getOSPath, setOSPath } from '../types';
+import { getOSPath, setOSPath, shortenPath } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,6 +41,15 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -62,7 +71,7 @@ import {
   ScanEye,
   FolderOpen,
 } from 'lucide-react';
-import { GetOS, PickDirectory } from '../../bindings/cmdex/app';
+import { PickDirectory } from '../../bindings/cmdex/app';
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
@@ -243,6 +252,7 @@ export interface CommandDetailProps {
   onReorderPresets: (presetIds: string[]) => Promise<void>;
   onResolvedValuesChange?: (values: Record<string, string>) => void;
   onSaveScript?: (scriptBody: string) => Promise<void>;
+  currentOS?: string;
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -264,6 +274,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onReorderPresets,
   onResolvedValuesChange,
   onSaveScript,
+  currentOS,
 }) => {
   const { t } = useTranslation();
   const [showPreview, setShowPreview] = useState(false);
@@ -285,11 +296,12 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const preAddPresetIdRef = useRef<string>('');
   const [scriptEditDraft, setScriptEditDraft] = useState('');
   const [showScriptDiscardConfirm, setShowScriptDiscardConfirm] = useState(false);
+  const [workingDirDialogOpen, setWorkingDirDialogOpen] = useState(false);
+  const [workingDirDraft, setWorkingDirDraft] = useState('');
   const scriptWrapRef = useRef<HTMLDivElement>(null);
   const scriptEditDraftRef = useRef('');
   scriptEditDraftRef.current = scriptEditDraft;
   const scriptBodyRef = useRef('');
-  const [currentOS, setCurrentOS] = useState('');
 
   const presetSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -370,10 +382,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     },
     [onDraftChange],
   );
-
-  useEffect(() => {
-    GetOS().then(setCurrentOS).catch(() => setCurrentOS(''));
-  }, []);
 
   useEffect(() => {
     if (isNewCommand) {
@@ -835,57 +843,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             </div>
           )}
 
-          {currentOS && (
-            <div className="inline-icon-field mt-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <FolderOpen className="inline-icon-field-icon mt-0.5" />
-                </TooltipTrigger>
-                <TooltipContent>{t('commandDetail.workingDirectoryTooltip')}</TooltipContent>
-              </Tooltip>
-              <div className="flex gap-2 flex-1">
-                <input
-                  type="text"
-                  value={getOSPath(draft.workingDir, currentOS)}
-                  onChange={(e) => onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, e.target.value) })}
-                  placeholder={t('commandDetail.workingDirectoryPlaceholder')}
-                  className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const selected = await PickDirectory(getOSPath(draft.workingDir, currentOS));
-                      if (selected) {
-                        onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, selected) });
-                      }
-                    } catch (err) {
-                      console.error('Directory picker error:', err);
-                    }
-                  }}
-                >
-                  <FolderOpen size={14} className="mr-1" />
-                  {t('commandDetail.browse')}
-                </Button>
-                {getOSPath(draft.workingDir, currentOS) && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, '') })}
-                  >
-                    <X size={14} />
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-          {currentOS && (
-            <p className="text-[11px] text-muted-foreground ml-7">{t('commandDetail.workingDirectoryHint')}</p>
-          )}
-
         </div>
       )}
 
@@ -1020,6 +977,25 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     <TooltipContent>{t('commandDetail.runInTerminal')}</TooltipContent>
                   </Tooltip>
                 )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => {
+                        setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
+                        setWorkingDirDialogOpen(true);
+                      }}
+                    >
+                      <FolderOpen className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {getOSPath(draft.workingDir, currentOS)
+                      ? shortenPath(getOSPath(draft.workingDir, currentOS))
+                      : t('commandDetail.workingDirectoryNotSet')}
+                  </TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
@@ -1302,6 +1278,69 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={workingDirDialogOpen} onOpenChange={setWorkingDirDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('commandDetail.workingDirectoryDialogTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('commandDetail.workingDirectoryDialogDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 py-2">
+            <input
+              type="text"
+              value={workingDirDraft}
+              onChange={(e) => setWorkingDirDraft(e.target.value)}
+              placeholder={t('commandDetail.workingDirectoryPlaceholder')}
+              className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (!currentOS) return;
+                try {
+                  const selected = await PickDirectory(workingDirDraft);
+                  if (selected) {
+                    setWorkingDirDraft(selected);
+                  }
+                } catch (err) {
+                  console.error('Directory picker error:', err);
+                }
+              }}
+              disabled={!currentOS}
+            >
+              <FolderOpen size={14} className="mr-1" />
+              {t('commandDetail.browse')}
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setWorkingDirDraft('');
+              }}
+            >
+              {t('commandDetail.clear')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (currentOS) {
+                  onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, workingDirDraft) });
+                }
+                setWorkingDirDialogOpen(false);
+              }}
+            >
+              {t('commandDetail.apply')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

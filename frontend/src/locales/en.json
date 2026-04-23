@@ -89,7 +89,12 @@
     "workingDirectoryTooltip": "Working Directory",
     "workingDirectoryPlaceholder": "/path/to/project",
     "browse": "Browse",
-    "workingDirectoryHint": "Directory where this command will be executed."
+    "workingDirectoryHint": "Directory where this command will be executed.",
+    "workingDirectoryDialogTitle": "Working Directory",
+    "workingDirectoryDialogDescription": "Set the directory where this command will be executed.",
+    "workingDirectoryNotSet": "No working directory set",
+    "apply": "Apply",
+    "clear": "Clear"
   },
   "commandEditor": {
     "newCommand": "New Command",

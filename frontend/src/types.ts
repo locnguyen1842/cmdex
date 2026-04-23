@@ -56,6 +56,18 @@ export function setOSPath(map: OSPathMap | undefined, os: string, path: string):
   return updated;
 }
 
+/**
+ * Shortens a file path to show only the last N segments.
+ * If the path has fewer than N segments, returns it as-is.
+ * If the path is empty, returns empty string.
+ */
+export function shortenPath(path: string, segments: number = 2): string {
+  if (!path) return '';
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length <= segments) return path;
+  return '.../' + parts.slice(-segments).join('/');
+}
+
 export interface Command {
   id: string;
   title: NullString;
