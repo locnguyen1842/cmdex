@@ -4,11 +4,11 @@ milestone: v1.3
 milestone_name: Working Directory
 status: planning
 last_updated: "2026-04-23T00:00:00.000Z"
-last_activity: 2026-04-23 — Milestone v1.3 started
+last_activity: 2026-04-23 — Roadmap created for v1.3 Working Directory
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 12
   completed_plans: 0
   percent: 0
 ---
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Users can organize commands by project context, execute with variables, and share
-**Current focus:** Milestone v1.3 — Defining requirements
+**Current focus:** Milestone v1.3 — Phase 10: Data Foundation ready to plan
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-23 — Milestone v1.3 started
+Phase: 10 of 13 (Data Foundation)
+Plan: — of 3 in current phase
+Status: Ready to plan
+Last activity: 2026-04-23 — Roadmap created for v1.3 Working Directory
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -48,25 +48,33 @@ Progress: [░░░░░░░░░░] 0%
 | 3. Theme Engine | 3/3 | ~7 min |
 | 4. Theme Customization | 2/2 | ~11.5 min |
 | 5. Import & Export | 2/2 | ~7.5 min |
-| 6. Wails v3 Migration | - | - |
-| 7. Settings Window | - | - |
-| 8. Migration Package | - | - |
-| 9. Runner Integration | - | - |
+| 6. Wails Window Migration | 2/2 | — |
+| 7. Settings Window Polish | 2/2 | — |
+| 8. Migration Package | 2/2 | — |
+| 9. Runner Integration | 2/2 | — |
+| 10. Data Foundation | 0/3 | — |
+| 11. Execution Engine & Directory Picker | 0/3 | — |
+| 12. Settings UI | 0/3 | — |
+| 13. Command Editor & List UI | 0/3 | — |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
-- Phase 1 added: on every command now we should store a command execution directory ( working dir ) - which help user can run command in specific directory they want ( have UI )
+- Phase 1 added: on every command now we should store a command execution directory (working dir) — which helps users run commands in a specific directory they want (have UI)
+- Milestone v1.3 scoped to Working Directory feature: per-command working dirs, global default fallback, transparent OS-keyed storage
 
 ### Decisions
 
 - Milestone scoped to Premium Polish. Cloud, workspaces, sharing deferred to v2.
 - Used jsdelivr CDN for Nunito fonts
+- Working directory stored as JSON keyed by OS (darwin/windows/linux) for cross-OS import/export compatibility
+- UI completely transparent — users only see plain path for current OS
 
 ### Blockers/Concerns
 
 - No tests exist — manual verification required for all phases.
+- Need to ensure Wails directory picker binding works across Mac/Linux/Windows.
 
 ### Quick Tasks Completed
 

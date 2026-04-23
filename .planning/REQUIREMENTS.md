@@ -59,20 +59,20 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | — | Pending |
-| DATA-02 | — | Pending |
-| DATA-03 | — | Pending |
-| DATA-04 | — | Pending |
-| SETT-01 | — | Pending |
-| SETT-02 | — | Pending |
-| SETT-03 | — | Pending |
-| UIUX-01 | — | Pending |
-| UIUX-02 | — | Pending |
-| UIUX-03 | — | Pending |
-| UIUX-04 | — | Pending |
-| EXEC-01 | — | Pending |
-| EXEC-02 | — | Pending |
-| EXEC-03 | — | Pending |
+| DATA-01 | Phase 10 | Pending |
+| DATA-02 | Phase 10 | Pending |
+| DATA-03 | Phase 10 | Pending |
+| DATA-04 | Phase 10 | Pending |
+| SETT-01 | Phase 12 | Pending |
+| SETT-02 | Phase 12 | Pending |
+| SETT-03 | Phase 12 | Pending |
+| UIUX-01 | Phase 13 | Pending |
+| UIUX-02 | Phase 11 | Pending |
+| UIUX-03 | Phase 13 | Pending |
+| UIUX-04 | Phase 13 | Pending |
+| EXEC-01 | Phase 11 | Pending |
+| EXEC-02 | Phase 11 | Pending |
+| EXEC-03 | Phase 11 | Pending |
 
 **Coverage:** 14/14 (100%)
 
