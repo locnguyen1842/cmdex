@@ -1145,6 +1145,7 @@ func (db *DB) GetSettings() (AppSettings, error) {
 		Locale: "en", Terminal: "",
 		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		DefaultWorkingDir: OSPathMap{},
 	}
 	x, y, w, h := -1, -1, 640, 520
 	defaults.WindowX = &x
@@ -1206,9 +1207,8 @@ func (db *DB) SetSettings(s AppSettings) error {
 	if s.Density != "" {
 		existing.Density = s.Density
 	}
-	if !s.DefaultWorkingDir.IsEmpty() {
-		existing.DefaultWorkingDir = s.DefaultWorkingDir
-	}
+	// Always update DefaultWorkingDir — empty OSPathMap is a valid state (cleared)
+	existing.DefaultWorkingDir = s.DefaultWorkingDir
 	if s.WindowX != nil {
 		existing.WindowX = s.WindowX
 	}
