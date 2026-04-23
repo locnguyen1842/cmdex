@@ -1579,6 +1579,15 @@ textarea.inline-edit-input {
   opacity: 1;
 }
 
+.command-text-box-header .cmd-header-dim-btn {
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+.command-text-box-glow:hover .command-text-box-header .cmd-header-dim-btn {
+  opacity: 1;
+}
+
 .command-text-box {
   padding: 12px 16px;
   font-family: var(--font-mono);

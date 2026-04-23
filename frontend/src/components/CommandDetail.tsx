@@ -891,6 +891,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     <Button
                       variant="ghost"
                       size="icon-xs"
+                      className="cmd-header-dim-btn"
                       onClick={() => {
                         setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
                         setWorkingDirDialogOpen(true);
