@@ -112,13 +112,13 @@ Plans:
   2. Settings records can store and retrieve OS-keyed default working directory data
   3. Database schema supports working_dir and default_working_dir columns via migration
   4. Import/export JSON preserves working directory data in OS-keyed format
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: no
 
 Plans:
-- [ ] 10-01: Update Command and Settings models with OS-keyed working directory fields
-- [ ] 10-02: Create DB migration for working_dir and default_working_dir columns
-- [ ] 10-03: Update import/export JSON format to support OS-keyed working directory
+- [ ] 10-01-PLAN.md — Define OSPathMap type and add working directory fields to Command/AppSettings models + TypeScript types
+- [ ] 10-02-PLAN.md — Create migration 0010 and update db.go CRUD queries to persist WorkingDir
+- [ ] 10-03-PLAN.md — Update import/export structs and wire WorkingDir through export/import round-trip
 
 #### Phase 11: Execution Engine & Directory Picker
 **Goal**: Commands execute in the correct working directory with a native directory picker available
