@@ -20,14 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Users can organize commands by project context, execute with variables, and share
-**Current focus:** Phase 13 — Command Editor & List UI
+**Current focus:** Planning v2.0 Workspaces milestone
 
 ## Current Position
 
-Phase: 13
-Plan: 03 (complete)
+Milestone: v1.3 Working Directory — ARCHIVED
 Status: Complete
-Last activity: 2026-04-23
+Last activity: 2026-04-23 — Milestone archived, git tagged v1.3
 
 Progress: [██████████] 100%
 
@@ -63,6 +62,7 @@ Progress: [██████████] 100%
 
 - Phase 1 added: on every command now we should store a command execution directory (working dir) — which helps users run commands in a specific directory they want (have UI)
 - Milestone v1.3 scoped to Working Directory feature: per-command working dirs, global default fallback, transparent OS-keyed storage
+- Milestone v1.3 archived 2026-04-23 — all 14 requirements validated, 6/6 UAT tests passed
 
 ### Decisions
 
