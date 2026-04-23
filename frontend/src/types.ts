@@ -33,6 +33,29 @@ export interface OSPathMap {
   [os: string]: string;
 }
 
+/**
+ * Returns the path for the current OS from an OSPathMap, or empty string if not set.
+ * This is the primary way the frontend should read working directories.
+ */
+export function getOSPath(map: OSPathMap | undefined, os: string): string {
+  return map?.[os] || '';
+}
+
+/**
+ * Sets or clears a path for the given OS in an OSPathMap.
+ * Returns a new map; does not mutate the input.
+ * If path is empty, the OS key is removed.
+ */
+export function setOSPath(map: OSPathMap | undefined, os: string, path: string): OSPathMap {
+  const updated: OSPathMap = { ...(map || {}) };
+  if (path) {
+    updated[os] = path;
+  } else {
+    delete updated[os];
+  }
+  return updated;
+}
+
 export interface Command {
   id: string;
   title: NullString;
