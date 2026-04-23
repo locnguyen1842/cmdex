@@ -92,6 +92,14 @@ Progress: [██████████] 100%
 
 ---
 
+### Pending Todos
+
+| # | Title | Area | Created |
+|---|-------|------|---------|
+| 1 | Revamp Working Directory UI in Command Editor | ui | 2026-04-23 |
+
+---
+
 ### Documentation
 
 | Doc | Path | Status |
