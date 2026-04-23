@@ -150,9 +150,9 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 12-01-PLAN.md — Add GetOS binding and working directory input with browse button to Settings window
-- [ ] 12-02-PLAN.md — Implement transparent OS-path read/write (hide JSON abstraction)
-- [ ] 12-03-PLAN.md — Fix backend persistence and verify end-to-end round-trip
+- [x] 12-01-PLAN.md — Add GetOS binding and working directory input with browse button to Settings window
+- [x] 12-02-PLAN.md — Implement transparent OS-path read/write (hide JSON abstraction)
+- [x] 12-03-PLAN.md — Fix backend persistence and verify end-to-end round-trip
 
 #### Phase 13: Command Editor & List UI
 **Goal**: Users can set and view working directories per command transparently
@@ -189,5 +189,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 9. Runner Integration | v1.2 | 2/2 | Complete | — |
 | 10. Data Foundation | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
-| 12. Settings UI | v1.3 | 0/3 | Planned | — |
+| 12. Settings UI | v1.3 | 3/3 | Complete    | 2026-04-23 |
 | 13. Command Editor & List UI | v1.3 | 0/3 | Not started | — |

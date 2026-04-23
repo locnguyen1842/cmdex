@@ -18,9 +18,9 @@
 
 ### Settings & Defaults (SETT)
 
-- [ ] **SETT-01**: Settings window provides a working directory input with a browse button to set the global default
-- [ ] **SETT-02**: Global default working directory is persisted as JSON (transparent to user) and loaded on app start for the current OS
-- [ ] **SETT-03**: UI only exposes the current OS path — user inputs a plain path without seeing OS-specific abstraction
+- [x] **SETT-01**: Settings window provides a working directory input with a browse button to set the global default
+- [x] **SETT-02**: Global default working directory is persisted as JSON (transparent to user) and loaded on app start for the current OS
+- [x] **SETT-03**: UI only exposes the current OS path — user inputs a plain path without seeing OS-specific abstraction
 
 ### UI/UX (UIUX)
 
@@ -63,9 +63,9 @@
 | DATA-02 | Phase 10 | Complete |
 | DATA-03 | Phase 10 | Complete |
 | DATA-04 | Phase 10 | Complete |
-| SETT-01 | Phase 12 | Pending |
-| SETT-02 | Phase 12 | Pending |
-| SETT-03 | Phase 12 | Pending |
+| SETT-01 | Phase 12 | Complete |
+| SETT-02 | Phase 12 | Complete |
+| SETT-03 | Phase 12 | Complete |
 | UIUX-01 | Phase 13 | Pending |
 | UIUX-02 | Phase 11 | Complete |
 | UIUX-03 | Phase 13 | Pending |
