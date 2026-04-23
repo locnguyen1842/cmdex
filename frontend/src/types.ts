@@ -150,6 +150,7 @@ export interface TabDraft {
   variables: VariableDefinition[];
   workingDir: OSPathMap;
   revealed: TabDraftRevealed;
+  showPreview: boolean;
 }
 
 export const NEW_TAB_PREFIX = '__new_';

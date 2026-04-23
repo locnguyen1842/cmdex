@@ -277,7 +277,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   currentOS,
 }) => {
   const { t } = useTranslation();
-  const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
@@ -389,7 +388,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     } else {
       setScriptEditor(false);
     }
-    setShowPreview(false);
+    onDraftChange({ showPreview: false });
   }, [command.id, isNewCommand]);
 
   useEffect(() => {
@@ -412,7 +411,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   // Auto-switch to Preview when a preset is selected
   useEffect(() => {
     if (selectedPresetId) {
-      setShowPreview(true);
+      onDraftChange({ showPreview: true });
     }
   }, [selectedPresetId]);
 
@@ -573,7 +572,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 
   const renderScriptUnified = useMemo(() => {
     if (!scriptParts) return null;
-    if (!showPreview) {
+    if (!draft.showPreview) {
       // Template mode: same as renderScriptWithVars
       return scriptParts.map((part, i) => {
         if (/^\{\{\w+\}\}$/.test(part)) {
@@ -609,7 +608,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       }
       return <span key={i}>{part}</span>;
     });
-  }, [scriptParts, showPreview, resolvedValues, focusedVarName]);
+  }, [scriptParts, draft.showPreview, resolvedValues, focusedVarName]);
 
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return '';
@@ -619,7 +618,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   }, [scriptBody, resolvedValues]);
 
   const handleCopy = useCallback(() => {
-    const text = showPreview ? getResolvedScript : scriptBody;
+    const text = draft.showPreview ? getResolvedScript : scriptBody;
     navigator.clipboard
       .writeText(text)
       .then(() => {
@@ -630,7 +629,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         setCopied(false);
         toast.error(t('commandDetail.copyFailed'));
       });
-  }, [showPreview, getResolvedScript, scriptBody, t]);
+  }, [draft.showPreview, getResolvedScript, scriptBody, t]);
 
   const TAG_REGEX = /^[a-zA-Z0-9-]+$/;
 
@@ -855,10 +854,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 type="button"
                 className="script-mode-toggle"
                 hidden={isNewCommand || variables.length <= 0}
-                onClick={() => setShowPreview((p) => !p)}
-                aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+                onClick={() => onDraftChange({ showPreview: !draft.showPreview })}
+                aria-label={draft.showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
               >
-                {showPreview ? (
+                {draft.showPreview ? (
                   <ScanEye className="size-3" />
                 ) : (
                   <LayoutTemplate className="size-3" />
@@ -866,7 +865,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              {showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
+              {draft.showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -907,7 +906,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   </TooltipContent>
                 </Tooltip>
                 <span className="command-text-box-label">
-                  {showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
+                  {draft.showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
                 </span>
                 {!isNewCommand && (
                   <Tooltip>
