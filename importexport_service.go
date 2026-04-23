@@ -66,6 +66,7 @@ type ExportCommand struct {
 	Tags          []string             `json:"tags"`
 	Variables     []VariableDefinition `json:"variables"`
 	Presets       []ExportPreset       `json:"presets"`
+	WorkingDir    OSPathMap            `json:"workingDir,omitempty"`
 	CategoryName  string               `json:"categoryName"`
 }
 
@@ -135,6 +136,7 @@ func (s *ImportExportService) ExportCommands(commandIDs []string) error {
 			Tags:          cmd.Tags,
 			Variables:     cmd.Variables,
 			Presets:       presets,
+			WorkingDir:    cmd.WorkingDir,
 			CategoryName:  categoryName,
 		})
 	}
@@ -161,6 +163,7 @@ type ImportedCommand struct {
 	Tags          []string             `json:"tags"`
 	Variables     []VariableDefinition `json:"variables"`
 	Presets       []ImportedPreset     `json:"presets"`
+	WorkingDir    OSPathMap            `json:"workingDir,omitempty"`
 	CategoryName  string               `json:"categoryName"`
 }
 
@@ -214,6 +217,7 @@ func (s *ImportExportService) ImportCommands() ([]Command, error) {
 			Tags:          cmd.Tags,
 			Variables:     cmd.Variables,
 			Presets:       presets,
+			WorkingDir:    cmd.WorkingDir,
 			CategoryName:  cmd.CategoryName,
 		}
 	}
