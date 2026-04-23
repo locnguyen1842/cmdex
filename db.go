@@ -11,119 +11,14 @@ import (
 
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
+
+	"cmdex/migrations"
 )
 
 type DB struct {
 	conn    *sql.DB
 	dataDir string
 }
-
-const schemaVersion = 9
-
-const schema = `
-CREATE TABLE IF NOT EXISTS schema_version (
-    version INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS categories (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    icon TEXT NOT NULL DEFAULT '',
-    color TEXT NOT NULL DEFAULT '',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS commands (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    description TEXT,
-    script_content TEXT NOT NULL,
-    category_id TEXT DEFAULT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS command_tags (
-    command_id TEXT NOT NULL,
-    tag_id INTEGER NOT NULL,
-    PRIMARY KEY (command_id, tag_id),
-    FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS variable_definitions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    command_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    example TEXT NOT NULL DEFAULT '',
-    default_expr TEXT NOT NULL DEFAULT '',
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS variable_presets (
-    id TEXT PRIMARY KEY,
-    command_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS preset_values (
-    preset_id TEXT NOT NULL,
-    variable_name TEXT NOT NULL,
-    value TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (preset_id, variable_name),
-    FOREIGN KEY (preset_id) REFERENCES variable_presets(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS executions (
-    id TEXT PRIMARY KEY,
-    command_id TEXT NOT NULL,
-    script_content TEXT NOT NULL,
-    final_cmd TEXT NOT NULL,
-    output TEXT NOT NULL DEFAULT '',
-    error TEXT NOT NULL DEFAULT '',
-    exit_code INTEGER NOT NULL DEFAULT 0,
-    working_dir TEXT DEFAULT '',
-    executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS app_settings (
-    data TEXT NOT NULL DEFAULT '{}'
-);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS commands_fts USING fts5(
-    title, description, script_content, content='commands', content_rowid='rowid'
-);
-
--- Triggers to keep FTS in sync
-CREATE TRIGGER IF NOT EXISTS commands_ai AFTER INSERT ON commands BEGIN
-    INSERT INTO commands_fts(rowid, title, description, script_content)
-    VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
-END;
-
-CREATE TRIGGER IF NOT EXISTS commands_ad AFTER DELETE ON commands BEGIN
-    INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-    VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
-END;
-
-CREATE TRIGGER IF NOT EXISTS commands_au AFTER UPDATE ON commands BEGIN
-    INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-    VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
-    INSERT INTO commands_fts(rowid, title, description, script_content)
-    VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
-END;
-`
 
 func NewDB() (*DB, error) {
 	homeDir, err := os.UserHomeDir()
@@ -143,7 +38,7 @@ func NewDB() (*DB, error) {
 	}
 
 	db := &DB{conn: conn, dataDir: dataDir}
-	if err := db.migrate(); err != nil {
+	if err := db.runMigrations(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -155,293 +50,138 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
-func (db *DB) migrate() error {
-	var version int
-	err := db.conn.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&version)
+func (db *DB) runMigrations() error {
+	var currentVersion int
+	err := db.conn.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&currentVersion)
 	if err != nil {
-		// Table doesn't exist or is empty — run full schema
-		if _, err := db.conn.Exec(schema); err != nil {
-			return fmt.Errorf("exec schema: %w", err)
+		currentVersion = 0
+		if err == sql.ErrNoRows {
+			if _, err := db.conn.Exec("INSERT INTO schema_version (version) VALUES (0)"); err != nil {
+				return fmt.Errorf("insert initial schema_version: %w", err)
+			}
+		} else {
+			if _, err := db.conn.Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"); err != nil {
+				return fmt.Errorf("create schema_version table: %w", err)
+			}
+			if _, err := db.conn.Exec("INSERT INTO schema_version (version) VALUES (0)"); err != nil {
+				return fmt.Errorf("insert initial schema_version: %w", err)
+			}
 		}
-		_, err = db.conn.Exec("INSERT INTO schema_version (version) VALUES (?)", schemaVersion)
-		return err
 	}
 
-	if version >= schemaVersion {
+	for _, m := range migrations.Migrations {
+		if m.Version <= currentVersion {
+			continue
+		}
+
+		if m.DisableFKDuringMigration {
+			if _, err := db.conn.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+				return fmt.Errorf("disable FK for migration %d: %w", m.Version, err)
+			}
+		}
+
+		tx, err := db.conn.Begin()
+		if err != nil {
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
+			}
+			return fmt.Errorf("begin migration %d tx: %w", m.Version, err)
+		}
+
+		if err := m.Up(tx); err != nil {
+			tx.Rollback()
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
+			}
+			return fmt.Errorf("migration %d (%s) up: %w", m.Version, m.Description, err)
+		}
+
+		if _, err := tx.Exec("UPDATE schema_version SET version = ?", m.Version); err != nil {
+			tx.Rollback()
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
+			}
+			return fmt.Errorf("update schema_version for migration %d: %w", m.Version, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
+			}
+			return fmt.Errorf("commit migration %d: %w", m.Version, err)
+		}
+
+		if m.DisableFKDuringMigration {
+			if _, err := db.conn.Exec("PRAGMA foreign_keys = ON"); err != nil {
+				return fmt.Errorf("re-enable FK after migration %d: %w", m.Version, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// RollbackTo steps the schema back to the target version.
+// It is a dev/testing utility and is not exposed to the frontend.
+func (db *DB) RollbackTo(targetVersion int) error {
+	var currentVersion int
+	err := db.conn.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&currentVersion)
+	if err != nil {
+		return fmt.Errorf("schema_version not initialized")
+	}
+
+	if targetVersion >= currentVersion {
 		return nil
 	}
 
-	// Migration v1 -> v2: make category_id nullable with ON DELETE SET NULL
-	if version < 2 {
-		tx, err := db.conn.Begin()
-		if err != nil {
-			return fmt.Errorf("begin migration v2 tx: %w", err)
+	// Iterate in reverse order
+	for i := len(migrations.Migrations) - 1; i >= 0; i-- {
+		m := migrations.Migrations[i]
+		if m.Version <= targetVersion {
+			continue
 		}
-		defer tx.Rollback()
 
-		// SQLite doesn't support ALTER COLUMN, so recreate the table
-		migrations := []string{
-			`CREATE TABLE IF NOT EXISTS commands_new (
-				id TEXT PRIMARY KEY,
-				title TEXT NOT NULL,
-				description TEXT NOT NULL DEFAULT '',
-				script_content TEXT NOT NULL,
-				category_id TEXT DEFAULT NULL,
-				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-			)`,
-			`INSERT INTO commands_new SELECT * FROM commands`,
-			`DROP TABLE commands`,
-			`ALTER TABLE commands_new RENAME TO commands`,
-			// Update empty strings to NULL
-			`UPDATE commands SET category_id = NULL WHERE category_id = ''`,
-			// Rebuild FTS index to match new rowids after table recreation
-			`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
-			// Recreate FTS triggers
-			`DROP TRIGGER IF EXISTS commands_ai`,
-			`DROP TRIGGER IF EXISTS commands_ad`,
-			`DROP TRIGGER IF EXISTS commands_au`,
-			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
-				INSERT INTO commands_fts(rowid, title, description, script_content)
-				VALUES (new.rowid, new.title, new.description, new.script_content);
-			END`,
-			`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
-				INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-				VALUES ('delete', old.rowid, old.title, old.description, old.script_content);
-			END`,
-			`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
-				INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-				VALUES ('delete', old.rowid, old.title, old.description, old.script_content);
-				INSERT INTO commands_fts(rowid, title, description, script_content)
-				VALUES (new.rowid, new.title, new.description, new.script_content);
-			END`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v2: %w", err)
+		if m.DisableFKDuringMigration {
+			if _, err := db.conn.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+				return fmt.Errorf("disable FK for rollback %d: %w", m.Version, err)
 			}
 		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 2); err != nil {
-			return fmt.Errorf("update schema version: %w", err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration v2: %w", err)
-		}
-	}
-
-	// Migration v2 -> v3: add position column to commands
-	if version < 3 {
-		tx, err := db.conn.Begin()
-		if err != nil {
-			return fmt.Errorf("begin migration v3 tx: %w", err)
-		}
-		defer tx.Rollback()
-
-		migrations := []string{
-			`ALTER TABLE commands ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
-			`UPDATE commands SET position = rowid`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v3: %w", err)
-			}
-		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 3); err != nil {
-			return fmt.Errorf("update schema version: %w", err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration v3: %w", err)
-		}
-	}
-
-	// Migration v3 -> v5: make title and description nullable
-	// Combined into single migration; disables FK enforcement to prevent
-	// ON DELETE CASCADE from wiping child tables (variable_definitions,
-	// variable_presets, command_tags, executions) when commands is recreated.
-	if version < 5 {
-		if _, err := db.conn.Exec("PRAGMA foreign_keys = OFF"); err != nil {
-			return fmt.Errorf("disable FK for migration: %w", err)
-		}
-		defer db.conn.Exec("PRAGMA foreign_keys = ON")
 
 		tx, err := db.conn.Begin()
 		if err != nil {
-			return fmt.Errorf("begin migration v5 tx: %w", err)
-		}
-		defer tx.Rollback()
-
-		migrations := []string{
-			`CREATE TABLE IF NOT EXISTS commands_new (
-				id TEXT PRIMARY KEY,
-				title TEXT,
-				description TEXT,
-				script_content TEXT NOT NULL,
-				category_id TEXT DEFAULT NULL,
-				position INTEGER NOT NULL DEFAULT 0,
-				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-			)`,
-			`INSERT INTO commands_new SELECT id, title,
-				CASE WHEN description = '' THEN NULL ELSE description END,
-				script_content, category_id, position, created_at, updated_at
-				FROM commands`,
-			`DROP TABLE commands`,
-			`ALTER TABLE commands_new RENAME TO commands`,
-			// Rebuild FTS index to match new rowids after table recreation
-			`INSERT INTO commands_fts(commands_fts) VALUES('rebuild')`,
-			`DROP TRIGGER IF EXISTS commands_ai`,
-			`DROP TRIGGER IF EXISTS commands_ad`,
-			`DROP TRIGGER IF EXISTS commands_au`,
-			`CREATE TRIGGER commands_ai AFTER INSERT ON commands BEGIN
-			INSERT INTO commands_fts(rowid, title, description, script_content)
-			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
-		END`,
-			`CREATE TRIGGER commands_ad AFTER DELETE ON commands BEGIN
-			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
-		END`,
-			`CREATE TRIGGER commands_au AFTER UPDATE ON commands BEGIN
-			INSERT INTO commands_fts(commands_fts, rowid, title, description, script_content)
-			VALUES ('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.description, ''), old.script_content);
-			INSERT INTO commands_fts(rowid, title, description, script_content)
-			VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.description, ''), new.script_content);
-		END`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v5: %w", err)
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
 			}
+			return fmt.Errorf("begin rollback %d tx: %w", m.Version, err)
 		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 5); err != nil {
-			return fmt.Errorf("update schema version: %w", err)
+
+		if err := m.Down(tx); err != nil {
+			tx.Rollback()
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
+			}
+			return fmt.Errorf("rollback migration %d (%s) down: %w", m.Version, m.Description, err)
 		}
+
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration v5: %w", err)
+			if m.DisableFKDuringMigration {
+				db.conn.Exec("PRAGMA foreign_keys = ON")
+			}
+			return fmt.Errorf("commit rollback %d: %w", m.Version, err)
 		}
-		if _, err := db.conn.Exec("PRAGMA foreign_keys = ON"); err != nil {
-			return fmt.Errorf("re-enable FK after migration: %w", err)
-		}
-	}
 
-	// Migration v5 -> v6: add position column to variable_presets
-	if version < 6 {
-		tx, err := db.conn.Begin()
-		if err != nil {
-			return fmt.Errorf("begin migration v6 tx: %w", err)
-		}
-		defer tx.Rollback()
-
-		migrations := []string{
-			`ALTER TABLE variable_presets ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
-			`UPDATE variable_presets SET position = rowid`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v6: %w", err)
+		if m.DisableFKDuringMigration {
+			if _, err := db.conn.Exec("PRAGMA foreign_keys = ON"); err != nil {
+				return fmt.Errorf("re-enable FK after rollback %d: %w", m.Version, err)
 			}
 		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 6); err != nil {
-			return fmt.Errorf("update schema version: %w", err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration v6: %w", err)
-		}
 	}
 
-	if version < 7 {
-		_, err := db.conn.Exec(`ALTER TABLE executions ADD COLUMN working_dir TEXT DEFAULT ''`)
-		if err != nil {
-			return fmt.Errorf("migration v7: %w", err)
-		}
+	if _, err := db.conn.Exec("UPDATE schema_version SET version = ?", targetVersion); err != nil {
+		return fmt.Errorf("update schema_version after rollback: %w", err)
 	}
 
-	if version < 8 {
-		tx, err := db.conn.Begin()
-		if err != nil {
-			return fmt.Errorf("begin migration v8 tx: %w", err)
-		}
-		defer tx.Rollback()
-
-		migrations := []string{
-			`ALTER TABLE app_settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'vscode-dark'`,
-			`ALTER TABLE app_settings ADD COLUMN last_dark_theme TEXT NOT NULL DEFAULT 'vscode-dark'`,
-			`ALTER TABLE app_settings ADD COLUMN last_light_theme TEXT NOT NULL DEFAULT 'vscode-light'`,
-			`ALTER TABLE app_settings ADD COLUMN custom_themes TEXT NOT NULL DEFAULT '[]'`,
-			`ALTER TABLE app_settings ADD COLUMN ui_font TEXT NOT NULL DEFAULT 'Inter'`,
-			`ALTER TABLE app_settings ADD COLUMN mono_font TEXT NOT NULL DEFAULT 'JetBrains Mono'`,
-			`ALTER TABLE app_settings ADD COLUMN density TEXT NOT NULL DEFAULT 'comfortable'`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v8: %w", err)
-			}
-		}
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 8); err != nil {
-			return fmt.Errorf("update schema version: %w", err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration v8: %w", err)
-		}
-	}
-
-	if version < 9 {
-		tx, err := db.conn.Begin()
-		if err != nil {
-			return fmt.Errorf("begin migration v9 tx: %w", err)
-		}
-		defer tx.Rollback()
-
-		// Read existing row to preserve values
-		var locale, terminal, theme, lastDarkTheme, lastLightTheme, customThemes, uiFont, monoFont, density string
-		err = tx.QueryRow(`SELECT locale, terminal, theme, last_dark_theme, last_light_theme,
-			custom_themes, ui_font, mono_font, density FROM app_settings LIMIT 1`).
-			Scan(&locale, &terminal, &theme, &lastDarkTheme, &lastLightTheme,
-				&customThemes, &uiFont, &monoFont, &density)
-		hasRow := err == nil
-
-		migrations := []string{
-			`DROP TABLE app_settings`,
-			`CREATE TABLE app_settings (data TEXT NOT NULL DEFAULT '{}')`,
-		}
-		for _, m := range migrations {
-			if _, err := tx.Exec(m); err != nil {
-				return fmt.Errorf("migration v9: %w", err)
-			}
-		}
-
-		// Re-insert existing data as JSON, or insert defaults
-		s := AppSettings{
-			Locale: "en", Terminal: "", Theme: "vscode-dark",
-			LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
-			CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
-		}
-		if hasRow {
-			s = AppSettings{
-				Locale: locale, Terminal: terminal, Theme: theme,
-				LastDarkTheme: lastDarkTheme, LastLightTheme: lastLightTheme,
-				CustomThemes: customThemes, UIFont: uiFont, MonoFont: monoFont, Density: density,
-			}
-		}
-		data, err := json.Marshal(s)
-		if err != nil {
-			return fmt.Errorf("marshal settings for migration: %w", err)
-		}
-		if _, err := tx.Exec(`INSERT INTO app_settings (data) VALUES (?)`, string(data)); err != nil {
-			return fmt.Errorf("migration v9 insert: %w", err)
-		}
-
-		if _, err := tx.Exec("UPDATE schema_version SET version = ?", 9); err != nil {
-			return fmt.Errorf("update schema version: %w", err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration v9: %w", err)
-		}
-	}
-
-	_, err = db.conn.Exec("UPDATE schema_version SET version = ?", schemaVersion)
-	return err
+	return nil
 }
 
 // ---------------------------------------------------------------------------
