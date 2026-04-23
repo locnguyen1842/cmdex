@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -55,6 +56,12 @@ func (a *App) ShowSettingsWindow() {
 		w.Show()
 		w.Focus()
 	}
+}
+
+// GetOS returns the current operating system identifier (darwin, windows, or linux).
+// Used by the frontend to read/write OS-specific paths in OSPathMap.
+func (a *App) GetOS() string {
+	return runtime.GOOS
 }
 
 // PickDirectory opens a native directory picker dialog and returns the selected path.
