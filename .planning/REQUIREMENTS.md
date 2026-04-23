@@ -11,10 +11,10 @@
 
 ### Data Model & Storage (DATA)
 
-- [ ] **DATA-01**: Command model stores working directories as a JSON object keyed by OS (`darwin`, `windows`, `linux`), allowing per-OS paths
-- [ ] **DATA-02**: Settings model stores the global default working directory as a JSON object keyed by OS
-- [ ] **DATA-03**: Database migration adds `working_dir` (JSON text) to the commands table and `default_working_dir` (JSON text) to the settings table
-- [ ] **DATA-04**: Import/Export JSON format supports the OS-keyed working directory object so cross-OS imports work seamlessly
+- [x] **DATA-01**: Command model stores working directories as a JSON object keyed by OS (`darwin`, `windows`, `linux`), allowing per-OS paths
+- [x] **DATA-02**: Settings model stores the global default working directory as a JSON object keyed by OS
+- [x] **DATA-03**: Database migration adds `working_dir` (JSON text) to the commands table and `default_working_dir` (JSON text) to the settings table
+- [x] **DATA-04**: Import/Export JSON format supports the OS-keyed working directory object so cross-OS imports work seamlessly
 
 ### Settings & Defaults (SETT)
 
@@ -59,10 +59,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 10 | Pending |
-| DATA-02 | Phase 10 | Pending |
-| DATA-03 | Phase 10 | Pending |
-| DATA-04 | Phase 10 | Pending |
+| DATA-01 | Phase 10 | Complete |
+| DATA-02 | Phase 10 | Complete |
+| DATA-03 | Phase 10 | Complete |
+| DATA-04 | Phase 10 | Complete |
 | SETT-01 | Phase 12 | Pending |
 | SETT-02 | Phase 12 | Pending |
 | SETT-03 | Phase 12 | Pending |

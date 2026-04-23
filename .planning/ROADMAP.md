@@ -116,9 +116,9 @@ Plans:
 **UI hint**: no
 
 Plans:
-- [ ] 10-01-PLAN.md — Define OSPathMap type and add working directory fields to Command/AppSettings models + TypeScript types
-- [ ] 10-02-PLAN.md — Create migration 0010 and update db.go CRUD queries to persist WorkingDir
-- [ ] 10-03-PLAN.md — Update import/export structs and wire WorkingDir through export/import round-trip
+- [x] 10-01-PLAN.md — Define OSPathMap type and add working directory fields to Command/AppSettings models + TypeScript types
+- [x] 10-02-PLAN.md — Create migration 0010 and update db.go CRUD queries to persist WorkingDir
+- [x] 10-03-PLAN.md — Update import/export structs and wire WorkingDir through export/import round-trip
 
 #### Phase 11: Execution Engine & Directory Picker
 **Goal**: Commands execute in the correct working directory with a native directory picker available
@@ -187,7 +187,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 7. Settings Window Polish | v1.1 | 2/2 | Complete | — |
 | 8. Migration Package | v1.2 | 2/2 | Complete | — |
 | 9. Runner Integration | v1.2 | 2/2 | Complete | — |
-| 10. Data Foundation | v1.3 | 0/3 | Not started | — |
+| 10. Data Foundation | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 11. Execution Engine & Directory Picker | v1.3 | 0/3 | Not started | — |
 | 12. Settings UI | v1.3 | 0/3 | Not started | — |
 | 13. Command Editor & List UI | v1.3 | 0/3 | Not started | — |
