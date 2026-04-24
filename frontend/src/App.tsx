@@ -1512,8 +1512,6 @@ function App() {
         [selectedCommand?.id, executionHistory],
     );
 
-    const isNew = !!(activeTabId && isNewCommandTabId(activeTabId));
-    const saveDisabled = !activeDraft || !activeDraft.scriptBody.trim();
     const isWelcome = !selectedCommand && !activeDraft;
 
     return (
@@ -1562,48 +1560,86 @@ function App() {
 
                         <div className="top-area">
                             <div className="main-content" ref={mainContentRef}>
-                                {selectedCommand && activeDraft ? (
-                                    <div className="main-body command-tab-shell">
-                                        <CommandDetail
-                                            command={selectedCommand}
-                                            draft={activeDraft}
-                                            baselineScriptBody={activeTabId && tabBaselines[activeTabId] ? tabBaselines[activeTabId].scriptBody : ''}
-                                            onDraftChange={(partial) =>
-                                                activeTabId && updateDraft(activeTabId, partial)
-                                            }
-                                            isNewCommand={isNew}
-                                            isExecuting={isExecuting}
-                                            variables={resolvedVariables}
-                                            onExecute={activeTabId ? makeHandleExecute(activeTabId) : undefined}
-                                            onRunInTerminal={activeTabId ? makeHandleRunInTerminal(activeTabId) : undefined}
-                                            onFillVariables={activeTabId ? makeHandleFillVariables(activeTabId) : undefined}
-                                            onDelete={activeTabId ? makeHandleDelete(activeTabId) : undefined}
-                                            onRenamePreset={activeTabId ? makeHandleRenamePreset(activeTabId) : undefined}
-                                            onDeletePreset={activeTabId ? makeHandleDeletePreset(activeTabId) : undefined}
-                                            onAddPreset={activeTabId ? makeHandleAddPreset(activeTabId) : undefined}
-                                            onSavePresetValues={activeTabId ? makeHandleSavePresetValues(activeTabId) : undefined}
-                                            onReorderPresets={activeTabId ? makeHandleReorderPresets(activeTabId) : undefined}
-                                            onResolvedValuesChange={setCurrentResolvedValues}
-                                            onSaveScript={activeTabId ? makeHandleSaveScript(activeTabId) : undefined}
-                                            currentOS={currentOS}
-                                            defaultWorkingDir={defaultWorkingDir}
-                                        />
-                                        <FloatingSaveBar
-                                            visible={activeDirty}
-                                            saveDisabled={saveDisabled}
-                                            onSave={() => activeTabId && void handleSaveTab(activeTabId)}
-                                            onDiscard={() => activeTabId && handleDiscardTab(activeTabId)}
-                                        />
-                                    </div>
-                                ) : selectedCommand && !activeDraft ? (
+                                {/* Loading state: selectedCommand exists but draft hasn't hydrated yet */}
+                                {selectedCommand && !activeDraft && (
                                     <div className="main-body">
                                         <p className="text-muted-foreground text-sm p-4">{t('common.loading')}</p>
                                     </div>
-                                ) : (
+                                )}
+
+                                {/* Welcome state: no command selected and no active draft */}
+                                {!selectedCommand && !activeDraft && (
                                     <div className="main-body">
                                         <WelcomeTab onNewCommand={() => openNewCommandTab()} />
                                     </div>
                                 )}
+
+                                {/* Per-tab mounts: one CommandDetail per open command tab.
+                                    Inactive tabs are hidden via display:none so their DOM state
+                                    (scroll, cursor, textarea undo) survives across tab switches.
+                                    Note: callback props created inside .map() are new references
+                                    on every App render, so React.memo effectiveness is limited
+                                    for callbacks. The DOM persistence benefit is still achieved. */}
+                                {openTabs
+                                    .filter((tab) => tab.id !== '__welcome__')
+                                    .map((tab) => {
+                                        const draft = tabDrafts[tab.id];
+                                        const baseline = tabBaselines[tab.id];
+                                        const isTabNew = isNewCommandTabId(tab.id);
+                                        const command = isTabNew
+                                            ? makePlaceholderCommand(tab.id, draft?.categoryId)
+                                            : allCommandsRef.current.find((c) => c.id === tab.id) ?? null;
+                                        const isTabDirty = !!(draft && baseline && !draftsEqual(draft, baseline));
+                                        const isTabActive = tab.id === activeTabId;
+
+                                        // Variable resolution per D-08: active tab uses serverVariables-based
+                                        // resolution (existing useMemo keyed on selectedCommand); inactive tabs
+                                        // fall back to draft-based variable definitions.
+                                        const tabVariables = isTabActive
+                                            ? resolvedVariables
+                                            : draft
+                                                ? variableDefinitionsToPrompts(draft.variables)
+                                                : [];
+
+                                        if (!command || !draft) return null;
+
+                                        return (
+                                            <div
+                                                key={tab.id}
+                                                className="main-body command-tab-shell"
+                                                style={{ display: isTabActive ? 'flex' : 'none' }}
+                                            >
+                                                <CommandDetail
+                                                    command={command}
+                                                    draft={draft}
+                                                    baselineScriptBody={baseline?.scriptBody || ''}
+                                                    onDraftChange={(partial) => updateDraft(tab.id, partial)}
+                                                    isNewCommand={isTabNew}
+                                                    isExecuting={isExecuting}
+                                                    variables={tabVariables}
+                                                    onExecute={makeHandleExecute(tab.id)}
+                                                    onRunInTerminal={makeHandleRunInTerminal(tab.id)}
+                                                    onFillVariables={makeHandleFillVariables(tab.id)}
+                                                    onDelete={makeHandleDelete(tab.id)}
+                                                    onRenamePreset={makeHandleRenamePreset(tab.id)}
+                                                    onDeletePreset={makeHandleDeletePreset(tab.id)}
+                                                    onAddPreset={makeHandleAddPreset(tab.id)}
+                                                    onSavePresetValues={makeHandleSavePresetValues(tab.id)}
+                                                    onReorderPresets={makeHandleReorderPresets(tab.id)}
+                                                    onResolvedValuesChange={isTabActive ? setCurrentResolvedValues : undefined}
+                                                    onSaveScript={makeHandleSaveScript(tab.id)}
+                                                    currentOS={currentOS}
+                                                    defaultWorkingDir={defaultWorkingDir}
+                                                />
+                                                <FloatingSaveBar
+                                                    visible={isTabDirty}
+                                                    saveDisabled={!draft || !draft.scriptBody.trim()}
+                                                    onSave={() => void handleSaveTab(tab.id)}
+                                                    onDiscard={() => handleDiscardTab(tab.id)}
+                                                />
+                                            </div>
+                                        );
+                                    })}
                             </div>
 
                             {!isWelcome && (
