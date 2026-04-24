@@ -1335,7 +1335,11 @@ function App() {
                     const saved = draftFromCommand(cmd, body);
                     setTabDrafts(prev => ({ ...prev, [tabId]: saved }));
                     setTabBaselines(prev => ({ ...prev, [tabId]: cloneDraft(saved) }));
-                    setSelectedCommand(cmd);
+                    // Only update selectedCommand if this tab is still active,
+                    // so tab switches during confirm dialogs don't clobber the UI.
+                    if (activeTabIdRef.current === tabId) {
+                        setSelectedCommand(cmd);
+                    }
                 }
                 toast.success(t('toast.commandSaved'));
             } catch (err) {
