@@ -869,6 +869,28 @@ body {
   overflow: hidden;
 }
 
+.cmd-working-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.2;
+}
+
+.cmd-working-dir-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.command-item.active .cmd-working-dir-row {
+  color: var(--foreground);
+  opacity: 0.8;
+}
+
 .sidebar-footer {
   padding: var(--density-padding-sm);
   border-top: 1px solid var(--border);
@@ -1554,6 +1576,15 @@ textarea.inline-edit-input {
 }
 
 .command-text-box-glow:hover .command-text-box-header-actions {
+  opacity: 1;
+}
+
+.command-text-box-header .cmd-header-dim-btn {
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+.command-text-box-glow:hover .command-text-box-header .cmd-header-dim-btn {
   opacity: 1;
 }
 

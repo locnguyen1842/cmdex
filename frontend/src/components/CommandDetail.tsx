@@ -21,7 +21,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
-import type { Command, TabDraft, VariablePrompt } from '../types';
+import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey } from '../types';
+import { getOSPath, setOSPath, shortenPath } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,6 +42,15 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -59,7 +69,9 @@ import {
   Hash,
   LayoutTemplate,
   ScanEye,
+  FolderOpen,
 } from 'lucide-react';
+import { PickDirectory } from '../../bindings/cmdex/app';
 import { toast } from 'sonner';
 import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
@@ -240,6 +252,8 @@ export interface CommandDetailProps {
   onReorderPresets: (presetIds: string[]) => Promise<void>;
   onResolvedValuesChange?: (values: Record<string, string>) => void;
   onSaveScript?: (scriptBody: string) => Promise<void>;
+  currentOS?: OSKey;
+  defaultWorkingDir?: OSPathMap;
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -261,10 +275,16 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onReorderPresets,
   onResolvedValuesChange,
   onSaveScript,
+  currentOS,
+  defaultWorkingDir,
 }) => {
   const { t } = useTranslation();
-  const [showPreview, setShowPreview] = useState(false);
+  const commandWD = getOSPath(draft.workingDir, currentOS);
+  const defaultWD = getOSPath(defaultWorkingDir, currentOS);
+  const effectiveWD = commandWD || defaultWD;
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const showPreview = previewOpen;
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -282,6 +302,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const preAddPresetIdRef = useRef<string>('');
   const [scriptEditDraft, setScriptEditDraft] = useState('');
   const [showScriptDiscardConfirm, setShowScriptDiscardConfirm] = useState(false);
+  const [workingDirDialogOpen, setWorkingDirDialogOpen] = useState(false);
+  const [workingDirDraft, setWorkingDirDraft] = useState('');
   const scriptWrapRef = useRef<HTMLDivElement>(null);
   const scriptEditDraftRef = useRef('');
   scriptEditDraftRef.current = scriptEditDraft;
@@ -373,7 +395,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     } else {
       setScriptEditor(false);
     }
-    setShowPreview(false);
   }, [command.id, isNewCommand]);
 
   useEffect(() => {
@@ -396,9 +417,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   // Auto-switch to Preview when a preset is selected
   useEffect(() => {
     if (selectedPresetId) {
-      setShowPreview(true);
+      setPreviewOpen(true);
     }
-  }, [selectedPresetId]);
+  }, [selectedPresetId, command.id]);
 
   const commitChipRename = async () => {
     if (!renamingChipId) return;
@@ -839,7 +860,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 type="button"
                 className="script-mode-toggle"
                 hidden={isNewCommand || variables.length <= 0}
-                onClick={() => setShowPreview((p) => !p)}
+                onClick={() => setPreviewOpen(!showPreview)}
                 aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
               >
                 {showPreview ? (
@@ -870,6 +891,26 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           <div className="command-text-box-inner" ref={scriptWrapRef}>
             <div className="command-text-box-header">
               <div className="flex items-center gap-1.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="cmd-header-dim-btn"
+                      onClick={() => {
+                        setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
+                        setWorkingDirDialogOpen(true);
+                      }}
+                    >
+                      <FolderOpen className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {effectiveWD
+                      ? shortenPath(effectiveWD)
+                      : t('commandDetail.workingDirectoryNotSet')}
+                  </TooltipContent>
+                </Tooltip>
                 <span className="command-text-box-label">
                   {showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
                 </span>
@@ -1243,6 +1284,69 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={workingDirDialogOpen} onOpenChange={setWorkingDirDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('commandDetail.workingDirectoryDialogTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('commandDetail.workingDirectoryDialogDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 py-2">
+            <input
+              type="text"
+              value={workingDirDraft}
+              onChange={(e) => setWorkingDirDraft(e.target.value)}
+              placeholder={commandWD ? t('commandDetail.workingDirectoryPlaceholder') : (defaultWD || t('commandDetail.workingDirectoryPlaceholder'))}
+              className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (currentOS === 'unknown') return;
+                try {
+                  const selected = await PickDirectory(workingDirDraft || effectiveWD);
+                  if (selected) {
+                    setWorkingDirDraft(selected);
+                  }
+                } catch (err) {
+                  console.error('Directory picker error:', err);
+                }
+              }}
+              disabled={currentOS === 'unknown'}
+            >
+              <FolderOpen size={14} className="mr-1" />
+              {t('commandDetail.browse')}
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setWorkingDirDraft('');
+              }}
+            >
+              {t('commandDetail.clear')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={currentOS === 'unknown'}
+              onClick={() => {
+                if (currentOS === 'unknown') return;
+                onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, workingDirDraft) });
+                setWorkingDirDialogOpen(false);
+              }}
+            >
+              {t('commandDetail.apply')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

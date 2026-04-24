@@ -45,8 +45,13 @@ func NewExecutor() *Executor {
 }
 
 // writeTempScript writes script content to a temp file and returns its path.
+// The extension is platform-appropriate (.bat on Windows, .sh elsewhere).
 func writeTempScript(content string) (string, error) {
-	f, err := os.CreateTemp("", "cmdex-*.sh")
+	ext := "*.sh"
+	if runtime.GOOS == "windows" {
+		ext = "*.bat"
+	}
+	f, err := os.CreateTemp("", "cmdex-"+ext)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +96,7 @@ type OutputChunk struct {
 }
 
 // ExecuteScript runs a resolved script (all {{var}} already replaced) and streams output via callback.
-func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)) ExecutionResult {
+func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChunk func(OutputChunk)) ExecutionResult {
 	tmpPath, err := writeTempScript(scriptContent)
 	if err != nil {
 		return ExecutionResult{Error: err.Error(), ExitCode: -1}
@@ -101,7 +106,17 @@ func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "bash", tmpPath)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		// Windows: cmd /C tmp.bat
+		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
+	} else {
+		// Unix: shell can execute the temp script file directly.
+		cmd = exec.CommandContext(ctx, e.shell, tmpPath)
+	}
+	if workingDir != "" {
+		cmd.Dir = workingDir
+	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -187,7 +202,7 @@ func (e *Executor) ExecuteScript(scriptContent string, onChunk func(OutputChunk)
 
 // OpenInTerminal opens a terminal and runs the resolved script.
 // Each LaunchFn receives the raw script body and handles its own quoting.
-func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error {
+func (e *Executor) OpenInTerminal(terminalID string, scriptContent string, workingDir string) error {
 	body := scriptContent
 	if strings.HasPrefix(body, "#!") {
 		if idx := strings.Index(body, "\n"); idx != -1 {
@@ -200,14 +215,14 @@ func (e *Executor) OpenInTerminal(terminalID string, scriptContent string) error
 	if terminalID != "" {
 		for _, d := range defs {
 			if d.ID == terminalID && e.terminalExists(d) && d.LaunchFn != nil {
-				return d.LaunchFn(e, body)
+				return d.LaunchFn(e, body, workingDir)
 			}
 		}
 	}
 
 	for _, d := range defs {
 		if e.terminalExists(d) && d.LaunchFn != nil {
-			return d.LaunchFn(e, body)
+			return d.LaunchFn(e, body, workingDir)
 		}
 	}
 
@@ -233,13 +248,21 @@ func appendBackslashToLines(s string) string {
 	return strings.Join(lines, "\n")
 }
 
+func shellQuoteDir(dir string) string {
+	if !strings.Contains(dir, `'`) {
+		return `'` + dir + `'`
+	}
+	escaped := strings.ReplaceAll(dir, `'`, `'"'"'`)
+	return `'` + escaped + `'`
+}
+
 // terminalDef defines how to detect and launch a terminal emulator
 type terminalDef struct {
 	ID       string
 	Name     string
 	Paths    []string // candidate binary paths or app bundle paths
 	IsApp    bool     // macOS .app bundle (use osascript to launch)
-	LaunchFn func(e *Executor, cmdText string) error
+	LaunchFn func(e *Executor, cmdText string, workingDir string) error
 }
 
 // GetAvailableTerminals returns all terminal emulators detected on the current system.
@@ -285,8 +308,11 @@ func (e *Executor) terminalDefs() []terminalDef {
 }
 
 func (e *Executor) darwinTerminals() []terminalDef {
-	osa := func(appName, script string) func(*Executor, string) error {
-		return func(_ *Executor, body string) error {
+	osa := func(appName, script string) func(*Executor, string, string) error {
+		return func(_ *Executor, body string, workingDir string) error {
+			if workingDir != "" {
+				body = fmt.Sprintf("cd %s && %s", shellQuoteDir(workingDir), body)
+			}
 			asEscaped := strings.ReplaceAll(body, `\`, `\\`)
 			asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
 			s := fmt.Sprintf(script, asEscaped)
@@ -314,37 +340,52 @@ end tell`),
 		},
 		{
 			ID: "warp", Name: "Warp", Paths: []string{"/Applications/Warp.app"}, IsApp: true,
-			LaunchFn: func(_ *Executor, body string) error {
+			LaunchFn: func(_ *Executor, body string, workingDir string) error {
+				if workingDir != "" {
+					body = fmt.Sprintf("cd %s && %s", shellQuoteDir(workingDir), body)
+				}
 				asEscaped := strings.ReplaceAll(body, `\`, `\\`)
 				asEscaped = strings.ReplaceAll(asEscaped, `"`, `\"`)
 				s := fmt.Sprintf(`tell application "Warp" to activate
-delay 0.5
-tell application "System Events" to keystroke "%s"
-tell application "System Events" to key code 36`, asEscaped)
+	delay 0.5
+	tell application "System Events" to keystroke "%s"
+	tell application "System Events" to key code 36`, asEscaped)
 				return exec.Command("osascript", "-e", s).Start()
 			},
 		},
 		{
 			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("alacritty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+			LaunchFn: func(ex *Executor, body string, workingDir string) error {
+				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
+				if workingDir != "" {
+					args = append([]string{"--working-directory", workingDir}, args...)
+				}
+				return exec.Command("alacritty", args...).Start()
 			},
 		},
 		{
 			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("kitty", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+			LaunchFn: func(ex *Executor, body string, workingDir string) error {
+				args := []string{ex.shell, ex.flag, body + "; exec " + ex.shell}
+				if workingDir != "" {
+					args = append([]string{"--directory", workingDir}, args...)
+				}
+				return exec.Command("kitty", args...).Start()
 			},
 		},
 		{
 			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
-			LaunchFn: func(ex *Executor, body string) error {
-				return exec.Command("ghostty", "-e", ex.shell, ex.flag, body+"; exec "+ex.shell).Start()
+			LaunchFn: func(ex *Executor, body string, workingDir string) error {
+				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
+				if workingDir != "" {
+					args = append([]string{"--working-directory=" + workingDir}, args...)
+				}
+				return exec.Command("ghostty", args...).Start()
 			},
 		},
 		{
 			ID: "hyper", Name: "Hyper", Paths: []string{"/Applications/Hyper.app"}, IsApp: true,
-			LaunchFn: func(_ *Executor, body string) error {
+			LaunchFn: func(_ *Executor, body string, workingDir string) error {
 				return exec.Command("open", "-a", "Hyper").Start()
 			},
 		},
@@ -352,9 +393,12 @@ tell application "System Events" to key code 36`, asEscaped)
 }
 
 func (e *Executor) linuxTerminals() []terminalDef {
-	shellExec := func(bin string, buildArgs func(shell, body string) []string) func(*Executor, string) error {
-		return func(ex *Executor, body string) error {
+	shellExec := func(bin string, buildArgs func(shell, body string) []string, dirFlag func(dir string) []string) func(*Executor, string, string) error {
+		return func(ex *Executor, body string, workingDir string) error {
 			args := buildArgs(ex.shell, body)
+			if workingDir != "" && dirFlag != nil {
+				args = append(dirFlag(workingDir), args...)
+			}
 			return exec.Command(bin, args...).Start()
 		}
 	}
@@ -363,37 +407,54 @@ func (e *Executor) linuxTerminals() []terminalDef {
 		{ID: "gnome-terminal", Name: "GNOME Terminal", Paths: []string{"gnome-terminal"},
 			LaunchFn: shellExec("gnome-terminal", func(sh, body string) []string {
 				return []string{"--", sh, "-c", body + "; exec " + sh}
+			}, func(dir string) []string {
+				return []string{"--working-directory=" + dir}
 			})},
 		{ID: "gnome-console", Name: "GNOME Console", Paths: []string{"kgx"},
 			LaunchFn: shellExec("kgx", func(sh, body string) []string {
 				escaped := strings.ReplaceAll(body, "'", `'\''`)
 				return []string{"-e", sh + " -c '" + escaped + "; exec " + sh + "'"}
+			}, func(dir string) []string {
+				return []string{"--working-directory=" + dir}
 			})},
 		{ID: "konsole", Name: "Konsole", Paths: []string{"konsole"},
 			LaunchFn: shellExec("konsole", func(sh, body string) []string {
 				return []string{"-e", sh, "-c", body + "; exec " + sh}
+			}, func(dir string) []string {
+				return []string{"--workdir", dir}
 			})},
 		{ID: "xfce4-terminal", Name: "XFCE Terminal", Paths: []string{"xfce4-terminal"},
 			LaunchFn: shellExec("xfce4-terminal", func(sh, body string) []string {
 				escaped := strings.ReplaceAll(body, "'", `'\''`)
 				return []string{"-e", sh + " -c '" + escaped + "; exec " + sh + "'"}
+			}, func(dir string) []string {
+				return []string{"--working-directory=" + dir}
 			})},
 		{ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty"},
 			LaunchFn: shellExec("alacritty", func(sh, body string) []string {
 				return []string{"-e", sh, "-c", body + "; exec " + sh}
+			}, func(dir string) []string {
+				return []string{"--working-directory", dir}
 			})},
 		{ID: "kitty", Name: "Kitty", Paths: []string{"kitty"},
 			LaunchFn: shellExec("kitty", func(sh, body string) []string {
 				return []string{sh, "-c", body + "; exec " + sh}
+			}, func(dir string) []string {
+				return []string{"--directory", dir}
 			})},
 		{ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty"},
 			LaunchFn: shellExec("ghostty", func(sh, body string) []string {
 				return []string{"-e", sh, "-c", body + "; exec " + sh}
+			}, func(dir string) []string {
+				return []string{"--working-directory=" + dir}
 			})},
 		{ID: "xterm", Name: "XTerm", Paths: []string{"xterm"},
-			LaunchFn: shellExec("xterm", func(sh, body string) []string {
-				return []string{"-e", sh, "-c", body + "; exec " + sh}
-			})},
+			LaunchFn: func(ex *Executor, body string, workingDir string) error {
+				if workingDir != "" {
+					body = fmt.Sprintf("cd %s && %s", shellQuoteDir(workingDir), body)
+				}
+				return exec.Command("xterm", "-e", ex.shell, "-c", body+"; exec "+ex.shell).Start()
+			}},
 	}
 }
 
@@ -406,18 +467,29 @@ func (e *Executor) windowsTerminals() []terminalDef {
 
 	return []terminalDef{
 		{ID: "windows-terminal", Name: "Windows Terminal", Paths: []string{"wt"},
-			LaunchFn: func(_ *Executor, body string) error {
-				return exec.Command("wt", "cmd", "/k", escapeCmdExe(body)).Start()
+			LaunchFn: func(_ *Executor, body string, workingDir string) error {
+				args := []string{"cmd", "/k", escapeCmdExe(body)}
+				if workingDir != "" {
+					args = append([]string{"-d", workingDir}, args...)
+				}
+				return exec.Command("wt", args...).Start()
 			}},
 		{ID: "cmd", Name: "Command Prompt", Paths: []string{"cmd"},
-			LaunchFn: func(_ *Executor, body string) error {
-				return exec.Command("cmd", "/c", "start", "cmd", "/k", escapeCmdExe(body)).Start()
+			LaunchFn: func(_ *Executor, body string, workingDir string) error {
+				cmdBody := escapeCmdExe(body)
+				if workingDir != "" {
+					cmdBody = fmt.Sprintf("cd /d %s && %s", escapeCmdExe(workingDir), cmdBody)
+				}
+				return exec.Command("cmd", "/c", "start", "cmd", "/k", cmdBody).Start()
 			}},
 		{ID: "pwsh", Name: "PowerShell", Paths: []string{"pwsh", "powershell"},
-			LaunchFn: func(_ *Executor, body string) error {
+			LaunchFn: func(_ *Executor, body string, workingDir string) error {
 				bin := "powershell"
 				if _, err := exec.LookPath("pwsh"); err == nil {
 					bin = "pwsh"
+				}
+				if workingDir != "" {
+					body = fmt.Sprintf("Set-Location -LiteralPath '%s' -ErrorAction Stop; %s", strings.ReplaceAll(workingDir, "'", "''"), body)
 				}
 				return exec.Command(bin, "-NoExit", "-Command", body).Start()
 			}},

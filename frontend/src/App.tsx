@@ -19,6 +19,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+
 import {
     AlertDialog,
     AlertDialogContent,
@@ -43,6 +44,11 @@ import {
     isNewCommandTabId,
     getCommandDisplayTitle,
     SettingsPayload,
+    OSPathMap,
+    normalizeOS,
+    THEMES,
+    type OSKey,
+    type CustomTheme,
 } from './types';
 
 import {
@@ -69,6 +75,7 @@ import {
 } from '../bindings/cmdex/settingsservice';
 import {
     ShowSettingsWindow,
+    GetOS,
 } from '../bindings/cmdex/app';
 import {
     GetVariables,
@@ -105,24 +112,6 @@ const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
 const FONT_SANS_KEY = 'cmdex-ui-font';
 const FONT_MONO_KEY = 'cmdex-mono-font';
 const DENSITY_KEY = 'cmdex-density';
-
-export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
-    { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
-    { id: 'vscode-light', label: 'VS Code Light+', type: 'light' },
-    { id: 'monokai', label: 'Monokai', type: 'dark' },
-    { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
-    { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
-    { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
-    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
-    { id: 'dracula', label: 'Dracula', type: 'dark' },
-];
-
-export interface CustomTheme {
-    id: string;
-    name: string;
-    type: 'dark' | 'light';
-    colors: Record<string, string>;
-}
 
 function App() {
     const { t } = useTranslation();
@@ -177,6 +166,7 @@ function App() {
     tabBaselinesRef.current = tabBaselines;
 
     const [paletteOpen, setPaletteOpen] = useState(false);
+    const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
     const pendingCloseTabIdRef = useRef<string | null>(null);
     const mainContentRef = useRef<HTMLDivElement>(null);
 
@@ -185,6 +175,7 @@ function App() {
     const [uiFont, setUiFont] = useState<string>('Inter');
     const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
     const [density, setDensity] = useState<string>('comfortable');
+    const [defaultWorkingDir, setDefaultWorkingDir] = useState<OSPathMap>({});
 
     // Tracks whether settings have been loaded from DB (prevents premature saves before load)
     const settingsLoadedRef = useRef(false);
@@ -199,6 +190,7 @@ function App() {
         uiFont: 'Inter',
         monoFont: 'JetBrains Mono',
         density: 'comfortable',
+        defaultWorkingDir: {} as OSPathMap,
         windowX: -1,
         windowY: -1,
         windowWidth: 640,
@@ -220,6 +212,7 @@ function App() {
             uiFont: r.uiFont,
             monoFont: r.monoFont,
             density: r.density,
+            defaultWorkingDir: r.defaultWorkingDir,
             windowX: r.windowX,
             windowY: r.windowY,
             windowWidth: r.windowWidth,
@@ -390,6 +383,7 @@ function App() {
     }, []);
 
     useEffect(() => {
+        GetOS().then((os) => setCurrentOS(normalizeOS(os))).catch(() => setCurrentOS('unknown'));
         loadData();
         loadHistory();
         GetSettings()
@@ -443,6 +437,7 @@ function App() {
                     uiFont: migratedUiFont,
                     monoFont: migratedMonoFont,
                     density: migratedDensity,
+                    defaultWorkingDir: s.defaultWorkingDir || {},
                     windowX: s.windowX ?? -1,
                     windowY: s.windowY ?? -1,
                     windowWidth: s.windowWidth ?? 640,
@@ -456,6 +451,7 @@ function App() {
                 setUiFont(migratedUiFont);
                 setMonoFont(migratedMonoFont);
                 setDensity(migratedDensity);
+                setDefaultWorkingDir(s.defaultWorkingDir || {});
 
                 // Clear legacy localStorage keys after successful migration
                 [THEME_STORAGE_KEY, LAST_DARK_THEME_KEY, LAST_LIGHT_THEME_KEY,
@@ -474,6 +470,7 @@ function App() {
                     uiFont: migratedUiFont,
                     monoFont: migratedMonoFont,
                     density: migratedDensity,
+                    defaultWorkingDir: settingsRef.current.defaultWorkingDir,
                     windowX: settingsRef.current.windowX,
                     windowY: settingsRef.current.windowY,
                     windowWidth: settingsRef.current.windowWidth,
@@ -541,12 +538,14 @@ function App() {
                 uiFont: payload.uiFont ?? current.uiFont,
                 monoFont: payload.monoFont ?? current.monoFont,
                 density: payload.density ?? current.density,
+                defaultWorkingDir: payload.defaultWorkingDir ?? current.defaultWorkingDir,
             };
             if (payload.locale) i18n.changeLanguage(payload.locale);
             if (payload.theme) setTheme(payload.theme);
             if (payload.uiFont) setUiFont(payload.uiFont);
             if (payload.monoFont) setMonoFont(payload.monoFont);
             if (payload.density) setDensity(payload.density);
+            if (payload.defaultWorkingDir) setDefaultWorkingDir(payload.defaultWorkingDir);
             if (payload.customThemes !== undefined) {
                 try {
                     const parsed = typeof payload.customThemes === 'string'
@@ -774,6 +773,7 @@ function App() {
                         d.categoryId,
                         tags,
                         vars,
+                        d.workingDir,
                     );
                     await loadData();
                     const savedBody = await GetScriptBody(cmd.id);
@@ -807,6 +807,7 @@ function App() {
                         d.categoryId,
                         tags,
                         vars,
+                        d.workingDir,
                     );
                     await loadData();
                     const cmd = allCommandsRef.current.find((c) => c.id === tabId);
@@ -1232,7 +1233,7 @@ function App() {
         }
 
         try {
-            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars);
+            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars, d.workingDir);
             await loadData();
             const cmd = allCommandsRef.current.find(c => c.id === activeTabId);
             if (cmd) {
@@ -1536,6 +1537,8 @@ function App() {
                                             onReorderPresets={handleReorderPresetsFromDetail}
                                             onResolvedValuesChange={setCurrentResolvedValues}
                                             onSaveScript={handleSaveScriptDirect}
+                                            currentOS={currentOS}
+                                            defaultWorkingDir={defaultWorkingDir}
                                         />
                                         <FloatingSaveBar
                                             visible={activeDirty}

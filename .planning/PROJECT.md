@@ -8,14 +8,21 @@ Cmdex is a cross-platform desktop app for saving, organizing, and executing CLI 
 
 Users can organize commands by project context, execute them with variable placeholders, and share them with the community — all in a clean, customizable interface.
 
-## Current State (v1.0 Shipped)
+## Current State (v1.3 Shipped)
 
-**Shipped:** 2026-04-13
-**Tech Stack:** Go + Wails v2 + React + TypeScript + Tailwind + SQLite
-**LOC:** ~3500 (Go + TypeScript)
+**Milestone:** v1.3 Working Directory — SHIPPED 2026-04-23
+**Tech Stack:** Go + Wails v3 + React + TypeScript + Tailwind + SQLite
+**Status:** All phases complete. Working directory feature fully functional.
 
-### v1.0 Features Delivered
+### v1.3 Features Delivered
+- ✅ OSPathMap model for cross-OS working directory storage (Phase 10)
+- ✅ Native directory picker via Wails binding (Phase 11)
+- ✅ Executor runs commands in resolved working directory with fallback chain (Phase 11)
+- ✅ Global default working directory setting in Settings window (Phase 12)
+- ✅ Command Editor working directory input with browse/clear (Phase 13)
+- ✅ UI transparency — no OS keys or JSON ever exposed (Phase 13)
 
+### v1.0–v1.2 Features Delivered
 - ✅ Responsive sidebar (auto-collapse at ≤600px)
 - ✅ Inline delete confirmation (no modals)
 - ✅ 150ms transitions (tabs, sidebar, output pane)
@@ -25,12 +32,42 @@ Users can organize commands by project context, execute them with variable place
 - ✅ Font selection (7 bundled fonts)
 - ✅ Layout density (compact/comfortable/spacious)
 - ✅ Import/Export (JSON with variables/presets)
+- ✅ Settings as separate Wails window
+- ✅ Per-file database migration pattern with rollback
 
-### v1.0 Technical Debt
+### Technical Debt
 
-- No automated tests exist
+- No automated tests exist (manual verification only)
 
-## Current Milestone: v1.2 DB Migration Refactor
+## Next Milestone: v2.0 Workspaces (Planned)
+
+**Goal:** Named project contexts with sidebar switcher, cloud sync, and command sharing.
+
+**Target features:**
+- Named workspaces with independent command sets
+- Cloudflare Workers + D1 + R2 backend for sync
+- OAuth (Google/GitHub) authentication
+- Shareable command links
+
+---
+
+## Previous Milestone: v1.3 Working Directory
+
+**Shipped:** 2026-04-23
+
+**Goal:** Allow users to optionally specify a working directory per command, with a global default fallback, stored persistently and used during execution.
+
+**Delivered:**
+- OSPathMap data model for cross-OS working directory storage
+- Native directory picker via Wails v3 binding
+- Executor fallback chain: command → global default → OS home
+- Settings UI for global default working directory
+- Command Editor integration with fancy popup UI
+- Complete UI transparency (no raw OS keys exposed)
+
+---
+
+## Previous Milestone: v1.2 DB Migration Refactor
 
 **Goal:** Replace the monolithic inline `migrate()` function with a per-file up/down migration pattern — each migration in its own numbered Go file.
 
@@ -93,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-13 after v1.0 milestone*
+*Last updated: 2026-04-23 — v1.3 milestone shipped*

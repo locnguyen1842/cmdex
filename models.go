@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -33,6 +35,58 @@ type VariablePreset struct {
 	Values   map[string]string `json:"values"`
 }
 
+// OSPathMap stores OS-keyed file paths as a JSON object
+type OSPathMap struct {
+	paths map[string]string
+}
+
+// GetForOS returns the path for the given OS key, or empty string if not set
+func (o OSPathMap) GetForOS(os string) string {
+	if o.paths == nil {
+		return ""
+	}
+	return o.paths[os]
+}
+
+// SetForOS sets the path for the given OS key
+func (o *OSPathMap) SetForOS(os, path string) {
+	if o.paths == nil {
+		o.paths = make(map[string]string)
+	}
+	if path == "" {
+		delete(o.paths, os)
+	} else {
+		o.paths[os] = path
+	}
+}
+
+// GetCurrentOS returns the path for the current runtime OS
+func (o OSPathMap) GetCurrentOS() string {
+	return o.GetForOS(runtime.GOOS)
+}
+
+// IsEmpty returns true if no paths are stored
+func (o OSPathMap) IsEmpty() bool {
+	return len(o.paths) == 0
+}
+
+// MarshalJSON implements json.Marshaler for OSPathMap.
+func (o OSPathMap) MarshalJSON() ([]byte, error) {
+	if o.paths == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(o.paths)
+}
+
+// UnmarshalJSON implements json.Unmarshaler for OSPathMap.
+func (o *OSPathMap) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" || string(data) == "" {
+		o.paths = nil
+		return nil
+	}
+	return json.Unmarshal(data, &o.paths)
+}
+
 // Command represents a saved CLI command
 type Command struct {
 	ID            string               `json:"id"`
@@ -42,6 +96,7 @@ type Command struct {
 	Tags          []string             `json:"tags"`
 	Variables     []VariableDefinition `json:"variables"`
 	Presets       []VariablePreset     `json:"presets"`
+	WorkingDir    OSPathMap            `json:"workingDir"`
 	CategoryID    string               `json:"categoryId"`
 	Position      int                  `json:"position"`
 	CreatedAt     time.Time            `json:"createdAt"`
@@ -104,8 +159,9 @@ type AppSettings struct {
 	CustomThemes   string `json:"customThemes"`           // JSON-encoded []CustomTheme; empty string = "[]"
 	UIFont         string `json:"uiFont"`                 // UI sans-serif font
 	MonoFont       string `json:"monoFont"`               // monospace font for editor
-	Density        string `json:"density"`                // layout density: compact | comfortable | spacious
-	WindowX        *int   `json:"windowX,omitempty"`      // settings window X position, nil = unset (center on open)
+	Density           string     `json:"density"`                // layout density: compact | comfortable | spacious
+	DefaultWorkingDir *OSPathMap `json:"defaultWorkingDir,omitempty"` // nil = leave unchanged; non-nil empty map = clear.
+	WindowX           *int      `json:"windowX,omitempty"`      // settings window X position, nil = unset (center on open)
 	WindowY        *int   `json:"windowY,omitempty"`      // settings window Y position
 	WindowWidth    *int   `json:"windowWidth,omitempty"`  // settings window width, min 480
 	WindowHeight   *int   `json:"windowHeight,omitempty"` // settings window height, min 400

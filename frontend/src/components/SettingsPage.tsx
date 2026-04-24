@@ -5,12 +5,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Upload, Download, X } from 'lucide-react';
+import { Upload, Download, X, FolderOpen } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
+import { PickDirectory, GetOS } from '../../bindings/cmdex/app';
 import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
-import { TerminalInfo } from '../types';
+import { TerminalInfo, getOSPath, setOSPath, normalizeOS, THEMES, type OSKey, type CustomTheme } from '../types';
 import { toast } from 'sonner';
-import { THEMES, CustomTheme } from '../App';
 import { Events } from '@wailsio/runtime';
 import { eventNames } from '../wails/events';
 
@@ -173,6 +173,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [savedUiFont, setSavedUiFont] = useState(uiFont);
   const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
   const [savedDensity, setSavedDensity] = useState(density);
+  const [savedWorkingDir, setSavedWorkingDir] = useState('');
+  const [draftWorkingDir, setDraftWorkingDir] = useState('');
+  const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
 
   // Tracks whether the user has edited any draft field. While true, the
   // async GetSettings resolver below must NOT overwrite draft/saved values.
@@ -196,6 +199,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -214,6 +218,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: v,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -232,6 +237,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: v,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -250,6 +256,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: v,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -269,6 +276,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -287,20 +295,52 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
     }).catch(() => {});
   }, [markTouched, locale, draftTheme, draftUiFont, draftMonoFont, draftDensity]);
 
+  const changeWorkingDir = useCallback((v: string) => {
+    markTouched();
+    setDraftWorkingDir(v);
+  }, [markTouched]);
+
+  const persistWorkingDir = useCallback((path: string) => {
+    if (currentOS === 'unknown') return;
+    GetSettings().then(current => {
+      const newSettings = {
+        locale, terminal, theme: draftTheme,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFont,
+        monoFont: draftMonoFont,
+        density: draftDensity,
+        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, path),
+      };
+      SetSettings(JSON.stringify(newSettings)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, newSettings);
+    }).catch(() => {});
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, currentOS]);
+
+  const handleWorkingDirBlur = useCallback(() => {
+    persistWorkingDir(draftWorkingDir);
+  }, [persistWorkingDir, draftWorkingDir]);
+
   useEffect(() => {
     GetAvailableTerminals()
       .then(t => setTerminals(t || []))
       .catch(() => setTerminals([]));
-    GetSettings()
-      .then(s => {
+    Promise.all([GetSettings(), GetOS()])
+      .then(([s, os]) => {
         if (!s) return;
         if (userTouchedRef.current) return;
+        setCurrentOS(normalizeOS(os));
+        const wd = getOSPath(s.defaultWorkingDir, normalizeOS(os));
+        setSavedWorkingDir(wd);
+        setDraftWorkingDir(wd);
         const loc = s?.locale || i18n.language || 'en';
         const term = s?.terminal || '';
         setSavedLocale(loc);
@@ -379,7 +419,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     draftTheme !== savedTheme ||
     draftUiFont !== savedUiFont ||
     draftMonoFont !== savedMonoFont ||
-    draftDensity !== savedDensity;
+    draftDensity !== savedDensity ||
+    draftWorkingDir !== savedWorkingDir;
 
   useEffect(() => {
     if (customThemes && customThemes.length > 0) {
@@ -399,6 +440,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       setSavedUiFont(draftUiFont);
       setSavedMonoFont(draftMonoFont);
       setSavedDensity(draftDensity);
+      setSavedWorkingDir(draftWorkingDir);
       const current = await GetSettings();
       const newSettings = {
         locale,
@@ -410,6 +452,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
+        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
       };
       await SetSettings(JSON.stringify(newSettings));
       Events.Emit(eventNames.settingsChanged, newSettings);
@@ -420,7 +463,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     } catch (err) {
       console.error('Failed to persist settings:', err);
     }
-  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n, t]);
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, draftWorkingDir, currentOS, i18n, t]);
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -671,6 +714,57 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label>{t('settings.workingDirectory')}</Label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={draftWorkingDir}
+                onChange={(e) => changeWorkingDir(e.target.value)}
+                onBlur={handleWorkingDirBlur}
+                placeholder={t('settings.workingDirectoryPlaceholder')}
+                className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentOS === 'unknown'}
+                onClick={async () => {
+                  try {
+                    const selected = await PickDirectory(draftWorkingDir);
+                    if (selected) {
+                      changeWorkingDir(selected);
+                      persistWorkingDir(selected);
+                    }
+                  } catch (err) {
+                    console.error('Directory picker error:', err);
+                    toast.error(t('settings.pickDirectoryFailed', { message: String(err) }));
+                  }
+                }}
+              >
+                <FolderOpen size={14} className="mr-1" />
+                {t('settings.browse')}
+              </Button>
+              {draftWorkingDir && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                  changeWorkingDir('');
+                  persistWorkingDir('');
+                }}
+                >
+                  <X size={14} />
+                </Button>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {t('settings.workingDirectoryHint')}
+            </p>
+          </div>
+
           {onResetAllData && (
             <div className="border-t border-border pt-4 mt-2">
               <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
@@ -695,6 +789,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           setDraftMonoFont(s.monoFont || 'JetBrains Mono');
                           setSavedDensity(s.density || 'comfortable');
                           setDraftDensity(s.density || 'comfortable');
+                          const wd = getOSPath(s.defaultWorkingDir, currentOS);
+                          setSavedWorkingDir(wd);
+                          setDraftWorkingDir(wd);
                           setSavedLocale(s.locale || 'en');
                           setLocale(s.locale || 'en');
                           setSavedTerminal(s.terminal || '');

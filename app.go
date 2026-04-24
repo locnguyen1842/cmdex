@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -55,6 +56,30 @@ func (a *App) ShowSettingsWindow() {
 		w.Show()
 		w.Focus()
 	}
+}
+
+// GetOS returns the current operating system identifier (darwin, windows, or linux).
+// Used by the frontend to read/write OS-specific paths in OSPathMap.
+func (a *App) GetOS() string {
+	return runtime.GOOS
+}
+
+// PickDirectory opens a native directory picker dialog and returns the selected path.
+// Returns an empty string if the user cancels the dialog.
+func (a *App) PickDirectory(currentPath string) (string, error) {
+	dialog := wailsApp.Dialog.OpenFile().
+		CanChooseDirectories(true).
+		CanChooseFiles(false)
+
+	if currentPath != "" {
+		dialog.SetDirectory(currentPath)
+	}
+
+	result, err := dialog.PromptForSingleSelection()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
 }
 
 // createSettingsWindowLocked creates the settings window. Caller must hold settingsWindowMu.

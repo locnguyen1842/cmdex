@@ -29,6 +29,76 @@ export interface NullString {
   Valid: boolean;
 }
 
+export interface OSPathMap {
+  [os: string]: string;
+}
+
+export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
+  { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
+  { id: 'vscode-light', label: 'VS Code Light+', type: 'light' },
+  { id: 'monokai', label: 'Monokai', type: 'dark' },
+  { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
+  { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
+  { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
+  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
+  { id: 'dracula', label: 'Dracula', type: 'dark' },
+];
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  type: 'dark' | 'light';
+  colors: Record<string, string>;
+}
+
+export type OSKey = 'darwin' | 'linux' | 'windows' | 'unknown';
+
+/**
+ * Normalizes a raw runtime OS string to a well-known OSKey.
+ */
+export function normalizeOS(raw: string): OSKey {
+  if (raw === 'darwin' || raw === 'linux' || raw === 'windows') return raw;
+  return 'unknown';
+}
+
+/**
+ * Returns the path for the current OS from an OSPathMap, or empty string if not set.
+ * This is the primary way the frontend should read working directories.
+ */
+export function getOSPath(map: OSPathMap | undefined, os: OSKey): string {
+  if (os === 'unknown') return '';
+  return map?.[os] || '';
+}
+
+/**
+ * Sets or clears a path for the given OS in an OSPathMap.
+ * Returns a new map; does not mutate the input.
+ * If path is empty, the OS key is removed.
+ */
+export function setOSPath(map: OSPathMap | undefined, os: OSKey, path: string): OSPathMap {
+  const updated: OSPathMap = { ...(map || {}) };
+  if (os === 'unknown') return updated;
+  if (path) {
+    updated[os] = path;
+  } else {
+    delete updated[os];
+  }
+  return updated;
+}
+
+/**
+ * Shortens a file path to show only the last N segments.
+ * If the path has fewer than N segments, returns it as-is.
+ * If the path is empty, returns empty string.
+ */
+export function shortenPath(path: string, segments: number = 2): string {
+  if (!path) return '';
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  if (parts.length <= segments) return path;
+  const sep = path.includes('\\') ? '\\' : '/';
+  return '...' + sep + parts.slice(-segments).join(sep);
+}
+
 export interface Command {
   id: string;
   title: NullString;
@@ -37,6 +107,7 @@ export interface Command {
   tags: string[];
   variables: VariableDefinition[];
   presets: VariablePreset[];
+  workingDir: OSPathMap;
   categoryId: string;
   position: number;
   createdAt: string;
@@ -108,6 +179,7 @@ export interface TabDraft {
   categoryId: string;
   scriptBody: string;
   variables: VariableDefinition[];
+  workingDir: OSPathMap;
   revealed: TabDraftRevealed;
 }
 
@@ -131,6 +203,7 @@ export interface SettingsPayload {
   uiFont?: string;
   monoFont?: string;
   density?: string;
+  defaultWorkingDir?: OSPathMap;
   windowX?: number;
   windowY?: number;
   windowWidth?: number;

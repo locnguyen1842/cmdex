@@ -17,6 +17,47 @@ func (s *ExecutionService) ServiceStartup(ctx context.Context, options applicati
 	return nil
 }
 
+// resolveWorkingDir determines the working directory for a command using the fallback chain:
+// 1. Command-specific working dir for the current OS
+// 2. Global default working dir for the current OS
+// 3. OS home directory
+// 4. Current working directory
+// 5. OS temporary directory
+// The function never returns an empty string.
+func (s *ExecutionService) resolveWorkingDir(cmd Command) string {
+	// Step 1: use per-command working directory if set
+	if path := cmd.WorkingDir.GetCurrentOS(); path != "" {
+		return path
+	}
+
+	// Step 2: fall back to global default working directory for current OS
+	settings, err := db.GetSettings()
+	if err != nil {
+		fmt.Printf("resolveWorkingDir: GetSettings failed: %v\n", err)
+	} else if settings.DefaultWorkingDir != nil {
+		if path := settings.DefaultWorkingDir.GetCurrentOS(); path != "" {
+			return path
+		}
+	}
+
+	// Step 3: final fallback to user home directory
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		if err != nil {
+			fmt.Printf("resolveWorkingDir: UserHomeDir failed: %v, trying Getwd\n", err)
+		}
+		cwd, err := os.Getwd()
+		if err != nil || cwd == "" {
+			if err != nil {
+				fmt.Printf("resolveWorkingDir: Getwd failed: %v, falling back to TempDir\n", err)
+			}
+			return os.TempDir()
+		}
+		return cwd
+	}
+	return home
+}
+
 // GetVariables returns variable prompts for a command.
 func (s *ExecutionService) GetVariables(commandID string) []VariablePrompt {
 	cmd, err := db.GetCommand(commandID)
@@ -62,12 +103,12 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
 	finalCmd := BuildDisplayCommand(cmd.ScriptContent, variables)
+	workingDir := s.resolveWorkingDir(cmd)
 
-	result := executor.ExecuteScript(resolvedScript, func(chunk OutputChunk) {
+	result := executor.ExecuteScript(resolvedScript, workingDir, func(chunk OutputChunk) {
 		wailsApp.Event.Emit(eventNames.CmdOutput, chunk)
 	})
 
-	wd, _ := os.Getwd()
 	record := ExecutionRecord{
 		ID:            uuid.New().String(),
 		CommandID:     commandID,
@@ -76,7 +117,7 @@ func (s *ExecutionService) RunCommand(commandID string, variables map[string]str
 		Output:        result.Output,
 		Error:         result.Error,
 		ExitCode:      result.ExitCode,
-		WorkingDir:    wd,
+		WorkingDir:    workingDir,
 		ExecutedAt:    time.Now(),
 	}
 
@@ -95,12 +136,13 @@ func (s *ExecutionService) RunInTerminal(commandID string, variables map[string]
 	}
 
 	resolvedScript := ReplaceTemplateVars(cmd.ScriptContent, variables)
+	workingDir := s.resolveWorkingDir(cmd)
 
 	settings, err := db.GetSettings()
 	if err != nil {
 		return fmt.Errorf("failed to get settings: %w", err)
 	}
-	return executor.OpenInTerminal(settings.Terminal, resolvedScript)
+	return executor.OpenInTerminal(settings.Terminal, resolvedScript, workingDir)
 }
 
 // GetExecutionHistory returns all past execution records.

@@ -30,4 +30,5 @@ var Migrations = []Migration{
 	migration0007,
 	migration0008,
 	migration0009,
+	migration0010,
 }

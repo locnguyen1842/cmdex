@@ -250,7 +250,7 @@ func (db *DB) DeleteCategory(id string) error {
 
 func (db *DB) GetCommands() ([]Command, error) {
 	rows, err := db.conn.Query(
-		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at FROM commands ORDER BY position ASC",
+		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at, working_dir FROM commands ORDER BY position ASC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query commands: %w", err)
@@ -261,10 +261,14 @@ func (db *DB) GetCommands() ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var workingDirRaw string
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt, &workingDirRaw); err != nil {
 			return nil, fmt.Errorf("scan command: %w", err)
 		}
 		c.CategoryID = catID.String
+		if err := json.Unmarshal([]byte(workingDirRaw), &c.WorkingDir); err != nil {
+			return nil, fmt.Errorf("unmarshal working_dir: %w", err)
+		}
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -281,7 +285,7 @@ func (db *DB) GetCommands() ([]Command, error) {
 
 func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 	rows, err := db.conn.Query(
-		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at FROM commands WHERE category_id = ? ORDER BY position ASC",
+		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at, working_dir FROM commands WHERE category_id = ? ORDER BY position ASC",
 		categoryID,
 	)
 	if err != nil {
@@ -293,10 +297,14 @@ func (db *DB) GetCommandsByCategory(categoryID string) ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var workingDirRaw string
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt, &workingDirRaw); err != nil {
 			return nil, fmt.Errorf("scan command: %w", err)
 		}
 		c.CategoryID = catID.String
+		if err := json.Unmarshal([]byte(workingDirRaw), &c.WorkingDir); err != nil {
+			return nil, fmt.Errorf("unmarshal working_dir: %w", err)
+		}
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -342,6 +350,7 @@ type ImportCommandInput struct {
 	Tags          []string
 	Variables     []VariableDefinition
 	Presets       []ImportPresetInput
+	WorkingDir    OSPathMap
 	CategoryName  string
 }
 
@@ -416,10 +425,15 @@ func (db *DB) ImportCommands(commands []ImportCommandInput) error {
 			_ = tx.QueryRow("SELECT COALESCE(MAX(position), -1) FROM commands WHERE category_id IS NULL OR category_id = ''").Scan(&maxPos)
 		}
 
+		workingDirJSON, err := json.Marshal(importedCmd.WorkingDir)
+		if err != nil {
+			return fmt.Errorf("marshal working_dir: %w", err)
+		}
+
 		_, err = tx.Exec(
-			`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			cmdID, titlePtr, descPtr, importedCmd.ScriptContent, catIDPtr, maxPos+1, now, now,
+			`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at, working_dir)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			cmdID, titlePtr, descPtr, importedCmd.ScriptContent, catIDPtr, maxPos+1, now, now, string(workingDirJSON),
 		)
 		if err != nil {
 			return fmt.Errorf("insert command: %w", err)
@@ -482,13 +496,17 @@ func (db *DB) ImportCommands(commands []ImportCommandInput) error {
 func (db *DB) GetCommand(id string) (Command, error) {
 	var c Command
 	var catID sql.NullString
+	var workingDirRaw string
 	err := db.conn.QueryRow(
-		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at FROM commands WHERE id = ?", id,
-	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt)
+		"SELECT id, title, description, script_content, category_id, position, created_at, updated_at, working_dir FROM commands WHERE id = ?", id,
+	).Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt, &workingDirRaw)
 	if err != nil {
 		return c, fmt.Errorf("get command %s: %w", id, err)
 	}
 	c.CategoryID = catID.String
+	if err := json.Unmarshal([]byte(workingDirRaw), &c.WorkingDir); err != nil {
+		return c, fmt.Errorf("unmarshal working_dir: %w", err)
+	}
 	if err := db.loadCommandRelations(&c); err != nil {
 		return c, err
 	}
@@ -603,12 +621,17 @@ func (db *DB) CreateCommand(cmd Command) error {
 	}
 	defer tx.Rollback()
 
+	workingDirJSON, err := json.Marshal(cmd.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("marshal working_dir: %w", err)
+	}
+
 	_, err = tx.Exec(
-		`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, COALESCE((SELECT MAX(position)+1 FROM commands WHERE category_id IS ?), 0), ?, ?)`,
+		`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at, working_dir)
+		 VALUES (?, ?, ?, ?, ?, COALESCE((SELECT MAX(position)+1 FROM commands WHERE category_id IS ?), 0), ?, ?, ?)`,
 		cmd.ID, nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent,
 		nullableString(cmd.CategoryID), nullableString(cmd.CategoryID),
-		cmd.CreatedAt, cmd.UpdatedAt,
+		cmd.CreatedAt, cmd.UpdatedAt, string(workingDirJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("insert command: %w", err)
@@ -662,19 +685,24 @@ func (db *DB) UpdateCommand(cmd Command) error {
 		defer tx.Rollback()
 	}
 
+	workingDirJSON, err := json.Marshal(cmd.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("marshal working_dir: %w", err)
+	}
+
 	// Update all fields except category_id and position (those are handled by UpdateCommandPosition if changed)
 	var updateErr error
 	if categoryChanged {
 		// Category already updated by UpdateCommandPosition, so skip it
 		_, updateErr = tx.Exec(
-			"UPDATE commands SET title = ?, description = ?, script_content = ?, updated_at = ? WHERE id = ?",
-			nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent, cmd.UpdatedAt, cmd.ID,
+			"UPDATE commands SET title = ?, description = ?, script_content = ?, updated_at = ?, working_dir = ? WHERE id = ?",
+			nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent, cmd.UpdatedAt, string(workingDirJSON), cmd.ID,
 		)
 	} else {
 		// Category didn't change, safe to update everything
 		_, updateErr = tx.Exec(
-			"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ? WHERE id = ?",
-			nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, cmd.ID,
+			"UPDATE commands SET title = ?, description = ?, script_content = ?, category_id = ?, updated_at = ?, working_dir = ? WHERE id = ?",
+			nullableNullString(cmd.Title), nullableNullString(cmd.Description), cmd.ScriptContent, nullableString(cmd.CategoryID), cmd.UpdatedAt, string(workingDirJSON), cmd.ID,
 		)
 	}
 	if updateErr != nil {
@@ -1038,7 +1066,7 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 
 	// Try FTS5 first
 	rows, err := db.conn.Query(
-		`SELECT c.id, c.title, c.description, c.script_content, c.category_id, c.position, c.created_at, c.updated_at
+		`SELECT c.id, c.title, c.description, c.script_content, c.category_id, c.position, c.created_at, c.updated_at, c.working_dir
 		 FROM commands_fts fts
 		 JOIN commands c ON c.rowid = fts.rowid
 		 WHERE commands_fts MATCH ?
@@ -1055,10 +1083,14 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var workingDirRaw string
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt, &workingDirRaw); err != nil {
 			return nil, fmt.Errorf("scan search result: %w", err)
 		}
 		c.CategoryID = catID.String
+		if err := json.Unmarshal([]byte(workingDirRaw), &c.WorkingDir); err != nil {
+			return nil, fmt.Errorf("unmarshal working_dir: %w", err)
+		}
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -1076,7 +1108,7 @@ func (db *DB) SearchCommands(query string) ([]Command, error) {
 func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 	like := "%" + query + "%"
 	rows, err := db.conn.Query(
-		`SELECT id, title, description, script_content, category_id, position, created_at, updated_at
+		`SELECT id, title, description, script_content, category_id, position, created_at, updated_at, working_dir
 		 FROM commands
 		 WHERE title LIKE ? OR description LIKE ? OR script_content LIKE ?
 		 ORDER BY position ASC`,
@@ -1091,10 +1123,14 @@ func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var catID sql.NullString
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var workingDirRaw string
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.ScriptContent, &catID, &c.Position, &c.CreatedAt, &c.UpdatedAt, &workingDirRaw); err != nil {
 			return nil, fmt.Errorf("scan like result: %w", err)
 		}
 		c.CategoryID = catID.String
+		if err := json.Unmarshal([]byte(workingDirRaw), &c.WorkingDir); err != nil {
+			return nil, fmt.Errorf("unmarshal working_dir: %w", err)
+		}
 		cmds = append(cmds, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -1118,6 +1154,7 @@ func (db *DB) GetSettings() (AppSettings, error) {
 		Locale: "en", Terminal: "",
 		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		DefaultWorkingDir: &OSPathMap{},
 	}
 	x, y, w, h := -1, -1, 640, 520
 	defaults.WindowX = &x
@@ -1178,6 +1215,11 @@ func (db *DB) SetSettings(s AppSettings) error {
 	}
 	if s.Density != "" {
 		existing.Density = s.Density
+	}
+	// nil means "don't touch this field"; a non-nil (possibly empty) map means "apply/update/clear".
+	if s.DefaultWorkingDir != nil {
+		copy := *s.DefaultWorkingDir
+		existing.DefaultWorkingDir = &copy
 	}
 	if s.WindowX != nil {
 		existing.WindowX = s.WindowX
