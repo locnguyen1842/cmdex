@@ -44,6 +44,7 @@ import {
     isNewCommandTabId,
     getCommandDisplayTitle,
     SettingsPayload,
+    OSPathMap,
 } from './types';
 
 import {
@@ -1547,6 +1548,7 @@ function App() {
                                             onResolvedValuesChange={setCurrentResolvedValues}
                                             onSaveScript={handleSaveScriptDirect}
                                             currentOS={currentOS}
+                                            defaultWorkingDir={settingsRef.current.defaultWorkingDir}
                                         />
                                         <FloatingSaveBar
                                             visible={activeDirty}

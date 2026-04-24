@@ -21,7 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
-import type { Command, TabDraft, VariablePrompt } from '../types';
+import type { Command, TabDraft, VariablePrompt, OSPathMap } from '../types';
 import { getOSPath, setOSPath, shortenPath } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -253,6 +253,7 @@ export interface CommandDetailProps {
   onResolvedValuesChange?: (values: Record<string, string>) => void;
   onSaveScript?: (scriptBody: string) => Promise<void>;
   currentOS?: string;
+  defaultWorkingDir?: OSPathMap;
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -275,8 +276,12 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onResolvedValuesChange,
   onSaveScript,
   currentOS,
+  defaultWorkingDir,
 }) => {
   const { t } = useTranslation();
+  const commandWD = getOSPath(draft.workingDir, currentOS);
+  const defaultWD = getOSPath(defaultWorkingDir, currentOS);
+  const effectiveWD = commandWD || defaultWD;
   const [copied, setCopied] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const showPreview = previewOpen;
@@ -901,8 +906,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {getOSPath(draft.workingDir, currentOS)
-                      ? shortenPath(getOSPath(draft.workingDir, currentOS))
+                    {effectiveWD
+                      ? shortenPath(effectiveWD)
                       : t('commandDetail.workingDirectoryNotSet')}
                   </TooltipContent>
                 </Tooltip>
@@ -1292,7 +1297,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               type="text"
               value={workingDirDraft}
               onChange={(e) => setWorkingDirDraft(e.target.value)}
-              placeholder={t('commandDetail.workingDirectoryPlaceholder')}
+              placeholder={commandWD ? t('commandDetail.workingDirectoryPlaceholder') : (defaultWD || t('commandDetail.workingDirectoryPlaceholder'))}
               className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
             <Button
@@ -1302,7 +1307,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               onClick={async () => {
                 if (!currentOS) return;
                 try {
-                  const selected = await PickDirectory(workingDirDraft);
+                  const selected = await PickDirectory(workingDirDraft || effectiveWD);
                   if (selected) {
                     setWorkingDirDraft(selected);
                   }

@@ -308,7 +308,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     setDraftWorkingDir(v);
   }, [markTouched]);
 
-  const handleWorkingDirBlur = useCallback(() => {
+  const persistWorkingDir = useCallback((path: string) => {
     GetSettings().then(current => {
       const newSettings = {
         locale, terminal, theme: draftTheme,
@@ -318,12 +318,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         uiFont: draftUiFont,
         monoFont: draftMonoFont,
         density: draftDensity,
-        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
+        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, path),
       };
       SetSettings(JSON.stringify(newSettings)).catch(() => {});
       Events.Emit(eventNames.settingsChanged, newSettings);
     }).catch(() => {});
-  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, currentOS, draftWorkingDir]);
+  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, currentOS]);
+
+  const handleWorkingDirBlur = useCallback(() => {
+    persistWorkingDir(draftWorkingDir);
+  }, [persistWorkingDir, draftWorkingDir]);
 
   useEffect(() => {
     GetAvailableTerminals()
@@ -730,6 +734,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     const selected = await PickDirectory(draftWorkingDir);
                     if (selected) {
                       changeWorkingDir(selected);
+                      persistWorkingDir(selected);
                     }
                   } catch (err) {
                     console.error('Directory picker error:', err);
@@ -744,7 +749,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => changeWorkingDir('')}
+                  onClick={() => {
+                  changeWorkingDir('');
+                  persistWorkingDir('');
+                }}
                 >
                   <X size={14} />
                 </Button>
