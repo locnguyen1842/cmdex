@@ -1352,4 +1352,4 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   );
 };
 
-export default CommandDetail;
+export default React.memo(CommandDetail);

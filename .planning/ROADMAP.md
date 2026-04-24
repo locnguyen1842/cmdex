@@ -170,3 +170,15 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 12. Settings UI | v1.3 | 3/3 | Complete    | 2026-04-23 |
 | 13. Command Editor & List UI | v1.3 | 3/3 | Complete | 2026-04-23 |
+
+### Phase 1: Editor Multi-Mount Refactor
+
+**Goal:** Refactor `CommandDetail` rendering from single-instance prop-swap to per-tab mounted instances. Each open command tab renders its own `CommandDetail`; inactive tabs hidden via CSS `display:none`. Preserves per-tab local DOM state (textarea undo stack, scroll position, cursor, focus, expanded sections, Radix dialog states) across tab switches. Eliminates full-subtree remount on tab change.
+**Requirements**: PERF-01, PERF-02, STAB-01, MOUNT-01, GATE-01, VIS-01
+**Depends on:** Phase 0
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Wrap `CommandDetail` in `React.memo` and verify no-op callback safety
+- [ ] 01-02-PLAN.md — Stabilize all per-tab action callbacks with `useCallback` factories keyed by `tabId`
+- [ ] 01-03-PLAN.md — Refactor JSX to iterated per-tab mounts with visibility toggle and active-tab gating
