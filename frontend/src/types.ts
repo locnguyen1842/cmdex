@@ -33,6 +33,24 @@ export interface OSPathMap {
   [os: string]: string;
 }
 
+export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
+  { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
+  { id: 'vscode-light', label: 'VS Code Light+', type: 'light' },
+  { id: 'monokai', label: 'Monokai', type: 'dark' },
+  { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
+  { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
+  { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
+  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
+  { id: 'dracula', label: 'Dracula', type: 'dark' },
+];
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  type: 'dark' | 'light';
+  colors: Record<string, string>;
+}
+
 export type OSKey = 'darwin' | 'linux' | 'windows' | 'unknown';
 
 /**

@@ -46,7 +46,9 @@ import {
     SettingsPayload,
     OSPathMap,
     normalizeOS,
+    THEMES,
     type OSKey,
+    type CustomTheme,
 } from './types';
 
 import {
@@ -110,24 +112,6 @@ const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
 const FONT_SANS_KEY = 'cmdex-ui-font';
 const FONT_MONO_KEY = 'cmdex-mono-font';
 const DENSITY_KEY = 'cmdex-density';
-
-export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | 'light' }> = [
-    { id: 'vscode-dark', label: 'VS Code Dark+', type: 'dark' },
-    { id: 'vscode-light', label: 'VS Code Light+', type: 'light' },
-    { id: 'monokai', label: 'Monokai', type: 'dark' },
-    { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
-    { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
-    { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
-    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
-    { id: 'dracula', label: 'Dracula', type: 'dark' },
-];
-
-export interface CustomTheme {
-    id: string;
-    name: string;
-    type: 'dark' | 'light';
-    colors: Record<string, string>;
-}
 
 function App() {
     const { t } = useTranslation();

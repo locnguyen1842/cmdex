@@ -9,9 +9,8 @@ import { Upload, Download, X, FolderOpen } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
 import { PickDirectory, GetOS } from '../../bindings/cmdex/app';
 import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
-import { TerminalInfo, getOSPath, setOSPath, normalizeOS, type OSKey } from '../types';
+import { TerminalInfo, getOSPath, setOSPath, normalizeOS, THEMES, type OSKey, type CustomTheme } from '../types';
 import { toast } from 'sonner';
-import { THEMES, CustomTheme } from '../App';
 import { Events } from '@wailsio/runtime';
 import { eventNames } from '../wails/events';
 
