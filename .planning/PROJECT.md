@@ -8,21 +8,27 @@ Cmdex is a cross-platform desktop app for saving, organizing, and executing CLI 
 
 Users can organize commands by project context, execute them with variable placeholders, and share them with the community — all in a clean, customizable interface.
 
-## Current State (v1.3 Shipped)
+## Current State (v1.4 Shipped)
 
-**Milestone:** v1.3 Working Directory — SHIPPED 2026-04-23
-**Tech Stack:** Go + Wails v3 + React + TypeScript + Tailwind + SQLite
-**Status:** All phases complete. Working directory feature fully functional.
+**Milestone:** v1.4 Editor Multi-Mount Refactor — SHIPPED 2026-04-23
+**Tech Stack:** Go + Wails v2 + React + TypeScript + Vite + SQLite
+**Status:** All phases complete. Per-tab DOM state preservation fully functional.
 
-### v1.3 Features Delivered
+### v1.4 Features Delivered
+- ✅ React.memo-wrapped CommandDetail (skip reconciliation on inactive tabs)
+- ✅ Per-tab useCallback factory functions keyed by tabId (stable callbacks)
+- ✅ Iterated per-tab mounts with CSS display:none toggle
+- ✅ onResolvedValuesChange gated to active tab only
+- ✅ Draft-based variable fallback for inactive tabs
+- ✅ Welcome and loading views preserved across tab switches
+
+### v1.0–v1.3 Features Delivered
 - ✅ OSPathMap model for cross-OS working directory storage (Phase 10)
 - ✅ Native directory picker via Wails binding (Phase 11)
 - ✅ Executor runs commands in resolved working directory with fallback chain (Phase 11)
 - ✅ Global default working directory setting in Settings window (Phase 12)
 - ✅ Command Editor working directory input with browse/clear (Phase 13)
 - ✅ UI transparency — no OS keys or JSON ever exposed (Phase 13)
-
-### v1.0–v1.2 Features Delivered
 - ✅ Responsive sidebar (auto-collapse at ≤600px)
 - ✅ Inline delete confirmation (no modals)
 - ✅ 150ms transitions (tabs, sidebar, output pane)
@@ -130,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-23 — v1.3 milestone shipped*
+*Last updated: 2026-04-24 — v1.4 milestone shipped*

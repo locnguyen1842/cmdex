@@ -6,6 +6,7 @@
 - ✅ **v1.1 Build Settings Window** — Phases 6-7 (shipped)
 - ✅ **v1.2 DB Migration Refactor** — Phases 8-9 (shipped)
 - ✅ **v1.3 Working Directory** — Phases 10-13 (shipped 2026-04-23)
+- ✅ **v1.4 Editor Multi-Mount Refactor** — Phases 14 (shipped 2026-04-23)
 - 📋 **v2.0 Workspaces** — Phases (planned)
 
 ## Phases
@@ -138,6 +139,17 @@ Plans:
 - [x] 13-02: Display working directory in command list/detail view
 - [x] 13-03: Ensure UI transparency
 
+
+### Phase 14: Editor Multi-Mount Refactor
+
+**Goal:** Refactor `CommandDetail` rendering from single-instance prop-swap to per-tab mounted instances. Each open command tab renders its own `CommandDetail`; inactive tabs hidden via CSS `display:none`. Preserves per-tab local DOM state (textarea undo stack, scroll position, cursor, focus, expanded sections, Radix dialog states) across tab switches. Eliminates full-subtree remount on tab change.
+**Plans:** 3 plans
+
+Plans:
+- [x] 14-01-PLAN.md — Wrap `CommandDetail` in `React.memo` and verify no-op callback safety
+- [x] 14-02-PLAN.md — Stabilize all per-tab action callbacks with `useCallback` factories keyed by `tabId`
+- [x] 14-03-PLAN.md — Refactor JSX to iterated per-tab mounts with visibility toggle and active-tab gating
+
 </details>
 
 ### 📋 v2.0 Workspaces (Planned)
@@ -153,7 +165,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -170,15 +182,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 | 11. Execution Engine & Directory Picker | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 12. Settings UI | v1.3 | 3/3 | Complete    | 2026-04-23 |
 | 13. Command Editor & List UI | v1.3 | 3/3 | Complete | 2026-04-23 |
-
-### Phase 1: Editor Multi-Mount Refactor
-
-**Goal:** Refactor `CommandDetail` rendering from single-instance prop-swap to per-tab mounted instances. Each open command tab renders its own `CommandDetail`; inactive tabs hidden via CSS `display:none`. Preserves per-tab local DOM state (textarea undo stack, scroll position, cursor, focus, expanded sections, Radix dialog states) across tab switches. Eliminates full-subtree remount on tab change.
-**Requirements**: PERF-01, PERF-02, STAB-01, MOUNT-01, GATE-01, VIS-01
-**Depends on:** Phase 0
-**Plans:** 3 plans
-
-Plans:
-- [x] 01-01-PLAN.md — Wrap `CommandDetail` in `React.memo` and verify no-op callback safety
-- [x] 01-02-PLAN.md — Stabilize all per-tab action callbacks with `useCallback` factories keyed by `tabId`
-- [x] 01-03-PLAN.md — Refactor JSX to iterated per-tab mounts with visibility toggle and active-tab gating
+| 14. Editor Multi-Mount Refactor | v1.4 | 3/3 | Complete | 2026-04-23 |
