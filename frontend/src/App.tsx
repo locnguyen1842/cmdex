@@ -132,6 +132,7 @@ function App() {
     const streamBufferRef = useRef<string[]>([]);
     const streamFlushRef = useRef<number | null>(null);
     const executingTabIdRef = useRef<string | null>(null);
+    const [executingTabIdState, setExecutingTabIdState] = useState<string | null>(null);
 
     // Per-tab output state persistence
     const tabOutputRef = useRef<Record<string, { record: ExecutionRecord | null; streamLines: string[] }>>({});
@@ -747,10 +748,6 @@ function App() {
         onDraftChange: (partial: Partial<TabDraft>) => void;
     }>>(new Map());
 
-    // Generation counter to invalidate handler cache when factory deps change
-    // (e.g., `t` from i18n changes on language switch).
-    const handlerGenRef = useRef(0);
-
     // Clean up handler cache when tabs close
     useEffect(() => {
         const openIds = new Set(openTabs.map((t) => t.id));
@@ -1125,6 +1122,7 @@ function App() {
     const runCommandDirect = async (commandId: string, variables: Record<string, string>) => {
         const execTabId = activeTabIdRef.current;
         executingTabIdRef.current = execTabId;
+        setExecutingTabIdState(execTabId);
         setIsExecuting(true);
         setSelectedRecord(null);
         setStreamLines([]);
@@ -1191,6 +1189,7 @@ function App() {
         } finally {
             cleanup();
             executingTabIdRef.current = null;
+            setExecutingTabIdState(null);
             setIsExecuting(false);
         }
     };
@@ -1365,12 +1364,48 @@ function App() {
         await fn(scriptBody);
     }, [makeHandleSaveScript]);
 
-    // Invalidate handler cache when factory deps change (e.g., `t` from i18n on language switch).
-    // Placed after all makeHandle* declarations so they are in scope.
-    useEffect(() => {
-        handlerGenRef.current++;
+    // Synchronous cache invalidation during render — ensures stale handlers are never
+    // returned between a factory-dep change and the post-commit effect firing.
+    // We track the previous factory refs and compare during render; if any changed,
+    // clear the cache before any component looks up its handlers.
+    const prevFactoriesRef = useRef<Record<string, ((...args: unknown[]) => unknown) | null>>({
+        makeHandleExecute: null,
+        makeHandleRunInTerminal: null,
+        makeHandleFillVariables: null,
+        makeHandleDelete: null,
+        makeHandleRenamePreset: null,
+        makeHandleDeletePreset: null,
+        makeHandleAddPreset: null,
+        makeHandleSavePresetValues: null,
+        makeHandleReorderPresets: null,
+        makeHandleSaveScript: null,
+    });
+
+    const pf = prevFactoriesRef.current;
+    if (
+        pf.makeHandleExecute !== makeHandleExecute ||
+        pf.makeHandleRunInTerminal !== makeHandleRunInTerminal ||
+        pf.makeHandleFillVariables !== makeHandleFillVariables ||
+        pf.makeHandleDelete !== makeHandleDelete ||
+        pf.makeHandleRenamePreset !== makeHandleRenamePreset ||
+        pf.makeHandleDeletePreset !== makeHandleDeletePreset ||
+        pf.makeHandleAddPreset !== makeHandleAddPreset ||
+        pf.makeHandleSavePresetValues !== makeHandleSavePresetValues ||
+        pf.makeHandleReorderPresets !== makeHandleReorderPresets ||
+        pf.makeHandleSaveScript !== makeHandleSaveScript
+    ) {
         tabHandlerCacheRef.current.clear();
-    }, [makeHandleExecute, makeHandleRunInTerminal, makeHandleFillVariables, makeHandleDelete, makeHandleRenamePreset, makeHandleDeletePreset, makeHandleAddPreset, makeHandleSavePresetValues, makeHandleReorderPresets, makeHandleSaveScript]);
+        pf.makeHandleExecute = makeHandleExecute;
+        pf.makeHandleRunInTerminal = makeHandleRunInTerminal;
+        pf.makeHandleFillVariables = makeHandleFillVariables;
+        pf.makeHandleDelete = makeHandleDelete;
+        pf.makeHandleRenamePreset = makeHandleRenamePreset;
+        pf.makeHandleDeletePreset = makeHandleDeletePreset;
+        pf.makeHandleAddPreset = makeHandleAddPreset;
+        pf.makeHandleSavePresetValues = makeHandleSavePresetValues;
+        pf.makeHandleReorderPresets = makeHandleReorderPresets;
+        pf.makeHandleSaveScript = makeHandleSaveScript;
+    }
 
     const handleResetAllData = useCallback(async () => {
         try {
@@ -1605,7 +1640,8 @@ function App() {
 
     // Only the executing tab should receive isExecuting=true (prevents React.memo
     // bypass on all mounted CommandDetail instances when execution state changes).
-    const executingTabId = isExecuting ? activeTabId : null;
+    // Driven by state so the executing tab remains pinned even if user switches tabs.
+    const executingTabId = executingTabIdState;
 
     return (
         <TooltipProvider disableHoverableContent>
