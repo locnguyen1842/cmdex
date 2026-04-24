@@ -132,6 +132,7 @@ function App() {
     const streamBufferRef = useRef<string[]>([]);
     const streamFlushRef = useRef<number | null>(null);
     const executingTabIdRef = useRef<string | null>(null);
+    const [executingTabIdState, setExecutingTabIdState] = useState<string | null>(null);
 
     // Per-tab output state persistence
     const tabOutputRef = useRef<Record<string, { record: ExecutionRecord | null; streamLines: string[] }>>({});
@@ -141,6 +142,8 @@ function App() {
     const [historyPaneOpen, setHistoryPaneOpen] = useState(false);
     const selectedRecordRef = useRef<ExecutionRecord | null>(null);
     selectedRecordRef.current = selectedRecord;
+    const selectedCommandRef = useRef<Command | null>(null);
+    selectedCommandRef.current = selectedCommand;
     const streamLinesRef = useRef<string[]>([]);
     streamLinesRef.current = streamLines;
     const outputPaneOpenRef = useRef(false);
@@ -264,7 +267,9 @@ function App() {
         flushSettings();
     }, [density]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
+    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes.
+    // With per-tab mounts, this animates the entire main-content area on tab switch.
+    // Inactive shells are display:none so only the active shell is visible during the fade.
     useEffect(() => {
         const el = mainContentRef.current;
         if (!el) return;
@@ -727,6 +732,32 @@ function App() {
     const skipVarRemovalCheckRef = useRef(false);
     const pendingDirectSaveBodyRef = useRef<string | null>(null);
 
+    // Cache per-tab handlers so React.memo on CommandDetail is effective.
+    // Factories (makeHandle*) and updateDraft are stable, so cached handlers are stable.
+    const tabHandlerCacheRef = useRef<Map<string, {
+        onExecute: (values: Record<string, string>) => void;
+        onRunInTerminal: (values: Record<string, string>) => void;
+        onFillVariables: (initialValues: Record<string, string>) => void;
+        onDelete: () => void;
+        onRenamePreset: (presetId: string, newName: string) => Promise<void>;
+        onDeletePreset: (presetId: string) => Promise<void>;
+        onAddPreset: (initialValues?: Record<string, string>) => Promise<string>;
+        onSavePresetValues: (presetId: string, values: Record<string, string>) => Promise<void>;
+        onReorderPresets: (presetIds: string[]) => Promise<void>;
+        onSaveScript: (scriptBody: string) => Promise<void>;
+        onDraftChange: (partial: Partial<TabDraft>) => void;
+    }>>(new Map());
+
+    // Clean up handler cache when tabs close
+    useEffect(() => {
+        const openIds = new Set(openTabs.map((t) => t.id));
+        for (const tabId of tabHandlerCacheRef.current.keys()) {
+            if (!openIds.has(tabId)) {
+                tabHandlerCacheRef.current.delete(tabId);
+            }
+        }
+    }, [openTabs]);
+
     const computeRemovedVarsWithPresets = (
         tabId: string,
         newVars: VariableDefinition[],
@@ -795,8 +826,11 @@ function App() {
                             tt.id === tabId ? { id: cmd.id, title: getCommandDisplayTitle(cmd) } : tt,
                         ),
                     );
-                    setActiveTabId(cmd.id);
-                    setSelectedCommand(cmd);
+                    // Only switch to the newly created command if the original tab is still active
+                    if (activeTabIdRef.current === tabId) {
+                        setActiveTabId(cmd.id);
+                        setSelectedCommand(cmd);
+                    }
                     toast.success(t('toast.commandCreated'));
                 } else {
                     await UpdateCommand(
@@ -816,7 +850,10 @@ function App() {
                         const saved = draftFromCommand(cmd, body);
                         setTabDrafts((prev) => ({ ...prev, [tabId]: saved }));
                         setTabBaselines((prev) => ({ ...prev, [tabId]: cloneDraft(saved) }));
-                        setSelectedCommand(cmd);
+                        // Only update selectedCommand if this tab is still active
+                        if (activeTabIdRef.current === tabId) {
+                            setSelectedCommand(cmd);
+                        }
                     }
                     toast.success(t('toast.commandSaved'));
                 }
@@ -943,32 +980,31 @@ function App() {
         runCommandDirect(selectedCommand.id, values);
     };
 
-    const handleRunInTerminal = async (values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        if (isSavedCommandDraftDirty(selectedCommand.id)) {
-            toast.message(t('toast.saveBeforeExecute'));
-            return;
-        }
-        try {
-            await RunInTerminal(selectedCommand.id, values);
-        } catch (err) {
-            toast.error(String(err));
-        }
-    };
+    const makeHandleExecute = useCallback((tabId: string) => {
+        return async (values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            if (isSavedCommandDraftDirty(tabId)) {
+                toast.message(t('toast.saveBeforeExecute'));
+                return;
+            }
+            runCommandDirect(tabId, values);
+        };
+    }, [isSavedCommandDraftDirty, t]);
 
-    const handleManagePresets = async () => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const [vars, presets] = await Promise.all([
-            GetVariables(selectedCommand.id),
-            GetPresets(selectedCommand.id),
-        ]);
-        setModal({
-            type: 'managePresets',
-            variables: vars || [],
-            commandId: selectedCommand.id,
-            presets: presets || [],
-        });
-    };
+    const makeHandleRunInTerminal = useCallback((tabId: string) => {
+        return async (values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            if (isSavedCommandDraftDirty(tabId)) {
+                toast.message(t('toast.saveBeforeExecute'));
+                return;
+            }
+            try {
+                await RunInTerminal(tabId, values);
+            } catch (err) {
+                toast.error(String(err));
+            }
+        };
+    }, [isSavedCommandDraftDirty, t]);
 
     const handleDeleteCommand = async (cmd: Command) => {
         try {
@@ -982,6 +1018,20 @@ function App() {
             console.error('Failed to delete command:', err);
         }
     };
+
+    const makeHandleDelete = useCallback((tabId: string, closeTabFn: (id: string) => void) => {
+        return async () => {
+            try {
+                await DeleteCommand(tabId);
+                closeTabFn(tabId);
+                await loadData();
+                toast.success(t('toast.commandDeleted'));
+            } catch (err) {
+                console.error('Failed to delete command:', err);
+                toast.error(String(err));
+            }
+        };
+    }, [loadData, t]);
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         const prev = commands;
@@ -1017,6 +1067,19 @@ function App() {
             initialValues,
         });
     };
+
+    const makeHandleFillVariables = useCallback((tabId: string) => {
+        return async (initialValues: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            const vars = await GetVariables(tabId);
+            setModal({
+                type: 'fillVariables',
+                variables: vars || [],
+                commandId: tabId,
+                initialValues,
+            });
+        };
+    }, []);
 
     const handleVariableSubmit = async (values: Record<string, string>) => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
@@ -1059,6 +1122,7 @@ function App() {
     const runCommandDirect = async (commandId: string, variables: Record<string, string>) => {
         const execTabId = activeTabIdRef.current;
         executingTabIdRef.current = execTabId;
+        setExecutingTabIdState(execTabId);
         setIsExecuting(true);
         setSelectedRecord(null);
         setStreamLines([]);
@@ -1125,6 +1189,7 @@ function App() {
         } finally {
             cleanup();
             executingTabIdRef.current = null;
+            setExecutingTabIdState(null);
             setIsExecuting(false);
         }
     };
@@ -1152,60 +1217,97 @@ function App() {
         setModal({ ...modal, presets: presets || [] });
     };
 
-    const refreshSelectedCommand = async (): Promise<Command | null> => {
+    const refreshCommand = useCallback(async (commandId: string): Promise<Command | null> => {
         const cmds = await GetCommands();
         allCommandsRef.current = cmds || [];
         setCommands(cmds || []);
-        const refreshed =
-            (cmds || []).find((c: Command) => c.id === selectedCommand?.id) ?? null;
-        if (refreshed) setSelectedCommand(refreshed);
-        return refreshed;
-    };
-
-    const handleAddPresetFromDetail = async (initialValues?: Record<string, string>): Promise<string> => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return '';
-        const created = await SavePreset(selectedCommand.id, t('commandDetail.newPresetName'), initialValues ?? {});
-        await refreshSelectedCommand();
-        return created.id;
-    };
-
-    const handleRenamePresetFromDetail = async (presetId: string, newName: string) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const preset = selectedCommand.presets.find((p) => p.id === presetId);
-        if (!preset) return;
-        await UpdatePreset(selectedCommand.id, presetId, newName, preset.values);
-        await refreshSelectedCommand();
-    };
-
-    const handleDeletePresetFromDetail = async (presetId: string) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        await DeletePreset(selectedCommand.id, presetId);
-        await refreshSelectedCommand();
-    };
-
-    const handleReorderPresetsFromDetail = async (presetIds: string[]) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const reordered = presetIds
-            .map((id) => selectedCommand.presets.find((p) => p.id === id))
-            .filter(Boolean) as typeof selectedCommand.presets;
-        setSelectedCommand((prev) => prev ? { ...prev, presets: reordered } : prev);
-        try {
-            await ReorderPresets(selectedCommand.id, presetIds);
-            await refreshSelectedCommand();
-        } catch (err) {
-            console.error('Failed to reorder presets:', err);
-            await refreshSelectedCommand();
+        const refreshed = (cmds || []).find((c: Command) => c.id === commandId) ?? null;
+        if (refreshed && selectedCommandRef.current?.id === refreshed.id) {
+            setSelectedCommand(refreshed);
         }
-    };
+        return refreshed;
+    }, []);
 
-    const handleSavePresetValuesFromDetail = async (presetId: string, values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const preset = selectedCommand.presets.find((p) => p.id === presetId);
-        if (!preset) return;
-        await UpdatePreset(selectedCommand.id, presetId, preset.name, values);
-        await refreshSelectedCommand();
-        toast.success(t('toast.presetSaved'));
-    };
+    const makeHandleAddPreset = useCallback((tabId: string) => {
+        return async (initialValues?: Record<string, string>): Promise<string> => {
+            if (isNewCommandTabId(tabId)) return '';
+            try {
+                const created = await SavePreset(tabId, t('commandDetail.newPresetName'), initialValues ?? {});
+                await refreshCommand(tabId);
+                return created.id;
+            } catch (err) {
+                console.error('Failed to add preset:', err);
+                toast.error(t('toast.presetAddFailed'));
+                return '';
+            }
+        };
+    }, [t, refreshCommand]);
+
+    const makeHandleRenamePreset = useCallback((tabId: string) => {
+        return async (presetId: string, newName: string) => {
+            if (isNewCommandTabId(tabId)) return;
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            const preset = cmd?.presets.find((p) => p.id === presetId);
+            if (!preset) return;
+            try {
+                await UpdatePreset(tabId, presetId, newName, preset.values);
+                await refreshCommand(tabId);
+            } catch (err) {
+                console.error('Failed to rename preset:', err);
+                toast.error(t('toast.presetRenameFailed'));
+            }
+        };
+    }, [refreshCommand, t]);
+
+    const makeHandleDeletePreset = useCallback((tabId: string) => {
+        return async (presetId: string) => {
+            if (isNewCommandTabId(tabId)) return;
+            try {
+                await DeletePreset(tabId, presetId);
+                await refreshCommand(tabId);
+            } catch (err) {
+                console.error('Failed to delete preset:', err);
+                toast.error(t('toast.presetDeleteFailed'));
+            }
+        };
+    }, [refreshCommand, t]);
+
+    const makeHandleReorderPresets = useCallback((tabId: string) => {
+        return async (presetIds: string[]) => {
+            if (isNewCommandTabId(tabId)) return;
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            if (!cmd) return;
+            const reordered = presetIds
+                .map((id) => cmd.presets.find((p) => p.id === id))
+                .filter(Boolean) as typeof cmd.presets;
+            setSelectedCommand((prev) => (prev && prev.id === tabId) ? { ...prev, presets: reordered } : prev);
+            try {
+                await ReorderPresets(tabId, presetIds);
+                await refreshCommand(tabId);
+            } catch (err) {
+                console.error('Failed to reorder presets:', err);
+                toast.error(t('toast.presetReorderFailed'));
+                await refreshCommand(tabId);
+            }
+        };
+    }, [refreshCommand, t]);
+
+    const makeHandleSavePresetValues = useCallback((tabId: string) => {
+        return async (presetId: string, values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            const preset = cmd?.presets.find((p) => p.id === presetId);
+            if (!preset) return;
+            try {
+                await UpdatePreset(tabId, presetId, preset.name, values);
+                await refreshCommand(tabId);
+                toast.success(t('toast.presetSaved'));
+            } catch (err) {
+                console.error('Failed to save preset values:', err);
+                toast.error(t('toast.presetSaveFailed'));
+            }
+        };
+    }, [t, refreshCommand]);
 
     const handleCloseManagePresets = async () => {
         setModal({ type: 'none' });
@@ -1216,38 +1318,93 @@ function App() {
         }
     };
 
-    const handleSaveScriptDirect = useCallback(async (scriptBody: string) => {
-        if (!activeTabId || isNewCommandTabId(activeTabId)) return;
-        const d = tabDraftsRef.current[activeTabId];
-        if (!d) return;
-        const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
-        const vars = buildVariablesFromScript(strippedBody, d.variables);
+    const makeHandleSaveScript = useCallback((tabId: string) => {
+        return async (scriptBody: string) => {
+            if (isNewCommandTabId(tabId)) return;
+            const d = tabDraftsRef.current[tabId];
+            if (!d) return;
+            const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
+            const vars = buildVariablesFromScript(strippedBody, d.variables);
 
-        if (!skipVarRemovalCheckRef.current) {
-            const removedWithPresets = computeRemovedVarsWithPresets(activeTabId, vars);
-            if (removedWithPresets.length > 0) {
-                pendingDirectSaveBodyRef.current = scriptBody;
-                setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId: activeTabId });
-                return;
+            if (!skipVarRemovalCheckRef.current) {
+                const removedWithPresets = computeRemovedVarsWithPresets(tabId, vars);
+                if (removedWithPresets.length > 0) {
+                    pendingDirectSaveBodyRef.current = scriptBody;
+                    setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId });
+                    return;
+                }
             }
-        }
 
-        try {
-            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars, d.workingDir);
-            await loadData();
-            const cmd = allCommandsRef.current.find(c => c.id === activeTabId);
-            if (cmd) {
-                const body = await GetScriptBody(cmd.id);
-                const saved = draftFromCommand(cmd, body);
-                setTabDrafts(prev => ({ ...prev, [activeTabId]: saved }));
-                setTabBaselines(prev => ({ ...prev, [activeTabId]: cloneDraft(saved) }));
-                setSelectedCommand(cmd);
+            try {
+                await UpdateCommand(tabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars, d.workingDir);
+                await loadData();
+                const cmd = allCommandsRef.current.find(c => c.id === tabId);
+                if (cmd) {
+                    const body = await GetScriptBody(cmd.id);
+                    const saved = draftFromCommand(cmd, body);
+                    setTabDrafts(prev => ({ ...prev, [tabId]: saved }));
+                    setTabBaselines(prev => ({ ...prev, [tabId]: cloneDraft(saved) }));
+                    // Only update selectedCommand if this tab is still active,
+                    // so tab switches during confirm dialogs don't clobber the UI.
+                    if (activeTabIdRef.current === tabId) {
+                        setSelectedCommand(cmd);
+                    }
+                }
+                toast.success(t('toast.commandSaved'));
+            } catch (err) {
+                console.error('Failed to save script:', err);
             }
-            toast.success(t('toast.commandSaved'));
-        } catch (err) {
-            console.error('Failed to save script:', err);
-        }
-    }, [activeTabId, loadData, t]);
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadData, t]);
+
+    const handleSaveScriptDirect = useCallback(async (tabId: string, scriptBody: string) => {
+        if (isNewCommandTabId(tabId)) return;
+        const fn = makeHandleSaveScript(tabId);
+        await fn(scriptBody);
+    }, [makeHandleSaveScript]);
+
+    // Synchronous cache invalidation during render — ensures stale handlers are never
+    // returned between a factory-dep change and the post-commit effect firing.
+    // We track the previous factory refs and compare during render; if any changed,
+    // clear the cache before any component looks up its handlers.
+    const factoryNames = [
+        'makeHandleExecute',
+        'makeHandleRunInTerminal',
+        'makeHandleFillVariables',
+        'makeHandleDelete',
+        'makeHandleRenamePreset',
+        'makeHandleDeletePreset',
+        'makeHandleAddPreset',
+        'makeHandleSavePresetValues',
+        'makeHandleReorderPresets',
+        'makeHandleSaveScript',
+    ] as const;
+
+    const factories: Record<(typeof factoryNames)[number], (...args: unknown[]) => unknown> = {
+        makeHandleExecute,
+        makeHandleRunInTerminal,
+        makeHandleFillVariables,
+        makeHandleDelete,
+        makeHandleRenamePreset,
+        makeHandleDeletePreset,
+        makeHandleAddPreset,
+        makeHandleSavePresetValues,
+        makeHandleReorderPresets,
+        makeHandleSaveScript,
+    };
+
+    const prevFactoriesRef = useRef<Record<string, ((...args: unknown[]) => unknown) | null>>(
+        Object.fromEntries(factoryNames.map((name) => [name, null]))
+    );
+
+    const pf = prevFactoriesRef.current;
+    if (factoryNames.some((name) => pf[name] !== factories[name])) {
+        tabHandlerCacheRef.current.clear();
+        factoryNames.forEach((name) => {
+            pf[name] = factories[name];
+        });
+    }
 
     const handleResetAllData = useCallback(async () => {
         try {
@@ -1464,9 +1621,26 @@ function App() {
         [selectedCommand?.id, executionHistory],
     );
 
-    const isNew = !!(activeTabId && isNewCommandTabId(activeTabId));
-    const saveDisabled = !activeDraft || !activeDraft.scriptBody.trim();
+    // Memoize per-tab variable definitions so inactive tabs get stable references
+    // (prevents React.memo bypass from new array on every App render).
+    const tabVariablesMap = useMemo(() => {
+        const map: Record<string, VarPromptType[]> = {};
+        for (const tab of openTabs) {
+            if (tab.id === '__welcome__') continue;
+            const draft = tabDrafts[tab.id];
+            if (draft && !isNewCommandTabId(tab.id)) {
+                map[tab.id] = variableDefinitionsToPrompts(draft.variables);
+            }
+        }
+        return map;
+    }, [tabDrafts, openTabs]);
+
     const isWelcome = !selectedCommand && !activeDraft;
+
+    // Only the executing tab should receive isExecuting=true (prevents React.memo
+    // bypass on all mounted CommandDetail instances when execution state changes).
+    // Driven by state so the executing tab remains pinned even if user switches tabs.
+    const executingTabId = executingTabIdState;
 
     return (
         <TooltipProvider disableHoverableContent>
@@ -1514,48 +1688,101 @@ function App() {
 
                         <div className="top-area">
                             <div className="main-content" ref={mainContentRef}>
-                                {selectedCommand && activeDraft ? (
-                                    <div className="main-body command-tab-shell">
-                                        <CommandDetail
-                                            command={selectedCommand}
-                                            draft={activeDraft}
-                                            baselineScriptBody={activeTabId && tabBaselines[activeTabId] ? tabBaselines[activeTabId].scriptBody : ''}
-                                            onDraftChange={(partial) =>
-                                                activeTabId && updateDraft(activeTabId, partial)
-                                            }
-                                            isNewCommand={isNew}
-                                            isExecuting={isExecuting}
-                                            variables={resolvedVariables}
-                                            onExecute={handleExecute}
-                                            onRunInTerminal={handleRunInTerminal}
-                                            onFillVariables={handleFillVariables}
-                                            onDelete={() => void handleDeleteCommand(selectedCommand)}
-                                            onRenamePreset={handleRenamePresetFromDetail}
-                                            onDeletePreset={handleDeletePresetFromDetail}
-                                            onAddPreset={handleAddPresetFromDetail}
-                                            onSavePresetValues={handleSavePresetValuesFromDetail}
-                                            onReorderPresets={handleReorderPresetsFromDetail}
-                                            onResolvedValuesChange={setCurrentResolvedValues}
-                                            onSaveScript={handleSaveScriptDirect}
-                                            currentOS={currentOS}
-                                            defaultWorkingDir={defaultWorkingDir}
-                                        />
-                                        <FloatingSaveBar
-                                            visible={activeDirty}
-                                            saveDisabled={saveDisabled}
-                                            onSave={() => activeTabId && void handleSaveTab(activeTabId)}
-                                            onDiscard={() => activeTabId && handleDiscardTab(activeTabId)}
-                                        />
-                                    </div>
-                                ) : selectedCommand && !activeDraft ? (
+                                {/* Loading state: selectedCommand exists but draft hasn't hydrated yet */}
+                                {selectedCommand && !activeDraft && (
                                     <div className="main-body">
                                         <p className="text-muted-foreground text-sm p-4">{t('common.loading')}</p>
                                     </div>
-                                ) : (
+                                )}
+
+                                {/* Welcome state: no command selected and no active draft */}
+                                {!selectedCommand && !activeDraft && (
                                     <div className="main-body">
                                         <WelcomeTab onNewCommand={() => openNewCommandTab()} />
                                     </div>
                                 )}
+
+                                {/* Per-tab mounts: one CommandDetail per open command tab.
+                                    Inactive tabs are hidden via display:none so their DOM state
+                                    (scroll, cursor, textarea undo) survives across tab switches.
+                                    Handlers are cached per tab so React.memo can skip re-renders. */}
+                                {openTabs
+                                    .filter((tab) => tab.id !== '__welcome__')
+                                    .map((tab) => {
+                                        const draft = tabDrafts[tab.id];
+                                        const baseline = tabBaselines[tab.id];
+                                        const isTabNew = isNewCommandTabId(tab.id);
+                                        const command = isTabNew
+                                            ? makePlaceholderCommand(tab.id, draft?.categoryId)
+                                            : allCommandsRef.current.find((c) => c.id === tab.id) ?? null;
+                                        const isTabDirty = !!(draft && baseline && !draftsEqual(draft, baseline));
+                                        const isTabActive = tab.id === activeTabId;
+
+                                        // Variable resolution per D-08: active tab uses serverVariables-based
+                                        // resolution (existing useMemo keyed on selectedCommand); inactive tabs
+                                        // fall back to memoized draft-based variable definitions (stable refs).
+                                        const tabVariables = isTabActive
+                                            ? resolvedVariables
+                                            : (tabVariablesMap[tab.id] ?? []);
+
+                                        if (!command || !draft) return null;
+
+                                        // Use cached handlers so React.memo is effective
+                                        let handlers = tabHandlerCacheRef.current.get(tab.id);
+                                        if (!handlers) {
+                                            handlers = {
+                                                onExecute: makeHandleExecute(tab.id),
+                                                onRunInTerminal: makeHandleRunInTerminal(tab.id),
+                                                onFillVariables: makeHandleFillVariables(tab.id),
+                                                onDelete: makeHandleDelete(tab.id, closeTab),
+                                                onRenamePreset: makeHandleRenamePreset(tab.id),
+                                                onDeletePreset: makeHandleDeletePreset(tab.id),
+                                                onAddPreset: makeHandleAddPreset(tab.id),
+                                                onSavePresetValues: makeHandleSavePresetValues(tab.id),
+                                                onReorderPresets: makeHandleReorderPresets(tab.id),
+                                                onSaveScript: makeHandleSaveScript(tab.id),
+                                                onDraftChange: (partial: Partial<TabDraft>) => updateDraft(tab.id, partial),
+                                            };
+                                            tabHandlerCacheRef.current.set(tab.id, handlers);
+                                        }
+
+                                        return (
+                                            <div
+                                                key={tab.id}
+                                                className="main-body command-tab-shell"
+                                                style={{ display: isTabActive ? 'flex' : 'none' }}
+                                            >
+                                                <CommandDetail
+                                                    command={command}
+                                                    draft={draft}
+                                                    baselineScriptBody={baseline?.scriptBody || ''}
+                                                    onDraftChange={handlers.onDraftChange}
+                                                    isNewCommand={isTabNew}
+                                                     isExecuting={tab.id === executingTabId}
+                                                    variables={tabVariables}
+                                                    onExecute={handlers.onExecute}
+                                                    onRunInTerminal={handlers.onRunInTerminal}
+                                                    onFillVariables={handlers.onFillVariables}
+                                                    onDelete={handlers.onDelete}
+                                                    onRenamePreset={handlers.onRenamePreset}
+                                                    onDeletePreset={handlers.onDeletePreset}
+                                                    onAddPreset={handlers.onAddPreset}
+                                                    onSavePresetValues={handlers.onSavePresetValues}
+                                                    onReorderPresets={handlers.onReorderPresets}
+                                                    onResolvedValuesChange={isTabActive ? setCurrentResolvedValues : undefined}
+                                                    onSaveScript={handlers.onSaveScript}
+                                                    currentOS={currentOS}
+                                                    defaultWorkingDir={defaultWorkingDir}
+                                                />
+                                                <FloatingSaveBar
+                                                    visible={isTabDirty}
+                                                    saveDisabled={!draft || !draft.scriptBody.trim()}
+                                                    onSave={() => void handleSaveTab(tab.id)}
+                                                    onDiscard={() => handleDiscardTab(tab.id)}
+                                                />
+                                            </div>
+                                        );
+                                    })}
                             </div>
 
                             {!isWelcome && (
@@ -1694,7 +1921,7 @@ function App() {
                                     setModal({ type: 'none' });
                                     skipVarRemovalCheckRef.current = true;
                                     if (pendingDirectSaveBodyRef.current) {
-                                        await handleSaveScriptDirect(pendingDirectSaveBodyRef.current);
+                                        await handleSaveScriptDirect(modal.tabId, pendingDirectSaveBodyRef.current);
                                         pendingDirectSaveBodyRef.current = null;
                                     } else {
                                         await handleSaveTab(modal.tabId);

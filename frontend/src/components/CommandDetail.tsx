@@ -514,8 +514,22 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     return { ...vals, ...overrides };
   }, [selectedPresetId, command.presets, variables, overrides]);
 
+  const prevResolvedRef = useRef<Record<string, string>>({});
   useEffect(() => {
-    onResolvedValuesChange?.(resolvedValues);
+    // Only call onResolvedValuesChange when values actually change,
+    // preventing infinite loops when parent re-renders create new object references.
+    const keys = new Set([...Object.keys(prevResolvedRef.current), ...Object.keys(resolvedValues)]);
+    let changed = false;
+    for (const k of keys) {
+      if (prevResolvedRef.current[k] !== resolvedValues[k]) {
+        changed = true;
+        break;
+      }
+    }
+    if (changed) {
+      onResolvedValuesChange?.(resolvedValues);
+      prevResolvedRef.current = resolvedValues;
+    }
   }, [resolvedValues, onResolvedValuesChange]);
 
   const hasUnsavedChanges = useMemo(() => {
@@ -1352,4 +1366,4 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   );
 };
 
-export default CommandDetail;
+export default React.memo(CommandDetail);
