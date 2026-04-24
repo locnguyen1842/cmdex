@@ -943,32 +943,31 @@ function App() {
         runCommandDirect(selectedCommand.id, values);
     };
 
-    const handleRunInTerminal = async (values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        if (isSavedCommandDraftDirty(selectedCommand.id)) {
-            toast.message(t('toast.saveBeforeExecute'));
-            return;
-        }
-        try {
-            await RunInTerminal(selectedCommand.id, values);
-        } catch (err) {
-            toast.error(String(err));
-        }
-    };
+    const makeHandleExecute = useCallback((tabId: string) => {
+        return async (values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            if (isSavedCommandDraftDirty(tabId)) {
+                toast.message(t('toast.saveBeforeExecute'));
+                return;
+            }
+            runCommandDirect(tabId, values);
+        };
+    }, [isSavedCommandDraftDirty, t]);
 
-    const handleManagePresets = async () => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const [vars, presets] = await Promise.all([
-            GetVariables(selectedCommand.id),
-            GetPresets(selectedCommand.id),
-        ]);
-        setModal({
-            type: 'managePresets',
-            variables: vars || [],
-            commandId: selectedCommand.id,
-            presets: presets || [],
-        });
-    };
+    const makeHandleRunInTerminal = useCallback((tabId: string) => {
+        return async (values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            if (isSavedCommandDraftDirty(tabId)) {
+                toast.message(t('toast.saveBeforeExecute'));
+                return;
+            }
+            try {
+                await RunInTerminal(tabId, values);
+            } catch (err) {
+                toast.error(String(err));
+            }
+        };
+    }, [isSavedCommandDraftDirty, t]);
 
     const handleDeleteCommand = async (cmd: Command) => {
         try {
@@ -982,6 +981,20 @@ function App() {
             console.error('Failed to delete command:', err);
         }
     };
+
+    const makeHandleDelete = useCallback((tabId: string) => {
+        return async () => {
+            try {
+                await DeleteCommand(tabId);
+                closeTab(tabId);
+                await loadData();
+                toast.success(t('toast.commandDeleted'));
+            } catch (err) {
+                console.error('Failed to delete command:', err);
+            }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadData, t]);
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         const prev = commands;
@@ -1017,6 +1030,19 @@ function App() {
             initialValues,
         });
     };
+
+    const makeHandleFillVariables = useCallback((tabId: string) => {
+        return async (initialValues: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            const vars = await GetVariables(tabId);
+            setModal({
+                type: 'fillVariables',
+                variables: vars || [],
+                commandId: tabId,
+                initialValues,
+            });
+        };
+    }, [t]);
 
     const handleVariableSubmit = async (values: Record<string, string>) => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
@@ -1152,60 +1178,73 @@ function App() {
         setModal({ ...modal, presets: presets || [] });
     };
 
-    const refreshSelectedCommand = async (): Promise<Command | null> => {
+    const refreshCommand = useCallback(async (commandId: string): Promise<Command | null> => {
         const cmds = await GetCommands();
         allCommandsRef.current = cmds || [];
         setCommands(cmds || []);
-        const refreshed =
-            (cmds || []).find((c: Command) => c.id === selectedCommand?.id) ?? null;
+        const refreshed = (cmds || []).find((c: Command) => c.id === commandId) ?? null;
         if (refreshed) setSelectedCommand(refreshed);
         return refreshed;
-    };
+    }, []);
 
-    const handleAddPresetFromDetail = async (initialValues?: Record<string, string>): Promise<string> => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return '';
-        const created = await SavePreset(selectedCommand.id, t('commandDetail.newPresetName'), initialValues ?? {});
-        await refreshSelectedCommand();
-        return created.id;
-    };
+    const makeHandleAddPreset = useCallback((tabId: string) => {
+        return async (initialValues?: Record<string, string>): Promise<string> => {
+            if (isNewCommandTabId(tabId)) return '';
+            const created = await SavePreset(tabId, t('commandDetail.newPresetName'), initialValues ?? {});
+            await refreshCommand(tabId);
+            return created.id;
+        };
+    }, [t, refreshCommand]);
 
-    const handleRenamePresetFromDetail = async (presetId: string, newName: string) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const preset = selectedCommand.presets.find((p) => p.id === presetId);
-        if (!preset) return;
-        await UpdatePreset(selectedCommand.id, presetId, newName, preset.values);
-        await refreshSelectedCommand();
-    };
+    const makeHandleRenamePreset = useCallback((tabId: string) => {
+        return async (presetId: string, newName: string) => {
+            if (isNewCommandTabId(tabId)) return;
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            const preset = cmd?.presets.find((p) => p.id === presetId);
+            if (!preset) return;
+            await UpdatePreset(tabId, presetId, newName, preset.values);
+            await refreshCommand(tabId);
+        };
+    }, [refreshCommand]);
 
-    const handleDeletePresetFromDetail = async (presetId: string) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        await DeletePreset(selectedCommand.id, presetId);
-        await refreshSelectedCommand();
-    };
+    const makeHandleDeletePreset = useCallback((tabId: string) => {
+        return async (presetId: string) => {
+            if (isNewCommandTabId(tabId)) return;
+            await DeletePreset(tabId, presetId);
+            await refreshCommand(tabId);
+        };
+    }, [refreshCommand]);
 
-    const handleReorderPresetsFromDetail = async (presetIds: string[]) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const reordered = presetIds
-            .map((id) => selectedCommand.presets.find((p) => p.id === id))
-            .filter(Boolean) as typeof selectedCommand.presets;
-        setSelectedCommand((prev) => prev ? { ...prev, presets: reordered } : prev);
-        try {
-            await ReorderPresets(selectedCommand.id, presetIds);
-            await refreshSelectedCommand();
-        } catch (err) {
-            console.error('Failed to reorder presets:', err);
-            await refreshSelectedCommand();
-        }
-    };
+    const makeHandleReorderPresets = useCallback((tabId: string) => {
+        return async (presetIds: string[]) => {
+            if (isNewCommandTabId(tabId)) return;
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            if (!cmd) return;
+            const reordered = presetIds
+                .map((id) => cmd.presets.find((p) => p.id === id))
+                .filter(Boolean) as typeof cmd.presets;
+            setSelectedCommand((prev) => prev ? { ...prev, presets: reordered } : prev);
+            try {
+                await ReorderPresets(tabId, presetIds);
+                await refreshCommand(tabId);
+            } catch (err) {
+                console.error('Failed to reorder presets:', err);
+                await refreshCommand(tabId);
+            }
+        };
+    }, [refreshCommand]);
 
-    const handleSavePresetValuesFromDetail = async (presetId: string, values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const preset = selectedCommand.presets.find((p) => p.id === presetId);
-        if (!preset) return;
-        await UpdatePreset(selectedCommand.id, presetId, preset.name, values);
-        await refreshSelectedCommand();
-        toast.success(t('toast.presetSaved'));
-    };
+    const makeHandleSavePresetValues = useCallback((tabId: string) => {
+        return async (presetId: string, values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            const cmd = allCommandsRef.current.find((c) => c.id === tabId);
+            const preset = cmd?.presets.find((p) => p.id === presetId);
+            if (!preset) return;
+            await UpdatePreset(tabId, presetId, preset.name, values);
+            await refreshCommand(tabId);
+            toast.success(t('toast.presetSaved'));
+        };
+    }, [t, refreshCommand]);
 
     const handleCloseManagePresets = async () => {
         setModal({ type: 'none' });
@@ -1216,38 +1255,47 @@ function App() {
         }
     };
 
+    const makeHandleSaveScript = useCallback((tabId: string) => {
+        return async (scriptBody: string) => {
+            if (isNewCommandTabId(tabId)) return;
+            const d = tabDraftsRef.current[tabId];
+            if (!d) return;
+            const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
+            const vars = buildVariablesFromScript(strippedBody, d.variables);
+
+            if (!skipVarRemovalCheckRef.current) {
+                const removedWithPresets = computeRemovedVarsWithPresets(tabId, vars);
+                if (removedWithPresets.length > 0) {
+                    pendingDirectSaveBodyRef.current = scriptBody;
+                    setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId });
+                    return;
+                }
+            }
+
+            try {
+                await UpdateCommand(tabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars, d.workingDir);
+                await loadData();
+                const cmd = allCommandsRef.current.find(c => c.id === tabId);
+                if (cmd) {
+                    const body = await GetScriptBody(cmd.id);
+                    const saved = draftFromCommand(cmd, body);
+                    setTabDrafts(prev => ({ ...prev, [tabId]: saved }));
+                    setTabBaselines(prev => ({ ...prev, [tabId]: cloneDraft(saved) }));
+                    setSelectedCommand(cmd);
+                }
+                toast.success(t('toast.commandSaved'));
+            } catch (err) {
+                console.error('Failed to save script:', err);
+            }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadData, t]);
+
     const handleSaveScriptDirect = useCallback(async (scriptBody: string) => {
         if (!activeTabId || isNewCommandTabId(activeTabId)) return;
-        const d = tabDraftsRef.current[activeTabId];
-        if (!d) return;
-        const strippedBody = scriptBody.replace(/^\s+|\s+$/g, '');
-        const vars = buildVariablesFromScript(strippedBody, d.variables);
-
-        if (!skipVarRemovalCheckRef.current) {
-            const removedWithPresets = computeRemovedVarsWithPresets(activeTabId, vars);
-            if (removedWithPresets.length > 0) {
-                pendingDirectSaveBodyRef.current = scriptBody;
-                setModal({ type: 'confirmVarRemoval', removedVars: removedWithPresets, tabId: activeTabId });
-                return;
-            }
-        }
-
-        try {
-            await UpdateCommand(activeTabId, d.title.trim(), d.description.trim(), strippedBody, d.categoryId, d.tags.map(tag => tag.trim()).filter(Boolean), vars, d.workingDir);
-            await loadData();
-            const cmd = allCommandsRef.current.find(c => c.id === activeTabId);
-            if (cmd) {
-                const body = await GetScriptBody(cmd.id);
-                const saved = draftFromCommand(cmd, body);
-                setTabDrafts(prev => ({ ...prev, [activeTabId]: saved }));
-                setTabBaselines(prev => ({ ...prev, [activeTabId]: cloneDraft(saved) }));
-                setSelectedCommand(cmd);
-            }
-            toast.success(t('toast.commandSaved'));
-        } catch (err) {
-            console.error('Failed to save script:', err);
-        }
-    }, [activeTabId, loadData, t]);
+        const fn = makeHandleSaveScript(activeTabId);
+        await fn(scriptBody);
+    }, [activeTabId, makeHandleSaveScript]);
 
     const handleResetAllData = useCallback(async () => {
         try {
@@ -1526,17 +1574,17 @@ function App() {
                                             isNewCommand={isNew}
                                             isExecuting={isExecuting}
                                             variables={resolvedVariables}
-                                            onExecute={handleExecute}
-                                            onRunInTerminal={handleRunInTerminal}
-                                            onFillVariables={handleFillVariables}
-                                            onDelete={() => void handleDeleteCommand(selectedCommand)}
-                                            onRenamePreset={handleRenamePresetFromDetail}
-                                            onDeletePreset={handleDeletePresetFromDetail}
-                                            onAddPreset={handleAddPresetFromDetail}
-                                            onSavePresetValues={handleSavePresetValuesFromDetail}
-                                            onReorderPresets={handleReorderPresetsFromDetail}
+                                            onExecute={activeTabId ? makeHandleExecute(activeTabId) : undefined}
+                                            onRunInTerminal={activeTabId ? makeHandleRunInTerminal(activeTabId) : undefined}
+                                            onFillVariables={activeTabId ? makeHandleFillVariables(activeTabId) : undefined}
+                                            onDelete={activeTabId ? makeHandleDelete(activeTabId) : undefined}
+                                            onRenamePreset={activeTabId ? makeHandleRenamePreset(activeTabId) : undefined}
+                                            onDeletePreset={activeTabId ? makeHandleDeletePreset(activeTabId) : undefined}
+                                            onAddPreset={activeTabId ? makeHandleAddPreset(activeTabId) : undefined}
+                                            onSavePresetValues={activeTabId ? makeHandleSavePresetValues(activeTabId) : undefined}
+                                            onReorderPresets={activeTabId ? makeHandleReorderPresets(activeTabId) : undefined}
                                             onResolvedValuesChange={setCurrentResolvedValues}
-                                            onSaveScript={handleSaveScriptDirect}
+                                            onSaveScript={activeTabId ? makeHandleSaveScript(activeTabId) : undefined}
                                             currentOS={currentOS}
                                             defaultWorkingDir={defaultWorkingDir}
                                         />
