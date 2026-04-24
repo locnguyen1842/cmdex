@@ -141,6 +141,8 @@ function App() {
     const [historyPaneOpen, setHistoryPaneOpen] = useState(false);
     const selectedRecordRef = useRef<ExecutionRecord | null>(null);
     selectedRecordRef.current = selectedRecord;
+    const selectedCommandRef = useRef<Command | null>(null);
+    selectedCommandRef.current = selectedCommand;
     const streamLinesRef = useRef<string[]>([]);
     streamLinesRef.current = streamLines;
     const outputPaneOpenRef = useRef(false);
@@ -729,6 +731,32 @@ function App() {
     const skipVarRemovalCheckRef = useRef(false);
     const pendingDirectSaveBodyRef = useRef<string | null>(null);
 
+    // Cache per-tab handlers so React.memo on CommandDetail is effective.
+    // Factories (makeHandle*) and updateDraft are stable, so cached handlers are stable.
+    const tabHandlerCacheRef = useRef<Map<string, {
+        onExecute: (values: Record<string, string>) => void;
+        onRunInTerminal: (values: Record<string, string>) => void;
+        onFillVariables: (initialValues: Record<string, string>) => void;
+        onDelete: () => void;
+        onRenamePreset: (presetId: string, newName: string) => Promise<void>;
+        onDeletePreset: (presetId: string) => Promise<void>;
+        onAddPreset: (initialValues?: Record<string, string>) => Promise<string>;
+        onSavePresetValues: (presetId: string, values: Record<string, string>) => Promise<void>;
+        onReorderPresets: (presetIds: string[]) => Promise<void>;
+        onSaveScript: (scriptBody: string) => Promise<void>;
+        onDraftChange: (partial: Partial<TabDraft>) => void;
+    }>>(new Map());
+
+    // Clean up handler cache when tabs close
+    useEffect(() => {
+        const openIds = new Set(openTabs.map((t) => t.id));
+        for (const tabId of tabHandlerCacheRef.current.keys()) {
+            if (!openIds.has(tabId)) {
+                tabHandlerCacheRef.current.delete(tabId);
+            }
+        }
+    }, [openTabs]);
+
     const computeRemovedVarsWithPresets = (
         tabId: string,
         newVars: VariableDefinition[],
@@ -1044,7 +1072,7 @@ function App() {
                 initialValues,
             });
         };
-    }, [t]);
+    }, []);
 
     const handleVariableSubmit = async (values: Record<string, string>) => {
         if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
@@ -1185,16 +1213,24 @@ function App() {
         allCommandsRef.current = cmds || [];
         setCommands(cmds || []);
         const refreshed = (cmds || []).find((c: Command) => c.id === commandId) ?? null;
-        if (refreshed) setSelectedCommand(refreshed);
+        if (refreshed && selectedCommandRef.current?.id === refreshed.id) {
+            setSelectedCommand(refreshed);
+        }
         return refreshed;
     }, []);
 
     const makeHandleAddPreset = useCallback((tabId: string) => {
         return async (initialValues?: Record<string, string>): Promise<string> => {
             if (isNewCommandTabId(tabId)) return '';
-            const created = await SavePreset(tabId, t('commandDetail.newPresetName'), initialValues ?? {});
-            await refreshCommand(tabId);
-            return created.id;
+            try {
+                const created = await SavePreset(tabId, t('commandDetail.newPresetName'), initialValues ?? {});
+                await refreshCommand(tabId);
+                return created.id;
+            } catch (err) {
+                console.error('Failed to add preset:', err);
+                toast.error(t('toast.presetAddFailed'));
+                return '';
+            }
         };
     }, [t, refreshCommand]);
 
@@ -1204,18 +1240,28 @@ function App() {
             const cmd = allCommandsRef.current.find((c) => c.id === tabId);
             const preset = cmd?.presets.find((p) => p.id === presetId);
             if (!preset) return;
-            await UpdatePreset(tabId, presetId, newName, preset.values);
-            await refreshCommand(tabId);
+            try {
+                await UpdatePreset(tabId, presetId, newName, preset.values);
+                await refreshCommand(tabId);
+            } catch (err) {
+                console.error('Failed to rename preset:', err);
+                toast.error(t('toast.presetRenameFailed'));
+            }
         };
-    }, [refreshCommand]);
+    }, [refreshCommand, t]);
 
     const makeHandleDeletePreset = useCallback((tabId: string) => {
         return async (presetId: string) => {
             if (isNewCommandTabId(tabId)) return;
-            await DeletePreset(tabId, presetId);
-            await refreshCommand(tabId);
+            try {
+                await DeletePreset(tabId, presetId);
+                await refreshCommand(tabId);
+            } catch (err) {
+                console.error('Failed to delete preset:', err);
+                toast.error(t('toast.presetDeleteFailed'));
+            }
         };
-    }, [refreshCommand]);
+    }, [refreshCommand, t]);
 
     const makeHandleReorderPresets = useCallback((tabId: string) => {
         return async (presetIds: string[]) => {
@@ -1225,16 +1271,17 @@ function App() {
             const reordered = presetIds
                 .map((id) => cmd.presets.find((p) => p.id === id))
                 .filter(Boolean) as typeof cmd.presets;
-            setSelectedCommand((prev) => prev ? { ...prev, presets: reordered } : prev);
+            setSelectedCommand((prev) => (prev && prev.id === tabId) ? { ...prev, presets: reordered } : prev);
             try {
                 await ReorderPresets(tabId, presetIds);
                 await refreshCommand(tabId);
             } catch (err) {
                 console.error('Failed to reorder presets:', err);
+                toast.error(t('toast.presetReorderFailed'));
                 await refreshCommand(tabId);
             }
         };
-    }, [refreshCommand]);
+    }, [refreshCommand, t]);
 
     const makeHandleSavePresetValues = useCallback((tabId: string) => {
         return async (presetId: string, values: Record<string, string>) => {
@@ -1242,9 +1289,14 @@ function App() {
             const cmd = allCommandsRef.current.find((c) => c.id === tabId);
             const preset = cmd?.presets.find((p) => p.id === presetId);
             if (!preset) return;
-            await UpdatePreset(tabId, presetId, preset.name, values);
-            await refreshCommand(tabId);
-            toast.success(t('toast.presetSaved'));
+            try {
+                await UpdatePreset(tabId, presetId, preset.name, values);
+                await refreshCommand(tabId);
+                toast.success(t('toast.presetSaved'));
+            } catch (err) {
+                console.error('Failed to save preset values:', err);
+                toast.error(t('toast.presetSaveFailed'));
+            }
         };
     }, [t, refreshCommand]);
 
@@ -1293,11 +1345,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadData, t]);
 
-    const handleSaveScriptDirect = useCallback(async (scriptBody: string) => {
-        if (!activeTabId || isNewCommandTabId(activeTabId)) return;
-        const fn = makeHandleSaveScript(activeTabId);
+    const handleSaveScriptDirect = useCallback(async (tabId: string, scriptBody: string) => {
+        if (isNewCommandTabId(tabId)) return;
+        const fn = makeHandleSaveScript(tabId);
         await fn(scriptBody);
-    }, [activeTabId, makeHandleSaveScript]);
+    }, [makeHandleSaveScript]);
 
     const handleResetAllData = useCallback(async () => {
         try {
@@ -1579,9 +1631,7 @@ function App() {
                                 {/* Per-tab mounts: one CommandDetail per open command tab.
                                     Inactive tabs are hidden via display:none so their DOM state
                                     (scroll, cursor, textarea undo) survives across tab switches.
-                                    Note: callback props created inside .map() are new references
-                                    on every App render, so React.memo effectiveness is limited
-                                    for callbacks. The DOM persistence benefit is still achieved. */}
+                                    Handlers are cached per tab so React.memo can skip re-renders. */}
                                 {openTabs
                                     .filter((tab) => tab.id !== '__welcome__')
                                     .map((tab) => {
@@ -1605,6 +1655,25 @@ function App() {
 
                                         if (!command || !draft) return null;
 
+                                        // Use cached handlers so React.memo is effective
+                                        let handlers = tabHandlerCacheRef.current.get(tab.id);
+                                        if (!handlers) {
+                                            handlers = {
+                                                onExecute: makeHandleExecute(tab.id),
+                                                onRunInTerminal: makeHandleRunInTerminal(tab.id),
+                                                onFillVariables: makeHandleFillVariables(tab.id),
+                                                onDelete: makeHandleDelete(tab.id),
+                                                onRenamePreset: makeHandleRenamePreset(tab.id),
+                                                onDeletePreset: makeHandleDeletePreset(tab.id),
+                                                onAddPreset: makeHandleAddPreset(tab.id),
+                                                onSavePresetValues: makeHandleSavePresetValues(tab.id),
+                                                onReorderPresets: makeHandleReorderPresets(tab.id),
+                                                onSaveScript: makeHandleSaveScript(tab.id),
+                                                onDraftChange: (partial: Partial<TabDraft>) => updateDraft(tab.id, partial),
+                                            };
+                                            tabHandlerCacheRef.current.set(tab.id, handlers);
+                                        }
+
                                         return (
                                             <div
                                                 key={tab.id}
@@ -1615,21 +1684,21 @@ function App() {
                                                     command={command}
                                                     draft={draft}
                                                     baselineScriptBody={baseline?.scriptBody || ''}
-                                                    onDraftChange={(partial) => updateDraft(tab.id, partial)}
+                                                    onDraftChange={handlers.onDraftChange}
                                                     isNewCommand={isTabNew}
                                                     isExecuting={isExecuting}
                                                     variables={tabVariables}
-                                                    onExecute={makeHandleExecute(tab.id)}
-                                                    onRunInTerminal={makeHandleRunInTerminal(tab.id)}
-                                                    onFillVariables={makeHandleFillVariables(tab.id)}
-                                                    onDelete={makeHandleDelete(tab.id)}
-                                                    onRenamePreset={makeHandleRenamePreset(tab.id)}
-                                                    onDeletePreset={makeHandleDeletePreset(tab.id)}
-                                                    onAddPreset={makeHandleAddPreset(tab.id)}
-                                                    onSavePresetValues={makeHandleSavePresetValues(tab.id)}
-                                                    onReorderPresets={makeHandleReorderPresets(tab.id)}
+                                                    onExecute={handlers.onExecute}
+                                                    onRunInTerminal={handlers.onRunInTerminal}
+                                                    onFillVariables={handlers.onFillVariables}
+                                                    onDelete={handlers.onDelete}
+                                                    onRenamePreset={handlers.onRenamePreset}
+                                                    onDeletePreset={handlers.onDeletePreset}
+                                                    onAddPreset={handlers.onAddPreset}
+                                                    onSavePresetValues={handlers.onSavePresetValues}
+                                                    onReorderPresets={handlers.onReorderPresets}
                                                     onResolvedValuesChange={isTabActive ? setCurrentResolvedValues : undefined}
-                                                    onSaveScript={makeHandleSaveScript(tab.id)}
+                                                    onSaveScript={handlers.onSaveScript}
                                                     currentOS={currentOS}
                                                     defaultWorkingDir={defaultWorkingDir}
                                                 />
@@ -1780,7 +1849,7 @@ function App() {
                                     setModal({ type: 'none' });
                                     skipVarRemovalCheckRef.current = true;
                                     if (pendingDirectSaveBodyRef.current) {
-                                        await handleSaveScriptDirect(pendingDirectSaveBodyRef.current);
+                                        await handleSaveScriptDirect(modal.tabId, pendingDirectSaveBodyRef.current);
                                         pendingDirectSaveBodyRef.current = null;
                                     } else {
                                         await handleSaveTab(modal.tabId);
