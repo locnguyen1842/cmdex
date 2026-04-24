@@ -45,6 +45,8 @@ import {
     getCommandDisplayTitle,
     SettingsPayload,
     OSPathMap,
+    normalizeOS,
+    type OSKey,
 } from './types';
 
 import {
@@ -180,7 +182,7 @@ function App() {
     tabBaselinesRef.current = tabBaselines;
 
     const [paletteOpen, setPaletteOpen] = useState(false);
-    const [currentOS, setCurrentOS] = useState('');
+    const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
     const pendingCloseTabIdRef = useRef<string | null>(null);
     const mainContentRef = useRef<HTMLDivElement>(null);
 
@@ -189,6 +191,7 @@ function App() {
     const [uiFont, setUiFont] = useState<string>('Inter');
     const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
     const [density, setDensity] = useState<string>('comfortable');
+    const [defaultWorkingDir, setDefaultWorkingDir] = useState<OSPathMap>({});
 
     // Tracks whether settings have been loaded from DB (prevents premature saves before load)
     const settingsLoadedRef = useRef(false);
@@ -396,7 +399,7 @@ function App() {
     }, []);
 
     useEffect(() => {
-        GetOS().then(setCurrentOS).catch(() => setCurrentOS(''));
+        GetOS().then((os) => setCurrentOS(normalizeOS(os))).catch(() => setCurrentOS('unknown'));
         loadData();
         loadHistory();
         GetSettings()
@@ -464,6 +467,7 @@ function App() {
                 setUiFont(migratedUiFont);
                 setMonoFont(migratedMonoFont);
                 setDensity(migratedDensity);
+                setDefaultWorkingDir(s.defaultWorkingDir || {});
 
                 // Clear legacy localStorage keys after successful migration
                 [THEME_STORAGE_KEY, LAST_DARK_THEME_KEY, LAST_LIGHT_THEME_KEY,
@@ -550,12 +554,14 @@ function App() {
                 uiFont: payload.uiFont ?? current.uiFont,
                 monoFont: payload.monoFont ?? current.monoFont,
                 density: payload.density ?? current.density,
+                defaultWorkingDir: payload.defaultWorkingDir ?? current.defaultWorkingDir,
             };
             if (payload.locale) i18n.changeLanguage(payload.locale);
             if (payload.theme) setTheme(payload.theme);
             if (payload.uiFont) setUiFont(payload.uiFont);
             if (payload.monoFont) setMonoFont(payload.monoFont);
             if (payload.density) setDensity(payload.density);
+            if (payload.defaultWorkingDir) setDefaultWorkingDir(payload.defaultWorkingDir);
             if (payload.customThemes !== undefined) {
                 try {
                     const parsed = typeof payload.customThemes === 'string'
@@ -1548,7 +1554,7 @@ function App() {
                                             onResolvedValuesChange={setCurrentResolvedValues}
                                             onSaveScript={handleSaveScriptDirect}
                                             currentOS={currentOS}
-                                            defaultWorkingDir={settingsRef.current.defaultWorkingDir}
+                                            defaultWorkingDir={defaultWorkingDir}
                                         />
                                         <FloatingSaveBar
                                             visible={activeDirty}

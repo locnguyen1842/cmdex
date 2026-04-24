@@ -21,7 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
-import type { Command, TabDraft, VariablePrompt, OSPathMap } from '../types';
+import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey } from '../types';
 import { getOSPath, setOSPath, shortenPath } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -252,7 +252,7 @@ export interface CommandDetailProps {
   onReorderPresets: (presetIds: string[]) => Promise<void>;
   onResolvedValuesChange?: (values: Record<string, string>) => void;
   onSaveScript?: (scriptBody: string) => Promise<void>;
-  currentOS?: string;
+  currentOS?: OSKey;
   defaultWorkingDir?: OSPathMap;
 }
 
@@ -1305,7 +1305,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               variant="outline"
               size="sm"
               onClick={async () => {
-                if (!currentOS) return;
+                if (currentOS === 'unknown') return;
                 try {
                   const selected = await PickDirectory(workingDirDraft || effectiveWD);
                   if (selected) {
@@ -1315,7 +1315,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   console.error('Directory picker error:', err);
                 }
               }}
-              disabled={!currentOS}
+              disabled={currentOS === 'unknown'}
             >
               <FolderOpen size={14} className="mr-1" />
               {t('commandDetail.browse')}
@@ -1335,9 +1335,9 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
             <Button
               type="button"
               size="sm"
-              disabled={!currentOS}
+              disabled={currentOS === 'unknown'}
               onClick={() => {
-                if (!currentOS) return;
+                if (currentOS === 'unknown') return;
                 onDraftChange({ workingDir: setOSPath(draft.workingDir, currentOS, workingDirDraft) });
                 setWorkingDirDialogOpen(false);
               }}

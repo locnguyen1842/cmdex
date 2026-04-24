@@ -34,7 +34,7 @@ func (s *ExecutionService) resolveWorkingDir(cmd Command) string {
 	settings, err := db.GetSettings()
 	if err != nil {
 		fmt.Printf("resolveWorkingDir: GetSettings failed: %v\n", err)
-	} else {
+	} else if settings.DefaultWorkingDir != nil {
 		if path := settings.DefaultWorkingDir.GetCurrentOS(); path != "" {
 			return path
 		}

@@ -621,7 +621,10 @@ func (db *DB) CreateCommand(cmd Command) error {
 	}
 	defer tx.Rollback()
 
-	workingDirJSON, _ := json.Marshal(cmd.WorkingDir)
+	workingDirJSON, err := json.Marshal(cmd.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("marshal working_dir: %w", err)
+	}
 
 	_, err = tx.Exec(
 		`INSERT INTO commands (id, title, description, script_content, category_id, position, created_at, updated_at, working_dir)
@@ -682,7 +685,10 @@ func (db *DB) UpdateCommand(cmd Command) error {
 		defer tx.Rollback()
 	}
 
-	workingDirJSON, _ := json.Marshal(cmd.WorkingDir)
+	workingDirJSON, err := json.Marshal(cmd.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("marshal working_dir: %w", err)
+	}
 
 	// Update all fields except category_id and position (those are handled by UpdateCommandPosition if changed)
 	var updateErr error
@@ -1148,7 +1154,7 @@ func (db *DB) GetSettings() (AppSettings, error) {
 		Locale: "en", Terminal: "",
 		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
 		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
-		DefaultWorkingDir: OSPathMap{},
+		DefaultWorkingDir: &OSPathMap{},
 	}
 	x, y, w, h := -1, -1, 640, 520
 	defaults.WindowX = &x
@@ -1210,10 +1216,10 @@ func (db *DB) SetSettings(s AppSettings) error {
 	if s.Density != "" {
 		existing.Density = s.Density
 	}
-	// Only update DefaultWorkingDir if the caller provided a non-empty value.
-	// Empty value is ignored; to clear, use a dedicated API.
-	if !s.DefaultWorkingDir.IsEmpty() {
-		existing.DefaultWorkingDir = s.DefaultWorkingDir
+	// nil means "don't touch this field"; a non-nil (possibly empty) map means "apply/update/clear".
+	if s.DefaultWorkingDir != nil {
+		copy := *s.DefaultWorkingDir
+		existing.DefaultWorkingDir = &copy
 	}
 	if s.WindowX != nil {
 		existing.WindowX = s.WindowX

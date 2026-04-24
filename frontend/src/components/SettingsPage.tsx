@@ -9,7 +9,7 @@ import { Upload, Download, X, FolderOpen } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
 import { PickDirectory, GetOS } from '../../bindings/cmdex/app';
 import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
-import { TerminalInfo, getOSPath, setOSPath } from '../types';
+import { TerminalInfo, getOSPath, setOSPath, normalizeOS, type OSKey } from '../types';
 import { toast } from 'sonner';
 import { THEMES, CustomTheme } from '../App';
 import { Events } from '@wailsio/runtime';
@@ -176,7 +176,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [savedDensity, setSavedDensity] = useState(density);
   const [savedWorkingDir, setSavedWorkingDir] = useState('');
   const [draftWorkingDir, setDraftWorkingDir] = useState('');
-  const [currentOS, setCurrentOS] = useState('');
+  const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
 
   // Tracks whether the user has edited any draft field. While true, the
   // async GetSettings resolver below must NOT overwrite draft/saved values.
@@ -309,6 +309,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   }, [markTouched]);
 
   const persistWorkingDir = useCallback((path: string) => {
+    if (currentOS === 'unknown') return;
     GetSettings().then(current => {
       const newSettings = {
         locale, terminal, theme: draftTheme,
@@ -337,8 +338,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       .then(([s, os]) => {
         if (!s) return;
         if (userTouchedRef.current) return;
-        setCurrentOS(os);
-        const wd = getOSPath(s.defaultWorkingDir, os);
+        setCurrentOS(normalizeOS(os));
+        const wd = getOSPath(s.defaultWorkingDir, normalizeOS(os));
         setSavedWorkingDir(wd);
         setDraftWorkingDir(wd);
         const loc = s?.locale || i18n.language || 'en';
@@ -729,6 +730,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
+                disabled={currentOS === 'unknown'}
                 onClick={async () => {
                   try {
                     const selected = await PickDirectory(draftWorkingDir);
@@ -738,6 +740,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     }
                   } catch (err) {
                     console.error('Directory picker error:', err);
+                    toast.error(t('settings.pickDirectoryFailed', { message: String(err) }));
                   }
                 }}
               >

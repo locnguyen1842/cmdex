@@ -159,8 +159,8 @@ type AppSettings struct {
 	CustomThemes   string `json:"customThemes"`           // JSON-encoded []CustomTheme; empty string = "[]"
 	UIFont         string `json:"uiFont"`                 // UI sans-serif font
 	MonoFont       string `json:"monoFont"`               // monospace font for editor
-	Density           string    `json:"density"`                // layout density: compact | comfortable | spacious
-	DefaultWorkingDir OSPathMap `json:"defaultWorkingDir"` // Empty value is ignored by SetSettings; to clear, use a dedicated API.
+	Density           string     `json:"density"`                // layout density: compact | comfortable | spacious
+	DefaultWorkingDir *OSPathMap `json:"defaultWorkingDir,omitempty"` // nil = leave unchanged; non-nil empty map = clear.
 	WindowX           *int      `json:"windowX,omitempty"`      // settings window X position, nil = unset (center on open)
 	WindowY        *int   `json:"windowY,omitempty"`      // settings window Y position
 	WindowWidth    *int   `json:"windowWidth,omitempty"`  // settings window width, min 480

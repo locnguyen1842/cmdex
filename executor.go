@@ -45,8 +45,13 @@ func NewExecutor() *Executor {
 }
 
 // writeTempScript writes script content to a temp file and returns its path.
+// The extension is platform-appropriate (.bat on Windows, .sh elsewhere).
 func writeTempScript(content string) (string, error) {
-	f, err := os.CreateTemp("", "cmdex-*.sh")
+	ext := "*.sh"
+	if runtime.GOOS == "windows" {
+		ext = "*.bat"
+	}
+	f, err := os.CreateTemp("", "cmdex-"+ext)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +106,14 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, e.shell, tmpPath)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		// Windows: cmd /C tmp.bat
+		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
+	} else {
+		// Unix: shell can execute the temp script file directly.
+		cmd = exec.CommandContext(ctx, e.shell, tmpPath)
+	}
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
@@ -477,7 +489,7 @@ func (e *Executor) windowsTerminals() []terminalDef {
 					bin = "pwsh"
 				}
 				if workingDir != "" {
-					body = fmt.Sprintf("cd '%s'; %s", strings.ReplaceAll(workingDir, "'", "''"), body)
+					body = fmt.Sprintf("Set-Location -LiteralPath '%s' -ErrorAction Stop; %s", strings.ReplaceAll(workingDir, "'", "''"), body)
 				}
 				return exec.Command(bin, "-NoExit", "-Command", body).Start()
 			}},
