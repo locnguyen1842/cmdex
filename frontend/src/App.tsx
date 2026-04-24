@@ -1019,18 +1019,18 @@ function App() {
         }
     };
 
-    const makeHandleDelete = useCallback((tabId: string) => {
+    const makeHandleDelete = useCallback((tabId: string, closeTabFn: (id: string) => void) => {
         return async () => {
             try {
                 await DeleteCommand(tabId);
-                closeTab(tabId);
+                closeTabFn(tabId);
                 await loadData();
                 toast.success(t('toast.commandDeleted'));
             } catch (err) {
                 console.error('Failed to delete command:', err);
+                toast.error(String(err));
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadData, t]);
 
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
@@ -1368,43 +1368,42 @@ function App() {
     // returned between a factory-dep change and the post-commit effect firing.
     // We track the previous factory refs and compare during render; if any changed,
     // clear the cache before any component looks up its handlers.
-    const prevFactoriesRef = useRef<Record<string, ((...args: unknown[]) => unknown) | null>>({
-        makeHandleExecute: null,
-        makeHandleRunInTerminal: null,
-        makeHandleFillVariables: null,
-        makeHandleDelete: null,
-        makeHandleRenamePreset: null,
-        makeHandleDeletePreset: null,
-        makeHandleAddPreset: null,
-        makeHandleSavePresetValues: null,
-        makeHandleReorderPresets: null,
-        makeHandleSaveScript: null,
-    });
+    const factoryNames = [
+        'makeHandleExecute',
+        'makeHandleRunInTerminal',
+        'makeHandleFillVariables',
+        'makeHandleDelete',
+        'makeHandleRenamePreset',
+        'makeHandleDeletePreset',
+        'makeHandleAddPreset',
+        'makeHandleSavePresetValues',
+        'makeHandleReorderPresets',
+        'makeHandleSaveScript',
+    ] as const;
+
+    const factories: Record<(typeof factoryNames)[number], (...args: unknown[]) => unknown> = {
+        makeHandleExecute,
+        makeHandleRunInTerminal,
+        makeHandleFillVariables,
+        makeHandleDelete,
+        makeHandleRenamePreset,
+        makeHandleDeletePreset,
+        makeHandleAddPreset,
+        makeHandleSavePresetValues,
+        makeHandleReorderPresets,
+        makeHandleSaveScript,
+    };
+
+    const prevFactoriesRef = useRef<Record<string, ((...args: unknown[]) => unknown) | null>>(
+        Object.fromEntries(factoryNames.map((name) => [name, null]))
+    );
 
     const pf = prevFactoriesRef.current;
-    if (
-        pf.makeHandleExecute !== makeHandleExecute ||
-        pf.makeHandleRunInTerminal !== makeHandleRunInTerminal ||
-        pf.makeHandleFillVariables !== makeHandleFillVariables ||
-        pf.makeHandleDelete !== makeHandleDelete ||
-        pf.makeHandleRenamePreset !== makeHandleRenamePreset ||
-        pf.makeHandleDeletePreset !== makeHandleDeletePreset ||
-        pf.makeHandleAddPreset !== makeHandleAddPreset ||
-        pf.makeHandleSavePresetValues !== makeHandleSavePresetValues ||
-        pf.makeHandleReorderPresets !== makeHandleReorderPresets ||
-        pf.makeHandleSaveScript !== makeHandleSaveScript
-    ) {
+    if (factoryNames.some((name) => pf[name] !== factories[name])) {
         tabHandlerCacheRef.current.clear();
-        pf.makeHandleExecute = makeHandleExecute;
-        pf.makeHandleRunInTerminal = makeHandleRunInTerminal;
-        pf.makeHandleFillVariables = makeHandleFillVariables;
-        pf.makeHandleDelete = makeHandleDelete;
-        pf.makeHandleRenamePreset = makeHandleRenamePreset;
-        pf.makeHandleDeletePreset = makeHandleDeletePreset;
-        pf.makeHandleAddPreset = makeHandleAddPreset;
-        pf.makeHandleSavePresetValues = makeHandleSavePresetValues;
-        pf.makeHandleReorderPresets = makeHandleReorderPresets;
-        pf.makeHandleSaveScript = makeHandleSaveScript;
+        factoryNames.forEach((name) => {
+            pf[name] = factories[name];
+        });
     }
 
     const handleResetAllData = useCallback(async () => {
@@ -1735,7 +1734,7 @@ function App() {
                                                 onExecute: makeHandleExecute(tab.id),
                                                 onRunInTerminal: makeHandleRunInTerminal(tab.id),
                                                 onFillVariables: makeHandleFillVariables(tab.id),
-                                                onDelete: makeHandleDelete(tab.id),
+                                                onDelete: makeHandleDelete(tab.id, closeTab),
                                                 onRenamePreset: makeHandleRenamePreset(tab.id),
                                                 onDeletePreset: makeHandleDeletePreset(tab.id),
                                                 onAddPreset: makeHandleAddPreset(tab.id),
