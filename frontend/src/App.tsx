@@ -264,7 +264,9 @@ function App() {
         flushSettings();
     }, [density]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes
+    // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes.
+    // With per-tab mounts, this animates the entire main-content area on tab switch.
+    // Inactive shells are display:none so only the active shell is visible during the fade.
     useEffect(() => {
         const el = mainContentRef.current;
         if (!el) return;
