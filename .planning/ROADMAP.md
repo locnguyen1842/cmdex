@@ -179,6 +179,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Wrap `CommandDetail` in `React.memo` and verify no-op callback safety
-- [ ] 01-02-PLAN.md — Stabilize all per-tab action callbacks with `useCallback` factories keyed by `tabId`
-- [ ] 01-03-PLAN.md — Refactor JSX to iterated per-tab mounts with visibility toggle and active-tab gating
+- [x] 01-01-PLAN.md — Wrap `CommandDetail` in `React.memo` and verify no-op callback safety
+- [x] 01-02-PLAN.md — Stabilize all per-tab action callbacks with `useCallback` factories keyed by `tabId`
+- [x] 01-03-PLAN.md — Refactor JSX to iterated per-tab mounts with visibility toggle and active-tab gating
