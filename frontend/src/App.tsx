@@ -825,8 +825,11 @@ function App() {
                             tt.id === tabId ? { id: cmd.id, title: getCommandDisplayTitle(cmd) } : tt,
                         ),
                     );
-                    setActiveTabId(cmd.id);
-                    setSelectedCommand(cmd);
+                    // Only switch to the newly created command if the original tab is still active
+                    if (activeTabIdRef.current === tabId) {
+                        setActiveTabId(cmd.id);
+                        setSelectedCommand(cmd);
+                    }
                     toast.success(t('toast.commandCreated'));
                 } else {
                     await UpdateCommand(
@@ -846,7 +849,10 @@ function App() {
                         const saved = draftFromCommand(cmd, body);
                         setTabDrafts((prev) => ({ ...prev, [tabId]: saved }));
                         setTabBaselines((prev) => ({ ...prev, [tabId]: cloneDraft(saved) }));
-                        setSelectedCommand(cmd);
+                        // Only update selectedCommand if this tab is still active
+                        if (activeTabIdRef.current === tabId) {
+                            setSelectedCommand(cmd);
+                        }
                     }
                     toast.success(t('toast.commandSaved'));
                 }
