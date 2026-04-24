@@ -747,6 +747,10 @@ function App() {
         onDraftChange: (partial: Partial<TabDraft>) => void;
     }>>(new Map());
 
+    // Generation counter to invalidate handler cache when factory deps change
+    // (e.g., `t` from i18n changes on language switch).
+    const handlerGenRef = useRef(0);
+
     // Clean up handler cache when tabs close
     useEffect(() => {
         const openIds = new Set(openTabs.map((t) => t.id));
@@ -1361,6 +1365,13 @@ function App() {
         await fn(scriptBody);
     }, [makeHandleSaveScript]);
 
+    // Invalidate handler cache when factory deps change (e.g., `t` from i18n on language switch).
+    // Placed after all makeHandle* declarations so they are in scope.
+    useEffect(() => {
+        handlerGenRef.current++;
+        tabHandlerCacheRef.current.clear();
+    }, [makeHandleExecute, makeHandleRunInTerminal, makeHandleFillVariables, makeHandleDelete, makeHandleRenamePreset, makeHandleDeletePreset, makeHandleAddPreset, makeHandleSavePresetValues, makeHandleReorderPresets, makeHandleSaveScript]);
+
     const handleResetAllData = useCallback(async () => {
         try {
             await ResetAllData();
@@ -1576,7 +1587,25 @@ function App() {
         [selectedCommand?.id, executionHistory],
     );
 
+    // Memoize per-tab variable definitions so inactive tabs get stable references
+    // (prevents React.memo bypass from new array on every App render).
+    const tabVariablesMap = useMemo(() => {
+        const map: Record<string, VarPromptType[]> = {};
+        for (const tab of openTabs) {
+            if (tab.id === '__welcome__') continue;
+            const draft = tabDrafts[tab.id];
+            if (draft && !isNewCommandTabId(tab.id)) {
+                map[tab.id] = variableDefinitionsToPrompts(draft.variables);
+            }
+        }
+        return map;
+    }, [tabDrafts, openTabs]);
+
     const isWelcome = !selectedCommand && !activeDraft;
+
+    // Only the executing tab should receive isExecuting=true (prevents React.memo
+    // bypass on all mounted CommandDetail instances when execution state changes).
+    const executingTabId = isExecuting ? activeTabId : null;
 
     return (
         <TooltipProvider disableHoverableContent>
@@ -1656,12 +1685,10 @@ function App() {
 
                                         // Variable resolution per D-08: active tab uses serverVariables-based
                                         // resolution (existing useMemo keyed on selectedCommand); inactive tabs
-                                        // fall back to draft-based variable definitions.
+                                        // fall back to memoized draft-based variable definitions (stable refs).
                                         const tabVariables = isTabActive
                                             ? resolvedVariables
-                                            : draft
-                                                ? variableDefinitionsToPrompts(draft.variables)
-                                                : [];
+                                            : (tabVariablesMap[tab.id] ?? []);
 
                                         if (!command || !draft) return null;
 
@@ -1696,7 +1723,7 @@ function App() {
                                                     baselineScriptBody={baseline?.scriptBody || ''}
                                                     onDraftChange={handlers.onDraftChange}
                                                     isNewCommand={isTabNew}
-                                                    isExecuting={isExecuting}
+                                                     isExecuting={tab.id === executingTabId}
                                                     variables={tabVariables}
                                                     onExecute={handlers.onExecute}
                                                     onRunInTerminal={handlers.onRunInTerminal}
