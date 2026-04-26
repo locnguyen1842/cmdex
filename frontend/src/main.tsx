@@ -71,7 +71,7 @@ if (isSettingsWindow) {
                         const parsed = JSON.parse(s.customThemes)
                         setCustomThemes(Array.isArray(parsed) ? parsed : [])
                         customThemesStrRef.current = s.customThemes
-                    } catch {}
+                    } catch { /* ignore parse error */ }
                 }
             }).catch(() => {})
         }, [])
@@ -122,66 +122,38 @@ if (isSettingsWindow) {
                 windowX, windowY, windowWidth, windowHeight,
             }
             persistSettings(newSettings)
-        }, [customThemes, locale, terminal, theme, uiFont, monoFont, density, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight])
+        }, [customThemes, locale, terminal, uiFont, monoFont, density, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight])
 
-        const handleDensityChange = useCallback((d: string) => {
-            setDensity(d)
-            applyDensity(d)
-            const newSettings = {
-                locale, terminal, theme, lastDarkTheme, lastLightTheme,
-                customThemes: customThemesStrRef.current, uiFont, monoFont, density: d,
-                windowX, windowY, windowWidth, windowHeight,
-            }
-            persistSettings(newSettings)
-        }, [locale, terminal, theme, uiFont, monoFont, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight])
-
-        const handleUiFontChange = useCallback((font: string) => {
-            setUiFont(font)
-            applyFonts(font, monoFont)
-            const newSettings = {
-                locale, terminal, theme, lastDarkTheme, lastLightTheme,
-                customThemes: customThemesStrRef.current, uiFont: font, monoFont, density,
-                windowX, windowY, windowWidth, windowHeight,
-            }
-            persistSettings(newSettings)
-        }, [locale, terminal, theme, monoFont, density, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight])
-
-        const handleMonoFontChange = useCallback((font: string) => {
-            setMonoFont(font)
-            applyFonts(uiFont, font)
-            const newSettings = {
-                locale, terminal, theme, lastDarkTheme, lastLightTheme,
-                customThemes: customThemesStrRef.current, uiFont, monoFont: font, density,
-                windowX, windowY, windowWidth, windowHeight,
-            }
-            persistSettings(newSettings)
-        }, [locale, terminal, theme, uiFont, density, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight])
-
-        const handleImportTheme = useCallback((importedTheme: CustomTheme) => {
-            const updated = [...customThemes, importedTheme]
-            setCustomThemes(updated)
-            const updatedStr = JSON.stringify(updated)
-            customThemesStrRef.current = updatedStr
-            const newSettings = {
-                locale, terminal, theme, lastDarkTheme, lastLightTheme,
-                customThemes: updatedStr, uiFont, monoFont, density,
-                windowX, windowY, windowWidth, windowHeight,
-            }
-            persistSettings(newSettings)
-        }, [customThemes, locale, terminal, theme, lastDarkTheme, lastLightTheme, uiFont, monoFont, density, windowX, windowY, windowWidth, windowHeight, persistSettings])
+        const handleImportTheme = useCallback((newTheme: CustomTheme) => {
+            setCustomThemes(prev => {
+                const updated = [...prev, newTheme]
+                customThemesStrRef.current = JSON.stringify(updated)
+                const newSettings = {
+                    locale, terminal, theme, lastDarkTheme, lastLightTheme,
+                    customThemes: customThemesStrRef.current, uiFont, monoFont, density,
+                    windowX, windowY, windowWidth, windowHeight,
+                }
+                persistSettings(newSettings)
+                return updated
+            })
+        }, [locale, terminal, theme, uiFont, monoFont, density, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight])
 
         const handleRemoveCustomTheme = useCallback((themeId: string) => {
-            const updated = customThemes.filter(t => t.id !== themeId)
-            setCustomThemes(updated)
-            const updatedStr = JSON.stringify(updated)
-            customThemesStrRef.current = updatedStr
-            const newSettings = {
-                locale, terminal, theme, lastDarkTheme, lastLightTheme,
-                customThemes: updatedStr, uiFont, monoFont, density,
-                windowX, windowY, windowWidth, windowHeight,
-            }
-            persistSettings(newSettings)
-        }, [customThemes, locale, terminal, theme, lastDarkTheme, lastLightTheme, uiFont, monoFont, density, windowX, windowY, windowWidth, windowHeight, persistSettings])
+            setCustomThemes(prev => {
+                const updated = prev.filter(t => t.id !== themeId)
+                customThemesStrRef.current = JSON.stringify(updated)
+                const newSettings = {
+                    locale, terminal, theme, lastDarkTheme, lastLightTheme,
+                    customThemes: customThemesStrRef.current, uiFont, monoFont, density,
+                    windowX, windowY, windowWidth, windowHeight,
+                }
+                persistSettings(newSettings)
+                if (theme === themeId) {
+                    handleThemeChange('vscode-dark')
+                }
+                return updated
+            })
+        }, [locale, terminal, theme, uiFont, monoFont, density, persistSettings, lastDarkTheme, lastLightTheme, windowX, windowY, windowWidth, windowHeight, handleThemeChange])
 
         return (
             <SettingsPage
@@ -191,11 +163,8 @@ if (isSettingsWindow) {
                 onImportTheme={handleImportTheme}
                 onRemoveCustomTheme={handleRemoveCustomTheme}
                 density={density}
-                onDensityChange={handleDensityChange}
                 uiFont={uiFont}
                 monoFont={monoFont}
-                onUiFontChange={handleUiFontChange}
-                onMonoFontChange={handleMonoFontChange}
             />
         )
     }

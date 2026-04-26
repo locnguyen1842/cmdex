@@ -48,7 +48,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   ContextMenu,
@@ -267,7 +266,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onExecute,
   onRunInTerminal,
   onFillVariables,
-  onDelete,
   onRenamePreset,
   onDeletePreset,
   onAddPreset,
@@ -395,7 +393,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     } else {
       setScriptEditor(false);
     }
-  }, [command.id, isNewCommand]);
+  }, [command.id, draft.scriptBody, isNewCommand]);
 
   useEffect(() => {
     setOverrides({});
@@ -547,48 +545,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     [scriptBody],
   );
 
-  const renderScriptWithVars = useMemo(() => {
-    if (!scriptParts) return null;
-    return scriptParts.map((part, i) => {
-      if (/^\{\{\w+\}\}$/.test(part)) {
-        const varName = part.slice(2, -2);
-        return (
-          <span key={i} className="var-missing" title={varName}>
-            {part}
-          </span>
-        );
-      }
-      return <span key={i}>{part}</span>;
-    });
-  }, [scriptParts]);
 
-  const renderScriptResolved = useMemo(() => {
-    if (!scriptParts) return null;
-    return scriptParts.map((part, i) => {
-      if (/^\{\{\w+\}\}$/.test(part)) {
-        const varName = part.slice(2, -2);
-        const val = resolvedValues[varName];
-        const isFocused = focusedVarName === varName;
-        if (val) {
-          return (
-            <span
-              key={i}
-              className={`var-filled${isFocused ? ' var-focused' : ''}`}
-              title={`${varName}=${val}`}
-            >
-              {val}
-            </span>
-          );
-        }
-        return (
-          <span key={i} className={`var-missing${isFocused ? ' var-focused' : ''}`} title={varName}>
-            {part}
-          </span>
-        );
-      }
-      return <span key={i}>{part}</span>;
-    });
-  }, [scriptParts, resolvedValues, focusedVarName]);
 
   const renderScriptUnified = useMemo(() => {
     if (!scriptParts) return null;

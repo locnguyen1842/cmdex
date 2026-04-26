@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { VariablePrompt as VariablePromptType, VariablePreset } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -127,6 +127,9 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
       }
     }
     prevPresetsRef.current = presets;
+    // Intentionally omitting callbacks to avoid re-running on every render;
+    // this effect only needs to react to presets array changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presets]);
 
   useEffect(() => {

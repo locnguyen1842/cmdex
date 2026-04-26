@@ -76,14 +76,17 @@ task dev
 | `wails3 dev` | Development mode with hot-reload |
 | `task build` | Build via Task (cross-platform) |
 | `task dev` | Dev mode via Task |
+| `cd frontend && pnpm lint` | Run ESLint |
+| `cd frontend && pnpm lint:fix` | Auto-fix ESLint issues |
 | `cd frontend && pnpm tsc --noEmit` | TypeScript type check |
 
 ## Pull Request Process
 
 1. Fork the repository and create a branch from `main`.
 2. Make your changes.
-3. Ensure the project builds and type-checks:
+3. Ensure the project builds, lints, and type-checks:
    - `go build ./...`
+   - `cd frontend && pnpm lint`
    - `cd frontend && pnpm tsc --noEmit`
 4. Update documentation if your changes affect user-facing behavior.
 5. Open a pull request against the `main` branch with a clear description.

@@ -111,10 +111,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     </div>
   );
 
-  const panelStyle: React.CSSProperties = collapsed
-    ? { width: 44, minWidth: 44, maxWidth: 44 }
-    : { width, minWidth, maxWidth };
-
   return (
     <div
       className={`resizable-panel ${side} ${collapsed ? 'is-collapsed' : ''} ${dragging ? 'is-resizing' : ''} ${className ?? ''}`}

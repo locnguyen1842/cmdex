@@ -17,7 +17,6 @@ import { useKeyboardShortcuts, cmdOrCtrl, SHORTCUTS } from './hooks/useKeyboardS
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 import {
@@ -46,7 +45,6 @@ import {
     SettingsPayload,
     OSPathMap,
     normalizeOS,
-    THEMES,
     type OSKey,
     type CustomTheme,
 } from './types';
@@ -66,7 +64,6 @@ import {
     DeletePreset,
     ReorderCommand,
     GetScriptBody,
-    ResetAllData,
     ReorderPresets,
 } from '../bindings/cmdex/commandservice';
 import {
@@ -174,7 +171,7 @@ function App() {
     const mainContentRef = useRef<HTMLDivElement>(null);
 
     const [theme, setTheme] = useState<string>('vscode-dark');
-    const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+
     const [uiFont, setUiFont] = useState<string>('Inter');
     const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
     const [density, setDensity] = useState<string>('comfortable');
@@ -234,7 +231,7 @@ function App() {
         document.documentElement.setAttribute('data-theme', theme);
         settingsRef.current.theme = theme;
         flushSettings();
-    }, [theme]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [theme]);  
 
     useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -253,19 +250,19 @@ function App() {
         document.documentElement.style.setProperty('--font-sans', fontValue);
         settingsRef.current.uiFont = uiFont;
         flushSettings();
-    }, [uiFont]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [uiFont]);  
 
     useEffect(() => {
         document.documentElement.style.setProperty('--font-mono', `'${monoFont}', monospace`);
         settingsRef.current.monoFont = monoFont;
         flushSettings();
-    }, [monoFont]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [monoFont]);  
 
     useEffect(() => {
         document.documentElement.setAttribute('data-density', density);
         settingsRef.current.density = density;
         flushSettings();
-    }, [density]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [density]);  
 
     // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes.
     // With per-tab mounts, this animates the entire main-content area on tab switch.
@@ -307,7 +304,7 @@ function App() {
             });
         }
         return serverVariables;
-    }, [selectedCommand?.id, tabDrafts, serverVariables]);
+    }, [selectedCommand, tabDrafts, serverVariables]);
 
     const variablesRequestIdRef = useRef(0);
     useEffect(() => {
@@ -331,7 +328,7 @@ function App() {
                     setServerVariables([]);
                 }
             });
-    }, [selectedCommand?.id]);
+    }, [selectedCommand]);
 
     useEffect(() => {
         if (!activeTabId || !tabDrafts[activeTabId]) return;
@@ -363,7 +360,7 @@ function App() {
         if (d && b && !draftsEqual(d, b)) return;
         const fresh = commands.find((c) => c.id === selectedCommand.id);
         if (fresh) setSelectedCommand(fresh);
-    }, [commands, selectedCommand?.id, tabDrafts, tabBaselines]);
+    }, [commands, selectedCommand, tabDrafts, tabBaselines]);
 
     const loadData = useCallback(async () => {
         try {
@@ -452,7 +449,7 @@ function App() {
 
                 // Apply state — each setter triggers its effect which calls flushSettings
                 setTheme(migratedTheme);
-                setCustomThemes(migratedCustomThemes);
+                settingsRef.current.customThemes = migratedCustomThemes;
                 setUiFont(migratedUiFont);
                 setMonoFont(migratedMonoFont);
                 setDensity(migratedDensity);
@@ -557,7 +554,6 @@ function App() {
                         ? JSON.parse(payload.customThemes)
                         : payload.customThemes;
                     if (Array.isArray(parsed)) {
-                        setCustomThemes(parsed);
                         settingsRef.current.customThemes = parsed;
                     }
                 } catch {
@@ -980,6 +976,109 @@ function App() {
         runCommandDirect(selectedCommand.id, values);
     };
 
+    const MAX_STREAM_LINES = 5000;
+
+    const flushStreamBuffer = useCallback(() => {
+        const execTabId = executingTabIdRef.current;
+        const newLines = streamBufferRef.current;
+        streamBufferRef.current = [];
+        streamFlushRef.current = null;
+
+        if (execTabId) {
+            const slot = tabOutputRef.current[execTabId] || { record: null, streamLines: [] };
+            const combined = [...slot.streamLines, ...newLines];
+            slot.streamLines = combined.length > MAX_STREAM_LINES
+                ? combined.slice(combined.length - MAX_STREAM_LINES)
+                : combined;
+            tabOutputRef.current[execTabId] = slot;
+        }
+
+        if (execTabId === activeTabIdRef.current) {
+            setStreamLines((prev) => {
+                const combined = [...prev, ...newLines];
+                if (combined.length > MAX_STREAM_LINES) {
+                    return combined.slice(combined.length - MAX_STREAM_LINES);
+                }
+                return combined;
+            });
+        }
+    }, []);
+
+    const runCommandDirect = useCallback(async (commandId: string, variables: Record<string, string>) => {
+        const execTabId = activeTabIdRef.current;
+        executingTabIdRef.current = execTabId;
+        setExecutingTabIdState(execTabId);
+        setIsExecuting(true);
+        setSelectedRecord(null);
+        setStreamLines([]);
+        streamBufferRef.current = [];
+        if (execTabId) {
+            tabOutputRef.current[execTabId] = { record: null, streamLines: [] };
+        }
+        setOutputPaneOpen(true);
+        setHistoryPaneOpen(true);
+
+        const cleanup = Events.On(eventNames.cmdOutput, (event) => {
+            const chunk = event.data as { stream: string; data: string };
+            const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
+            streamBufferRef.current.push(prefix + chunk.data);
+            if (streamFlushRef.current === null) {
+                streamFlushRef.current = requestAnimationFrame(flushStreamBuffer);
+            }
+        });
+
+        try {
+            const record = await RunCommand(commandId, variables);
+            if (streamFlushRef.current !== null) {
+                cancelAnimationFrame(streamFlushRef.current);
+                streamFlushRef.current = null;
+            }
+            if (streamBufferRef.current.length > 0) {
+                flushStreamBuffer();
+            }
+            if (execTabId) {
+                const cached = tabOutputRef.current[execTabId];
+                tabOutputRef.current[execTabId] = {
+                    record,
+                    streamLines: cached?.streamLines || [],
+                };
+            }
+            if (execTabId === activeTabIdRef.current) {
+                setSelectedRecord(record);
+            }
+            await loadHistory();
+            if (record.exitCode === 0) {
+                toast.success(t('toast.commandSuccess'));
+            } else {
+                toast.error(t('toast.commandFailed', { code: record.exitCode }));
+            }
+        } catch (err) {
+            const errRecord: ExecutionRecord = {
+                id: '',
+                commandId: commandId,
+                scriptContent: '',
+                finalCmd: '',
+                output: '',
+                error: String(err),
+                exitCode: -1,
+                workingDir: '',
+                executedAt: new Date().toISOString(),
+            };
+            if (execTabId) {
+                tabOutputRef.current[execTabId] = { record: errRecord, streamLines: [] };
+            }
+            if (execTabId === activeTabIdRef.current) {
+                setSelectedRecord(errRecord);
+            }
+            toast.error(t('toast.commandFailed', { code: -1 }));
+        } finally {
+            cleanup();
+            executingTabIdRef.current = null;
+            setExecutingTabIdState(null);
+            setIsExecuting(false);
+        }
+    }, [flushStreamBuffer, t, loadHistory]);
+
     const makeHandleExecute = useCallback((tabId: string) => {
         return async (values: Record<string, string>) => {
             if (isNewCommandTabId(tabId)) return;
@@ -989,7 +1088,7 @@ function App() {
             }
             runCommandDirect(tabId, values);
         };
-    }, [isSavedCommandDraftDirty, t]);
+    }, [isSavedCommandDraftDirty, runCommandDirect, t]);
 
     const makeHandleRunInTerminal = useCallback((tabId: string) => {
         return async (values: Record<string, string>) => {
@@ -1089,109 +1188,6 @@ function App() {
         }
         setModal({ type: 'none' });
         runCommandDirect(selectedCommand.id, values);
-    };
-
-    const MAX_STREAM_LINES = 5000;
-
-    const flushStreamBuffer = useCallback(() => {
-        const execTabId = executingTabIdRef.current;
-        const newLines = streamBufferRef.current;
-        streamBufferRef.current = [];
-        streamFlushRef.current = null;
-
-        if (execTabId) {
-            const slot = tabOutputRef.current[execTabId] || { record: null, streamLines: [] };
-            const combined = [...slot.streamLines, ...newLines];
-            slot.streamLines = combined.length > MAX_STREAM_LINES
-                ? combined.slice(combined.length - MAX_STREAM_LINES)
-                : combined;
-            tabOutputRef.current[execTabId] = slot;
-        }
-
-        if (execTabId === activeTabIdRef.current) {
-            setStreamLines((prev) => {
-                const combined = [...prev, ...newLines];
-                if (combined.length > MAX_STREAM_LINES) {
-                    return combined.slice(combined.length - MAX_STREAM_LINES);
-                }
-                return combined;
-            });
-        }
-    }, []);
-
-    const runCommandDirect = async (commandId: string, variables: Record<string, string>) => {
-        const execTabId = activeTabIdRef.current;
-        executingTabIdRef.current = execTabId;
-        setExecutingTabIdState(execTabId);
-        setIsExecuting(true);
-        setSelectedRecord(null);
-        setStreamLines([]);
-        streamBufferRef.current = [];
-        if (execTabId) {
-            tabOutputRef.current[execTabId] = { record: null, streamLines: [] };
-        }
-        setOutputPaneOpen(true);
-        setHistoryPaneOpen(true);
-
-        const cleanup = Events.On(eventNames.cmdOutput, (event) => {
-            const chunk = event.data as { stream: string; data: string };
-            const prefix = chunk.stream === 'stderr' ? '\x1b[stderr]' : '';
-            streamBufferRef.current.push(prefix + chunk.data);
-            if (streamFlushRef.current === null) {
-                streamFlushRef.current = requestAnimationFrame(flushStreamBuffer);
-            }
-        });
-
-        try {
-            const record = await RunCommand(commandId, variables);
-            if (streamFlushRef.current !== null) {
-                cancelAnimationFrame(streamFlushRef.current);
-                streamFlushRef.current = null;
-            }
-            if (streamBufferRef.current.length > 0) {
-                flushStreamBuffer();
-            }
-            if (execTabId) {
-                const cached = tabOutputRef.current[execTabId];
-                tabOutputRef.current[execTabId] = {
-                    record,
-                    streamLines: cached?.streamLines || [],
-                };
-            }
-            if (execTabId === activeTabIdRef.current) {
-                setSelectedRecord(record);
-            }
-            await loadHistory();
-            if (record.exitCode === 0) {
-                toast.success(t('toast.commandSuccess'));
-            } else {
-                toast.error(t('toast.commandFailed', { code: record.exitCode }));
-            }
-        } catch (err) {
-            const errRecord: ExecutionRecord = {
-                id: '',
-                commandId: commandId,
-                scriptContent: '',
-                finalCmd: '',
-                output: '',
-                error: String(err),
-                exitCode: -1,
-                workingDir: '',
-                executedAt: new Date().toISOString(),
-            };
-            if (execTabId) {
-                tabOutputRef.current[execTabId] = { record: errRecord, streamLines: [] };
-            }
-            if (execTabId === activeTabIdRef.current) {
-                setSelectedRecord(errRecord);
-            }
-            toast.error(t('toast.commandFailed', { code: -1 }));
-        } finally {
-            cleanup();
-            executingTabIdRef.current = null;
-            setExecutingTabIdState(null);
-            setIsExecuting(false);
-        }
     };
 
     const handleSavePreset = async (name: string, values: Record<string, string>) => {
@@ -1355,7 +1351,7 @@ function App() {
                 console.error('Failed to save script:', err);
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, [loadData, t]);
 
     const handleSaveScriptDirect = useCallback(async (tabId: string, scriptBody: string) => {
@@ -1405,91 +1401,6 @@ function App() {
             pf[name] = factories[name];
         });
     }
-
-    const handleResetAllData = useCallback(async () => {
-        try {
-            await ResetAllData();
-            await loadData();
-            await loadHistory();
-            setSelectedCommand(null);
-            setTabDrafts({});
-            setTabBaselines({});
-            setOpenTabs([]);
-            setActiveTabId(null);
-            setStreamLines([]);
-            tabOutputRef.current = {};
-            setModal({ type: 'none' });
-        } catch (err) {
-            console.error('Failed to reset data:', err);
-        }
-    }, [loadData, loadHistory]);
-
-    const handleThemeChange = useCallback((newTheme: string) => {
-        // Find type from built-in themes first, then custom themes
-        const builtIn = THEMES.find(t => t.id === newTheme);
-        const custom = customThemes.find(t => t.id === newTheme);
-        const themeType = builtIn?.type ?? custom?.type ?? 'dark';
-
-        if (themeType === 'dark') {
-            settingsRef.current.lastDarkTheme = newTheme;
-        } else {
-            settingsRef.current.lastLightTheme = newTheme;
-        }
-
-        // Apply custom theme CSS vars if it's an imported theme
-        if (custom) {
-            // Apply this custom theme's colors as inline CSS vars
-            Object.entries(custom.colors).forEach(([key, value]) => {
-                document.documentElement.style.setProperty(`--${key}`, value);
-            });
-        } else {
-            // Built-in theme — remove any inline custom vars so [data-theme] CSS takes over
-            const allVarKeys = [
-                'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
-                'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
-                'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
-                'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
-                'tab-active-indicator', 'status-bar-bg', 'status-bar-fg'
-            ];
-            allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
-        }
-
-        setTheme(newTheme);
-    }, [customThemes]);
-
-    const handleImportTheme = useCallback((newTheme: CustomTheme) => {
-        setCustomThemes(prev => {
-            const updated = [...prev, newTheme];
-            settingsRef.current.customThemes = updated;
-            flushSettings();
-            return updated;
-        });
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleRemoveCustomTheme = useCallback((themeId: string) => {
-        setCustomThemes(prev => {
-            const updated = prev.filter(t => t.id !== themeId);
-            settingsRef.current.customThemes = updated;
-            flushSettings();
-            // If the removed theme was active, fall back to vscode-dark
-            if (theme === themeId) {
-                handleThemeChange('vscode-dark');
-            }
-            return updated;
-        });
-    }, [theme, handleThemeChange]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleUiFontChange = useCallback((font: string) => {
-        setUiFont(font);
-    }, []);
-
-    const handleMonoFontChange = useCallback((font: string) => {
-        setMonoFont(font);
-    }, []);
-
-    const handleDensityChange = useCallback((d: string) => {
-        setDensity(d);
-    }, []);
 
     const handleSelectCommand = (cmd: Command) => {
         openTab(cmd);
@@ -1618,7 +1529,7 @@ function App() {
             selectedCommand && !isNewCommandTabId(selectedCommand.id)
                 ? executionHistory.filter((r) => r.commandId === selectedCommand.id)
                 : executionHistory,
-        [selectedCommand?.id, executionHistory],
+        [selectedCommand, executionHistory],
     );
 
     // Memoize per-tab variable definitions so inactive tabs get stable references

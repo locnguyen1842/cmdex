@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import SettingsPage, { SettingsPageProps } from './SettingsPage';
-import type { CustomTheme } from '../types';
-
 interface SettingsDialogProps extends SettingsPageProps {
   open: boolean;
   onClose: () => void;

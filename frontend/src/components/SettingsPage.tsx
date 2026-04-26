@@ -135,9 +135,6 @@ export interface SettingsPageProps {
   uiFont?: string;
   monoFont?: string;
   density?: string;
-  onUiFontChange?: (font: string) => void;
-  onMonoFontChange?: (font: string) => void;
-  onDensityChange?: (density: string) => void;
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -150,14 +147,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   uiFont = 'Inter',
   monoFont = 'JetBrains Mono',
   density = 'comfortable',
-  onUiFontChange,
-  onMonoFontChange,
-  onDensityChange,
 }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
-  const [savedLocale, setSavedLocale] = useState('en');
-  const [savedTerminal, setSavedTerminal] = useState('');
+  const [, setSavedLocale] = useState('en');
+  const [, setSavedTerminal] = useState('');
   const [locale, setLocale] = useState('en');
   const [terminal, setTerminal] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
@@ -173,7 +167,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [savedUiFont, setSavedUiFont] = useState(uiFont);
   const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
   const [savedDensity, setSavedDensity] = useState(density);
-  const [savedWorkingDir, setSavedWorkingDir] = useState('');
+  const [, setSavedWorkingDir] = useState('');
   const [draftWorkingDir, setDraftWorkingDir] = useState('');
   const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
 
@@ -413,15 +407,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     };
   }, [savedTheme, savedDensity, savedUiFont, savedMonoFont]);
 
-  const isDirty =
-    locale !== savedLocale ||
-    terminal !== savedTerminal ||
-    draftTheme !== savedTheme ||
-    draftUiFont !== savedUiFont ||
-    draftMonoFont !== savedMonoFont ||
-    draftDensity !== savedDensity ||
-    draftWorkingDir !== savedWorkingDir;
-
   useEffect(() => {
     if (customThemes && customThemes.length > 0) {
       customThemesStrRef.current = JSON.stringify(customThemes);
@@ -429,41 +414,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       customThemesStrRef.current = '[]';
     }
   }, [customThemes]);
-
-  const handleSave = useCallback(async () => {
-    try {
-      await i18n.changeLanguage(locale);
-      // In standalone mode SettingsPage already drives DOM preview itself,
-      // and the persisted settings-changed event notifies other windows.
-      // Parent callbacks are only needed for the in-app modal flow.
-      setSavedTheme(draftTheme);
-      setSavedUiFont(draftUiFont);
-      setSavedMonoFont(draftMonoFont);
-      setSavedDensity(draftDensity);
-      setSavedWorkingDir(draftWorkingDir);
-      const current = await GetSettings();
-      const newSettings = {
-        locale,
-        terminal,
-        theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || '[]',
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, draftWorkingDir),
-      };
-      await SetSettings(JSON.stringify(newSettings));
-      Events.Emit(eventNames.settingsChanged, newSettings);
-      setSavedLocale(locale);
-      setSavedTerminal(terminal);
-      userTouchedRef.current = false;
-      toast.success(t('settings.title'));
-    } catch (err) {
-      console.error('Failed to persist settings:', err);
-    }
-  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, draftWorkingDir, currentOS, i18n, t]);
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

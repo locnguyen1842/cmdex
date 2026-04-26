@@ -7,6 +7,8 @@
     "dev": "vite",
     "build:dev": "vite build --minify false --mode development",
     "build": "tsc && vite build --mode production",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -38,11 +40,16 @@
     ]
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^16.5.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.0",
     "vite": "^7.3.1"
   }
 }

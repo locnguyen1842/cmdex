@@ -160,7 +160,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
     const time = formatTime(record.executedAt, i18nInstance.language);
     const dir = shortenDir(record.workingDir || '');
     return `[${time}] ${dir} ➤ `;
-  }, [showRecord, record?.executedAt, record?.workingDir]);
+  }, [showRecord, record?.executedAt, record?.workingDir, i18nInstance.language]);
 
   return (
     <Collapsible open={isOpen} className="output-pane">
