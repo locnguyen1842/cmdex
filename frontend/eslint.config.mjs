@@ -8,33 +8,46 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default defineConfig(
   globalIgnores(['dist/', 'node_modules/', 'wailsjs/', 'bindings/', 'vite.config.ts']),
+
   {
     files: ['**/*.{ts,tsx}'],
+
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
-        project: './tsconfig.json',
-        tsconfigRootDir: import.meta.dirname,
+        ecmaFeatures: { jsx: true },
       },
       globals: {
         ...globals.browser,
         ...globals.es2021,
       },
     },
+
     plugins: {
-      '@typescript-eslint': tseslint.plugin,
       'react-hooks': reactHooks,
     },
+
     extends: [
       js.configs.recommended,
-      ...tseslint.configs.recommended,
+      ...tseslint.configs.recommended
     ],
+
     rules: {
+      ...reactHooks.configs['recommended-latest'].rules,
+
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/consistent-type-imports': [
+        'warn',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
+      ],
+
       'no-console': 'off',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
     },
-  }
+  },
+
+  {
+    files: ['**/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
 );
