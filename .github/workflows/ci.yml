@@ -179,6 +179,12 @@ jobs:
         shell: bash
         run: echo "$HOME/go/bin" >> $GITHUB_PATH
 
+      - name: Install frontend deps
+        run: cd frontend && pnpm install
+
+      - name: Lint frontend
+        run: cd frontend && pnpm lint
+
       - name: Cache frontend build
         uses: actions/cache@v4
         with:

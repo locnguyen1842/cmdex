@@ -141,6 +141,7 @@ function App() {
     selectedRecordRef.current = selectedRecord;
     const selectedCommandRef = useRef<Command | null>(null);
     selectedCommandRef.current = selectedCommand;
+    const selectedCommandId = selectedCommand?.id;
     const streamLinesRef = useRef<string[]>([]);
     streamLinesRef.current = streamLines;
     const outputPaneOpenRef = useRef(false);
@@ -282,12 +283,12 @@ function App() {
 
     const resolvedVariables = useMemo(() => {
         if (!selectedCommand) return [];
-        if (isNewCommandTabId(selectedCommand.id)) {
-            const d = tabDrafts[selectedCommand.id];
+        if (isNewCommandTabId(selectedCommandId)) {
+            const d = tabDrafts[selectedCommandId];
             if (!d) return [];
             return variableDefinitionsToPrompts(d.variables);
         }
-        const d = tabDrafts[selectedCommand.id];
+        const d = tabDrafts[selectedCommandId];
         if (d) {
             const serverMap = new Map(serverVariables.map(v => [v.name, v]));
             return d.variables.map(dv => {
@@ -304,7 +305,7 @@ function App() {
             });
         }
         return serverVariables;
-    }, [selectedCommand, tabDrafts, serverVariables]);
+    }, [selectedCommandId, tabDrafts, serverVariables]);
 
     const variablesRequestIdRef = useRef(0);
     useEffect(() => {
@@ -312,12 +313,12 @@ function App() {
             setServerVariables([]);
             return;
         }
-        if (isNewCommandTabId(selectedCommand.id)) {
+        if (isNewCommandTabId(selectedCommandId)) {
             setServerVariables([]);
             return;
         }
         const requestId = ++variablesRequestIdRef.current;
-        GetVariables(selectedCommand.id)
+        GetVariables(selectedCommandId)
             .then((v) => {
                 if (variablesRequestIdRef.current === requestId) {
                     setServerVariables(v || []);
@@ -328,7 +329,7 @@ function App() {
                     setServerVariables([]);
                 }
             });
-    }, [selectedCommand]);
+    }, [selectedCommandId]);
 
     useEffect(() => {
         if (!activeTabId || !tabDrafts[activeTabId]) return;
@@ -354,13 +355,13 @@ function App() {
     }, [activeTabId, tabDrafts, t]);
 
     useEffect(() => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const d = tabDrafts[selectedCommand.id];
-        const b = tabBaselines[selectedCommand.id];
+        if (!selectedCommand || isNewCommandTabId(selectedCommandId)) return;
+        const d = tabDrafts[selectedCommandId];
+        const b = tabBaselines[selectedCommandId];
         if (d && b && !draftsEqual(d, b)) return;
-        const fresh = commands.find((c) => c.id === selectedCommand.id);
+        const fresh = commands.find((c) => c.id === selectedCommandId);
         if (fresh) setSelectedCommand(fresh);
-    }, [commands, selectedCommand, tabDrafts, tabBaselines]);
+    }, [commands, selectedCommandId, tabDrafts, tabBaselines]);
 
     const loadData = useCallback(async () => {
         try {
@@ -449,7 +450,6 @@ function App() {
 
                 // Apply state — each setter triggers its effect which calls flushSettings
                 setTheme(migratedTheme);
-                settingsRef.current.customThemes = migratedCustomThemes;
                 setUiFont(migratedUiFont);
                 setMonoFont(migratedMonoFont);
                 setDensity(migratedDensity);
@@ -1526,10 +1526,10 @@ function App() {
 
     const commandHistory = useMemo(
         () =>
-            selectedCommand && !isNewCommandTabId(selectedCommand.id)
-                ? executionHistory.filter((r) => r.commandId === selectedCommand.id)
+            selectedCommand && !isNewCommandTabId(selectedCommandId)
+                ? executionHistory.filter((r) => r.commandId === selectedCommandId)
                 : executionHistory,
-        [selectedCommand, executionHistory],
+        [selectedCommandId, executionHistory],
     );
 
     // Memoize per-tab variable definitions so inactive tabs get stable references

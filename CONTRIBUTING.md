@@ -91,7 +91,7 @@ task dev
 4. Update documentation if your changes affect user-facing behavior.
 5. Open a pull request against the `main` branch with a clear description.
 
-Our CI runs type checks and build checks on Ubuntu, macOS, and Windows for every pull request.
+Our CI runs type checks, lint checks, and build checks on Ubuntu, macOS, and Windows for every pull request.
 
 ## Coding Standards
 

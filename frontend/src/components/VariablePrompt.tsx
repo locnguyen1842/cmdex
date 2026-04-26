@@ -106,17 +106,40 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     return nameChanged || valuesChanged;
   }, [values, snapshotValues, selectedPreset, variables, toolbarName, snapshotName, isCreatingNew]);
 
+  const selectedPresetIdRef = useRef(selectedPresetId);
+  useEffect(() => { selectedPresetIdRef.current = selectedPresetId; });
   const prevPresetsRef = useRef(presets);
   useEffect(() => {
     if (mode !== 'manage') return;
     const prev = prevPresetsRef.current;
     if (presets.length > prev.length) {
       const newest = presets[presets.length - 1];
-      if (newest) handleSelectPreset(newest.id);
+      if (newest) {
+        setSelectedPresetId(newest.id);
+        onPresetChange?.(newest.id);
+        const newValues: Record<string, string> = {};
+        variables.forEach(v => {
+          newValues[v.name] = newest.values[v.name] ?? v.defaultValue ?? '';
+        });
+        setValues(newValues);
+        setSnapshotValues({ ...newValues });
+        setToolbarName(newest.name);
+        setSnapshotName(newest.name);
+      }
     } else if (presets.length < prev.length) {
-      if (!presets.find(p => p.id === selectedPresetId)) {
+      if (!presets.find(p => p.id === selectedPresetIdRef.current)) {
         if (presets.length > 0) {
-          handleSelectPreset(presets[0].id);
+          const first = presets[0];
+          setSelectedPresetId(first.id);
+          onPresetChange?.(first.id);
+          const newValues: Record<string, string> = {};
+          variables.forEach(v => {
+            newValues[v.name] = first.values[v.name] ?? v.defaultValue ?? '';
+          });
+          setValues(newValues);
+          setSnapshotValues({ ...newValues });
+          setToolbarName(first.name);
+          setSnapshotName(first.name);
         } else {
           setSelectedPresetId('');
           setToolbarName('Default');
@@ -127,10 +150,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
       }
     }
     prevPresetsRef.current = presets;
-    // Intentionally omitting callbacks to avoid re-running on every render;
-    // this effect only needs to react to presets array changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presets]);
+  }, [presets, mode, variables, onPresetChange]);
 
   useEffect(() => {
     if (editingPresetNameId && nameInputRef.current) {

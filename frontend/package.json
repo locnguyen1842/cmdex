@@ -39,6 +39,9 @@
       "msw"
     ]
   },
+  "engines": {
+    "node": ">=20.19.0 || >=22.13.0 || >=24"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.3.3",

@@ -13,7 +13,7 @@ This guide covers how to set up, build, and develop the **Cmdex** application lo
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Go | `>= 1.25.0` | Backend services and Wails runtime |
-| Node.js | `>= 20` | Frontend build tooling (Vite, TypeScript) |
+| Node.js | `>= 20.19.0 || >=22.13.0 || >=24` | Frontend build tooling (Vite, TypeScript) |
 | pnpm | latest | Frontend package manager |
 | Wails CLI | `v3` | Desktop app framework and binding generator |
 

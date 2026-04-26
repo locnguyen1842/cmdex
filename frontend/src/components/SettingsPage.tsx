@@ -150,8 +150,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
-  const [, setSavedLocale] = useState('en');
-  const [, setSavedTerminal] = useState('');
   const [locale, setLocale] = useState('en');
   const [terminal, setTerminal] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
@@ -167,7 +165,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [savedUiFont, setSavedUiFont] = useState(uiFont);
   const [savedMonoFont, setSavedMonoFont] = useState(monoFont);
   const [savedDensity, setSavedDensity] = useState(density);
-  const [, setSavedWorkingDir] = useState('');
   const [draftWorkingDir, setDraftWorkingDir] = useState('');
   const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
 
@@ -333,12 +330,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         if (userTouchedRef.current) return;
         setCurrentOS(normalizeOS(os));
         const wd = getOSPath(s.defaultWorkingDir, normalizeOS(os));
-        setSavedWorkingDir(wd);
         setDraftWorkingDir(wd);
         const loc = s?.locale || i18n.language || 'en';
         const term = s?.terminal || '';
-        setSavedLocale(loc);
-        setSavedTerminal(term);
         setLocale(loc);
         setTerminal(term);
         setSavedTheme(s.theme || 'vscode-dark');
@@ -740,11 +734,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           setSavedDensity(s.density || 'comfortable');
                           setDraftDensity(s.density || 'comfortable');
                           const wd = getOSPath(s.defaultWorkingDir, currentOS);
-                          setSavedWorkingDir(wd);
                           setDraftWorkingDir(wd);
-                          setSavedLocale(s.locale || 'en');
                           setLocale(s.locale || 'en');
-                          setSavedTerminal(s.terminal || '');
                           setTerminal(s.terminal || '');
                         }).catch(() => {});
                         GetAvailableTerminals().then(t => setTerminals(t || [])).catch(() => setTerminals([]));
