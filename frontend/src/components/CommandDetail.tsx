@@ -22,7 +22,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
 import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey } from '../types';
-import { getOSPath, setOSPath, shortenPath } from '../types';
+import { getOSPath, setOSPath, shortenPath } from '../utils/path';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -280,7 +281,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const commandWD = getOSPath(draft.workingDir, currentOS);
   const defaultWD = getOSPath(defaultWorkingDir, currentOS);
   const effectiveWD = commandWD || defaultWD;
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
   const [previewOpen, setPreviewOpen] = useState(false);
   const showPreview = previewOpen;
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
@@ -604,17 +605,10 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
 
   const handleCopy = useCallback(() => {
     const text = showPreview ? getResolvedScript : scriptBody;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      })
-      .catch(() => {
-        setCopied(false);
-        toast.error(t('commandDetail.copyFailed'));
-      });
-  }, [showPreview, getResolvedScript, scriptBody, t]);
+    copy(text).catch(() => {
+      toast.error(t('commandDetail.copyFailed'));
+    });
+  }, [showPreview, getResolvedScript, scriptBody, copy, t]);
 
   const TAG_REGEX = /^[a-zA-Z0-9-]+$/;
 

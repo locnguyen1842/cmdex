@@ -9,10 +9,12 @@ import { Upload, Download, X, FolderOpen } from 'lucide-react';
 import { SetSettings, GetSettings, GetAvailableTerminals } from '../../bindings/cmdex/settingsservice';
 import { PickDirectory, GetOS } from '../../bindings/cmdex/app';
 import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
-import { type TerminalInfo, getOSPath, setOSPath, normalizeOS, THEMES, type OSKey, type CustomTheme } from '../types';
+import { type TerminalInfo, THEMES, type OSKey, type CustomTheme } from '../types';
+import { getOSPath, setOSPath, normalizeOS } from '../utils/path';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
 import { eventNames } from '../wails/events';
+import { applyTheme, applyDensity, applyFonts } from '../lib/theme-apply';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -302,54 +304,29 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   // `theme`/`uiFont`/... state. That round-trip was the source of the
   // prop-sync loop that zeroed out the dirty state.
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', draftTheme);
     const custom = customThemes?.find(c => c.id === draftTheme);
-    if (custom) {
-      Object.entries(custom.colors).forEach(([key, value]) => {
-        document.documentElement.style.setProperty(`--${key}`, value as string);
-      });
-    } else {
-      // Built-in theme: clear any custom CSS vars that may have been set.
-      const allVarKeys = [
-        'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
-        'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
-        'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
-        'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
-        'tab-active-indicator', 'status-bar-bg', 'status-bar-fg',
-      ];
-      allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
-    }
+    applyTheme(draftTheme, custom?.colors ?? null);
   }, [draftTheme, customThemes]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-density', draftDensity);
+    applyDensity(draftDensity);
   }, [draftDensity]);
 
   useEffect(() => {
-    const fontValue = draftUiFont === 'System Default'
-      ? 'system-ui, -apple-system, sans-serif'
-      : `'${draftUiFont}', system-ui, sans-serif`;
-    document.documentElement.style.setProperty('--font-sans', fontValue);
-  }, [draftUiFont]);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--font-mono', `'${draftMonoFont}', monospace`);
-  }, [draftMonoFont]);
+    applyFonts(draftUiFont, draftMonoFont);
+  }, [draftUiFont, draftMonoFont]);
 
   // In standalone mode, if the component unmounts (e.g. window closes)
   // with unsaved changes, revert DOM preview to the saved values so the
   // next open starts clean.
   useEffect(() => {
     return () => {
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      document.documentElement.setAttribute('data-density', savedDensity);
-      const fontValue = savedUiFont === 'System Default'
-        ? 'system-ui, -apple-system, sans-serif'
-        : `'${savedUiFont}', system-ui, sans-serif`;
-      document.documentElement.style.setProperty('--font-sans', fontValue);
-      document.documentElement.style.setProperty('--font-mono', `'${savedMonoFont}', monospace`);
+      const custom = customThemes?.find(c => c.id === savedTheme);
+      applyTheme(savedTheme, custom?.colors ?? null);
+      applyDensity(savedDensity);
+      applyFonts(savedUiFont, savedMonoFont);
     };
-  }, [savedTheme, savedDensity, savedUiFont, savedMonoFont]);
+  }, [savedTheme, savedDensity, savedUiFont, savedMonoFont, customThemes]);
 
   useEffect(() => {
     if (customThemes && customThemes.length > 0) {

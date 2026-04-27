@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useResizable } from '../hooks/useResizable';
 
 interface ResizablePanelProps {
   side: 'left' | 'right';
@@ -23,20 +24,20 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   className,
   defaultCollapsed,
 }) => {
-  const [width, setWidth] = useState<number>(() => {
-    const saved = localStorage.getItem(`${storageKey}-width`);
-    return saved ? parseInt(saved, 10) : defaultWidth;
+  const { size: width, isDragging: dragging, handleStart } = useResizable({
+    axis: 'x',
+    direction: side === 'left' ? 1 : -1,
+    minSize: minWidth,
+    maxSize: maxWidth,
+    defaultSize: defaultWidth,
+    storageKey: `${storageKey}-width`,
   });
+
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem(`${storageKey}-collapsed`);
     return stored ? stored === 'true' : !!defaultCollapsed;
   });
-  const [dragging, setDragging] = useState(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
-  const widthRef = useRef(width);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => { widthRef.current = width; }, [width]);
 
   const collapse = useCallback(() => {
     setCollapsed(true);
@@ -50,10 +51,8 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    startXRef.current = e.clientX;
-    startWidthRef.current = widthRef.current;
-    setDragging(true);
-  }, []);
+    handleStart(e.clientX);
+  }, [handleStart]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -70,30 +69,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
       window.removeEventListener('resize', handleResize);
     };
   }, [collapse, storageKey]);
-
-  useEffect(() => {
-    if (!dragging) return;
-    const onMouseMove = (e: MouseEvent) => {
-      const delta = side === 'left'
-        ? e.clientX - startXRef.current
-        : startXRef.current - e.clientX;
-      const next = Math.min(maxWidth, Math.max(minWidth, startWidthRef.current + delta));
-      setWidth(next);
-    };
-    const onMouseUp = () => {
-      setDragging(false);
-      setWidth(prev => {
-        localStorage.setItem(`${storageKey}-width`, String(prev));
-        return prev;
-      });
-    };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, [dragging, side, minWidth, maxWidth, storageKey]);
 
   const handle = (
     <div

@@ -20,7 +20,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type Category, type Command, getCommandDisplayTitle } from '../types';
+import { type Category, type Command } from '../types';
+import { getCommandDisplayTitle } from '../utils/tab';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
