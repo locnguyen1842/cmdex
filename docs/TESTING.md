@@ -258,3 +258,159 @@ Add test steps to `.github/workflows/ci.yml` after the existing build/typecheck 
 ```
 
 For the `build-check` job, you may also want to run `go test ./...` on each OS matrix to catch platform-specific behavior in `executor.go`.
+
+## 6. Test Framework and Setup
+
+### Go Backend
+
+The Go backend uses the standard library [`testing`](https://pkg.go.dev/testing) package with no external assertion libraries. The test database helper uses [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite) (a CGo-free SQLite driver) with an in-memory database (`:memory:`) for fast, isolated test runs.
+
+**Current test file:**
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `db_test.go` | `TestFreshDBMigrations`, `TestExistingDBIdempotent`, `TestRollbackTo` | Schema migrations, idempotent re-runs, and rollback logic |
+
+The test helper `newTestDB(t)` in `db_test.go` creates a fresh in-memory SQLite connection per test, ensuring full isolation.
+
+**No test configuration files exist** — Go tests use the project's `go.mod` for dependency resolution and require no additional config.
+
+### Frontend
+
+No JavaScript/TypeScript test framework is currently installed. The `frontend/package.json` `devDependencies` include ESLint and TypeScript for static analysis, but no test runner (`vitest`, `jest`, etc.) or component testing library (`@testing-library/react`, etc.).
+
+**Missing test infrastructure:**
+- No `vitest.config.ts` or `jest.config.ts`
+- No `jsdom` or `happy-dom` environment configured
+- No `test` script in `frontend/package.json` `scripts`
+
+The frontend statically checks code quality via:
+```bash
+cd frontend && pnpm lint        # ESLint
+cd frontend && pnpm tsc --noEmit # TypeScript type check
+```
+
+## 7. Running Tests
+
+### Go Tests
+
+```bash
+# Run all Go tests
+go test ./...
+
+# Run all tests with verbose output
+go test ./... -v
+
+# Run a specific test by name
+go test -run TestFreshDBMigrations ./...
+
+# Run a specific test with verbose output
+go test -run TestFreshDBMigrations -v ./...
+```
+
+**Expected output** (current state):
+```
+ok      cmdex   0.234s
+```
+
+Three tests pass across the root package. The `migrations/` package has no test files.
+
+There are no `task test` or `make test` targets in `Taskfile.yml` or `Makefile`.
+
+### Frontend Tests
+
+No test runner is installed. Once Vitest is set up (see [Section 3](#3-planned-testing-strategy)), the expected commands would be:
+
+```bash
+cd frontend && pnpm test         # Run once
+cd frontend && pnpm test:watch   # Watch mode
+```
+
+### Static Analysis (Pre-Commit)
+
+Linting and type checking serve as the primary automated quality gates:
+
+```bash
+# Go compile check
+go build ./...
+
+# TypeScript type check
+cd frontend && pnpm tsc --noEmit
+
+# Frontend lint
+cd frontend && pnpm lint
+```
+
+## 8. Coverage Requirements
+
+No coverage thresholds are currently configured for either Go or frontend code. Coverage is not enforced in CI.
+
+### Ad-hoc Coverage Measurement
+
+Go supports on-demand coverage via the `-cover` flag:
+
+```bash
+# Coverage summary for all packages
+go test ./... -cover
+
+# Detailed coverage profile
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out -o coverage.html
+```
+
+**To add coverage enforcement in the future:**
+
+For Go, set coverage thresholds using `-coverpkg` and parse `coverage.out` in CI:
+
+```bash
+go test ./... -coverprofile=coverage.out -coverpkg=./...
+go tool cover -func=coverage.out | tail -1 | awk '{print $3}'  # extracts total %
+```
+
+For the frontend (once Vitest is configured), a coverage provider can be added:
+
+```bash
+cd frontend
+pnpm add -D @vitest/coverage-v8
+```
+
+Then configure in `vitest.config.ts`:
+
+```typescript
+test: {
+  coverage: {
+    provider: 'v8',
+    thresholds: {
+      lines: 70,
+      branches: 70,
+      functions: 70,
+      statements: 70,
+    },
+  },
+}
+```
+
+## 9. CI Integration
+
+### Current CI Pipeline
+
+Test execution is **not currently part of the CI pipeline**. The CI configuration lives at `.github/workflows/ci.yml` and consists of two jobs:
+
+| Job | Trigger | What It Does |
+|-----|---------|--------------|
+| `typecheck` | push/PR to `main` | Lint frontend, `go build ./...`, generate Wails bindings, `tsc --noEmit` |
+| `build-check` | push/PR to `main` | Cross-platform build via `task build` on ubuntu-24.04, macos-latest, windows-latest |
+
+**Key CI details:**
+- Wails CLI version: `v3.0.0-alpha.74` (pinned via `WAILS_VERSION` env var in CI)
+- Go version: read from `go.mod` (currently `1.25.0`)
+- Node version: `25`
+- Package manager: `pnpm` (latest via `pnpm/action-setup@v5`)
+- Frontend lint failures are non-blocking (`continue-on-error: true`)
+
+### Adding Tests to CI
+
+To integrate tests into the existing CI pipeline, add test steps to both jobs. See [Section 5 — Updating CI to Run Tests](#5-how-to-add-tests) for the YAML snippets. The recommended placement is:
+
+1. **`typecheck` job:** Add `go test ./...` after the Go build check step. Add `cd frontend && pnpm test` after the TypeScript check step (once Vitest is configured).
+2. **`build-check` job:** Add `go test ./...` to the OS matrix to catch platform-specific behavior in `executor.go` (terminal integration, shell invocation).

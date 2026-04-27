@@ -331,4 +331,37 @@ cmdex/
 
 ---
 
+## Key Abstractions
+
+The most significant interfaces, design patterns, and utility abstractions that shape the codebase.
+
+### Go Backend
+
+| Abstraction | File | Description |
+|---|---|---|
+| `DB` struct | `db.go` | Database wrapper around `database/sql` with `modernc.org/sqlite` driver. Manages migrations (currently version 10), FTS5 full-text search triggers, WAL journal mode, and provides all CRUD query methods used by services. |
+| `Executor` struct | `executor.go` | Subprocess execution engine. Detects the platform shell (`bash` on macOS/Linux, `cmd` on Windows), executes resolved scripts in temporary files, streams stdout/stderr via the `OutputChunk` callback, and supports opening commands in native terminal emulators. |
+| `Command` struct | `models.go` | Central domain entity representing a saved CLI command. Includes nullable title/description fields, embedded `VariableDefinition[]` and `VariablePreset[]` slices, an `OSPathMap` for per-OS working directories, and a `DisplayTitle()` method that falls back to script content. |
+| `OSPathMap` type | `models.go` | Custom JSON marshalable map that stores OS-keyed file paths (e.g., `"darwin": "/path/on/mac"`, `"linux": "/path/on/linux"`). Provides `GetCurrentOS()`, `GetForOS()`, and `SetForOS()` methods. Mirrored on the frontend as a plain `Record<string, string>`. |
+| `AppSettings` struct | `models.go` | Single struct holding all user preferences (theme, fonts, density, locale, default working directory, window position). Stored as a single JSON blob in the `app_settings` database row. |
+| Service Registration Pattern | `main.go` | Each backend concern is a discrete struct registered with Wails via `application.NewService(...)`. All exported methods on the struct are automatically exposed as callable TypeScript functions. This replaces the monolithic `App` struct used in Wails v2. |
+
+### React Frontend
+
+| Abstraction | File | Description |
+|---|---|---|
+| `TabDraft` interface | `frontend/src/types.ts` | In-memory edit buffer per open command tab. Contains independently editable fields (`title`, `description`, `tags`, `categoryId`, `scriptBody`, `variables`, `workingDir`) plus a `revealed` sub-object tracking which optional fields are expanded. Compared against a `baseline` snapshot to determine dirty state. |
+| `CommandDetailTab` component | `frontend/src/components/CommandDetailTab.tsx` | Thin `React.memo` wrapper that connects a `TabDraft` and `Command` to the `CommandDetail` editor component. Binds tab-local callbacks (`onExecute`, `onSave`, `onDiscard`, preset operations) and renders a `FloatingSaveBar` for dirty-state save/discard actions. Rendered with `display: none/flex` to avoid unmounting inactive tabs. |
+| `useResizable` hook | `frontend/src/hooks/useResizable.ts` | Generic drag-to-resize hook for side panels. Accepts axis, direction, min/max/default size, and a `localStorage` key. Reads initial size from `localStorage`, supports live mouse-drag resizing with clamping, and persists the final size on mouse-up. |
+| `useKeyboardShortcuts` hook | `frontend/src/hooks/useKeyboardShortcuts.ts` | Global keyboard shortcut handler. Accepts a `ShortcutMap` (key combo → handler) and registers a single `keydown` capture listener. Modifier combos (`Cmd+Enter`) fire regardless of focus; bare keys (`?`) only fire when focus is outside editable elements. Uses a render-phase ref to avoid re-registering on prop changes. |
+| `useSyncedRef` hook | `frontend/src/hooks/useSyncedRef.ts` | Lightweight utility that returns a `MutableRefObject` whose `.current` stays in sync with the latest value during render. Eliminates the need for `useEffect` to propagate value changes into refs used by event handlers and callbacks. |
+| `useCopyToClipboard` hook | `frontend/src/hooks/useCopyToClipboard.ts` | Clipboard interaction hook. Returns a `{ copied, copy }` API where `copy(text)` writes to the system clipboard and sets `copied = true` for a configurable duration (default 1500ms). Cleans up timers on unmount. |
+| `applyTheme` / `applyDensity` / `applyFonts` | `frontend/src/lib/theme-apply.ts` | Theme application utilities that write CSS custom properties and data attributes on `document.documentElement`. `applyTheme` sets `data-theme` and optionally sets 26 `--*` CSS variables for custom themes; `applyDensity` sets `data-density`; `applyFonts` sets `--font-sans` and `--font-mono`. Used by both the main window and settings window on startup and after any preference change. |
+| `shortcuts.ts` registry | `frontend/src/lib/shortcuts.ts` | Central keyboard shortcut definition file. Exports `SHORTCUTS` constant with 19 named shortcuts (execute, save, palette, search, tab operations, etc.). Provides `isMac`, `cmdOrCtrl`, `shortcutLabelParts`, and `shortcutLabel` for platform-aware rendering (e.g., `⌘ Enter` on macOS, `Ctrl+Enter` on Windows/Linux). |
+| `tab.ts` utilities | `frontend/src/utils/tab.ts` | Tab ID helpers: `isNewCommandTabId()` detects unsaved tabs by their `__new_` prefix, `createNewTabId()` generates UUID-based temporary tab IDs, and `getCommandDisplayTitle()` returns a display title with shebang stripping and 50-character truncation. |
+| `path.ts` utilities | `frontend/src/utils/path.ts` | OS-aware path helpers: `normalizeOS()` maps runtime `GOOS` strings to `OSKey`, `getOSPath()`/`setOSPath()` read/write `OSPathMap` entries, and `shortenPath()` truncates file paths to the last N segments. |
+| `tabDraft.ts` utilities | `frontend/src/utils/tabDraft.ts` | Tab draft lifecycle functions: `draftFromCommand()` builds an editable `TabDraft` from a `Command` (merging detected template variables), `draftsEqual()` performs deep comparison for dirty-state detection, `cloneDraft()` creates a JSON-based snapshot for baselines, and `makePlaceholderCommand()` provides a blank command shell for new tabs. |
+
+---
+
 *Last updated: generated by gsd-doc-writer on 2026-04-22.*
