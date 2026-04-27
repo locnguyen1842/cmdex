@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
-import { Command, Category, getCommandDisplayTitle } from '../types';
+import { type Command, type Category, getCommandDisplayTitle } from '../types';
 import { Kbd, ShortcutLabel } from './ui/kbd';
 import { FileText, Search, X } from 'lucide-react';
 
@@ -78,13 +78,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   }, [query, commands]);
 
   // Reset selection when results change
-  useEffect(() => { setActiveIndex(0); }, [filtered]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveIndex(0);
+  }, [filtered]);
 
   // Focus input when opened
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset state on open */
     if (open) {
       setQuery('');
       setActiveIndex(0);
+    /* eslint-enable react-hooks/set-state-in-effect */
       const t = setTimeout(() => inputRef.current?.focus(), 30);
       return () => clearTimeout(t);
     }

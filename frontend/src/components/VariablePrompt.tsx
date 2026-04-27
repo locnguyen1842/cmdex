@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { VariablePrompt as VariablePromptType, VariablePreset } from '../types';
+import { type VariablePrompt as VariablePromptType, type VariablePreset } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,6 +110,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
   useEffect(() => { selectedPresetIdRef.current = selectedPresetId; });
   const prevPresetsRef = useRef(presets);
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- auto-select newest preset on add, fallback on delete */
     if (mode !== 'manage') return;
     const prev = prevPresetsRef.current;
     if (presets.length > prev.length) {
@@ -151,6 +152,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     }
     prevPresetsRef.current = presets;
   }, [presets, mode, variables, onPresetChange]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (editingPresetNameId && nameInputRef.current) {

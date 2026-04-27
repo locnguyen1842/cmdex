@@ -173,6 +173,7 @@ const SortablePresetChip: React.FC<SortablePresetChipProps> = ({
   presetNamePlaceholder,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -304,7 +305,6 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [workingDirDraft, setWorkingDirDraft] = useState('');
   const scriptWrapRef = useRef<HTMLDivElement>(null);
   const scriptEditDraftRef = useRef('');
-  scriptEditDraftRef.current = scriptEditDraft;
   const scriptBodyRef = useRef('');
 
   const presetSensors = useSensors(
@@ -332,9 +332,13 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   );
 
   const scriptBody = draft.scriptBody;
-  scriptBodyRef.current = scriptBody;
 
   const titleHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    scriptEditDraftRef.current = scriptEditDraft;
+    scriptBodyRef.current = scriptBody;
+  }, [scriptEditDraft, scriptBody]);
 
   useLayoutEffect(() => {
     const el = titleHeadingRef.current;
@@ -388,14 +392,17 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   );
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- auto-open editor for new commands with empty body */
     if (isNewCommand) {
       setScriptEditor(!draft.scriptBody.trim());
     } else {
       setScriptEditor(false);
     }
-  }, [command.id, draft.scriptBody, isNewCommand]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [command.id, isNewCommand]); // eslint-disable-line react-hooks/exhaustive-deps -- draft.scriptBody intentionally excluded: only auto-open on command switch
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset overrides when command or preset changes
     setOverrides({});
   }, [command.id, selectedPresetId]);
 
@@ -404,6 +411,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
       const isValidPreset = command.presets.some((p) => p.id === selectedPresetId);
       if (!isValidPreset) {
         const newId = command.presets[0].id;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- fallback to first preset when selected becomes invalid
         setSelectedPresetId(newId);
       }
     }
@@ -415,6 +423,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   // Auto-switch to Preview when a preset is selected
   useEffect(() => {
     if (selectedPresetId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-open preview when preset is selected
       setPreviewOpen(true);
     }
   }, [selectedPresetId, command.id]);
@@ -474,7 +483,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const enterScriptEdit = useCallback(() => {
     setScriptEditDraft(scriptBody);
     setScriptEditor(true);
-  }, [scriptBody]);
+  }, [scriptBody, setScriptEditDraft, setScriptEditor]);
 
   const doSaveScriptEdit = useCallback(() => {
     handleScriptBodyChange(scriptEditDraft);
@@ -482,7 +491,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     if (!isNewCommand && onSaveScript) {
       onSaveScript(scriptEditDraft);
     }
-  }, [scriptEditDraft, handleScriptBodyChange, isNewCommand, onSaveScript]);
+  }, [scriptEditDraft, handleScriptBodyChange, isNewCommand, onSaveScript, setScriptEditor]);
 
   const saveScriptEdit = useCallback(() => {
     doSaveScriptEdit();
@@ -491,7 +500,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const discardScriptEdit = useCallback(() => {
     setScriptEditDraft(baselineScriptBody);
     setScriptEditor(false);
-  }, [baselineScriptBody]);
+  }, [baselineScriptBody, setScriptEditDraft, setScriptEditor]);
 
   const hasScriptChanges = scriptEditor && !isNewCommand && scriptEditDraft !== scriptBody;
 
@@ -1069,6 +1078,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                     renamingDraft={renamingChipDraft}
                     onSelect={() => setSelectedPresetId((prev) => (prev === p.id ? '' : p.id))}
                     onDoubleClick={() => {
+                      setSelectedPresetId(p.id);
                       setRenamingChipId(p.id);
                       setRenamingChipDraft(p.name);
                     }}

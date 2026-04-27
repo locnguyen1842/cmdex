@@ -34,15 +34,16 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (!editing) setDraft(value);
-  }, [value, editing]);
-
-  useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
       if ('select' in inputRef.current) inputRef.current.select();
     }
   }, [editing]);
+
+  const startEditing = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+  }, [value]);
 
   const commit = useCallback(() => {
     onChange(draft);
@@ -112,7 +113,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
     <button
       type="button"
       className={`inline-edit-display ${displayClassName}`.trim()}
-      onClick={() => setEditing(true)}
+      onClick={startEditing}
     >
       <span className="inline-edit-text">
         {value || <span className="inline-edit-placeholder">{placeholder}</span>}
