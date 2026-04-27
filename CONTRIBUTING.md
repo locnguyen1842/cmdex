@@ -37,7 +37,7 @@ We accept pull requests for bug fixes and features. If you're planning a signifi
 ### Prerequisites
 
 - **Go** `>= 1.25.0`
-- **Node.js** `25`
+- **Node.js** `>=20.19.0 \|\| >=22.13.0 \|\| >=24`
 - **pnpm** (latest)
 - **Wails v3 CLI** `v3.0.0-alpha.74`
 - **Task** (`go-task`) — optional but recommended for builds
@@ -91,7 +91,7 @@ task dev
 4. Update documentation if your changes affect user-facing behavior.
 5. Open a pull request against the `main` branch with a clear description.
 
-Our CI runs type checks, lint checks, and build checks on Ubuntu, macOS, and Windows for every pull request.
+Our CI runs TypeScript type checks and lint checks on Ubuntu, with build verification across Ubuntu, macOS, and Windows for every pull request.
 
 ## Coding Standards
 
@@ -103,7 +103,7 @@ Our CI runs type checks, lint checks, and build checks on Ubuntu, macOS, and Win
 ### TypeScript / React
 
 - Use TypeScript for all frontend code.
-- The frontend uses React 18+, Tailwind CSS, and shadcn/ui components.
+- The frontend uses React 19+, Tailwind CSS v4, and shadcn/ui components (New York style).
 - Keep UI state logic centralized in `App.tsx` where possible.
 - Update CSS variables in `style.css` rather than hardcoding colors.
 

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { type ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,8 @@ import {
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { ShortcutLabel } from './ui/kbd';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { useResizable } from '../hooks/useResizable';
 
 const STDERR_PREFIX = '\x1b[stderr]';
 const MAX_DISPLAY_LINES = 100;
@@ -49,55 +52,21 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   const { t, i18n: i18nInstance } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
-  const [copiedOutput, setCopiedOutput] = useState(false);
-  const [copiedCommand, setCopiedCommand] = useState(false);
-  const [height, setHeight] = useState<number>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const parsed = saved ? Number(saved) : NaN;
-    return Number.isFinite(parsed) ? Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, parsed)) : DEFAULT_HEIGHT;
+  const { copied: copiedOutput, copy: copyOutput } = useCopyToClipboard();
+  const { copied: copiedCommand, copy: copyCommand } = useCopyToClipboard();
+  const { size: height, handleStart } = useResizable({
+    axis: 'y',
+    direction: -1,
+    minSize: MIN_HEIGHT,
+    maxSize: MAX_HEIGHT,
+    defaultSize: DEFAULT_HEIGHT,
+    storageKey: STORAGE_KEY,
   });
-  const isDraggingRef = useRef(false);
-  const startYRef = useRef(0);
-  const startHeightRef = useRef(0);
-  const heightRef = useRef(height);
-  const [isDragging, setIsDragging] = useState(false);
-  useEffect(() => { heightRef.current = height; }, [height]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    isDraggingRef.current = true;
-    startYRef.current = e.clientY;
-    startHeightRef.current = heightRef.current;
-    setIsDragging(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const delta = startYRef.current - ev.clientY;
-      const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeightRef.current + delta));
-      setHeight(newHeight);
-    };
-
-    const onMouseUp = () => {
-      isDraggingRef.current = false;
-      setIsDragging(false);
-      setHeight((h) => {
-        localStorage.setItem(STORAGE_KEY, String(h));
-        return h;
-      });
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, [isDragging]);
+    handleStart(e.clientY);
+  }, [handleStart]);
 
   const handleScroll = () => {
     if (!bodyRef.current) return;
@@ -137,23 +106,17 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
   const handleCopy = useCallback(() => {
     if (!allOutputText) return;
-    navigator.clipboard.writeText(allOutputText).then(() => {
-      setCopiedOutput(true);
-      setTimeout(() => setCopiedOutput(false), 1500);
-    }).catch((err) => {
-      console.error('Failed to copy output:', err);
+    copyOutput(allOutputText).catch(() => {
+      toast.error(t('outputPane.copyFailed'));
     });
-  }, [allOutputText]);
+  }, [allOutputText, copyOutput, t]);
 
   const handleCopyCommand = useCallback(() => {
     if (!record?.finalCmd) return;
-    navigator.clipboard.writeText(record.finalCmd).then(() => {
-      setCopiedCommand(true);
-      setTimeout(() => setCopiedCommand(false), 1500);
-    }).catch((err) => {
-      console.error('Failed to copy command:', err);
+    copyCommand(record.finalCmd).catch(() => {
+      toast.error(t('outputPane.copyFailed'));
     });
-  }, [record]);
+  }, [record, copyCommand, t]);
 
   const cmdPrefix = useMemo(() => {
     if (!showRecord) return null;

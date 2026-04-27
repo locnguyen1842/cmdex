@@ -1,8 +1,8 @@
-<!-- GSD-DOC -->
+<!-- generated-by: gsd-doc-writer -->
 
 # Deployment Guide
 
-This document describes how CmDex is built, packaged, and released across macOS, Windows, and Linux.
+This document describes how CmDex is built, packaged, and released across macOS, Windows, Linux, and (experimentally) iOS.
 
 ---
 
@@ -15,6 +15,7 @@ CmDex is a cross-platform desktop application built with **Wails v3**, **Go**, a
 | macOS    | `.dmg` (universal binary) |
 | Windows  | `.exe` (NSIS installer) |
 | Linux    | `.AppImage`, `.deb`, `.rpm` |
+| iOS      | `.app` (via Xcode, experimental) |
 
 All releases are produced via **GitHub Actions**. There is no traditional server or container deployment for the desktop GUI. A headless **server mode** (HTTP-only, no GUI) can be built separately for containerized environments.
 
@@ -156,7 +157,7 @@ task run:docker
   task package FORMAT=msix
   ```
 - **Build Flags**: Production builds use `-ldflags="-w -s -H windowsgui"` to strip debug info and hide the console window.
-- **CGO**: By default, Windows builds use `CGO_ENABLED=0`. If you need CGO (e.g., for certain SQLite modes), the build automatically switches to Docker cross-compilation using Zig.
+- **CGO**: By default, Windows builds use `CGO_ENABLED=0`. When building **from a non-Windows host** (Linux/macOS) and CGO is enabled, the build uses Docker cross-compilation with Zig. On Windows hosts, setting `CGO_ENABLED=1` builds natively.
 - **Code Signing**: To sign the executable or installer, configure `SIGN_CERTIFICATE` or `SIGN_THUMBPRINT` in `build/windows/Taskfile.yml`, then run:
   ```bash
   task sign
@@ -216,12 +217,61 @@ A successful release should contain the following files in the GitHub Release:
 
 ---
 
+## 6. Environment Setup (Production)
+
+For production deployment, the following environment variables and configuration settings are relevant:
+
+- **Server Mode**: When running `task build:server` for container deployment, the Docker image exposes port `8080` and listens on `0.0.0.0` by default (set via `WAILS_SERVER_HOST` in `Dockerfile.server`). Override at runtime with `docker run -e WAILS_SERVER_HOST=...`.
+- **Application Settings**: All user-facing configuration (themes, typography, locale, terminal preferences) is stored in the local SQLite database and managed through the in-app Settings modal. See [CONFIGURATION.md](CONFIGURATION.md) for the full list of configurable options.
+- **Secrets**: No API keys or external service credentials are required by the application itself. Signing credentials for platform distribution (Apple Developer ID, Windows Authenticode certificate, PGP key) should be stored as CI secrets or in the system keychain via `wails3 setup signing`.
+
+<!-- VERIFY: Server mode port and host defaults are from Dockerfile.server — confirm these match production deployment expectations -->
+
+---
+
+## 7. Rollback Procedure
+
+No automated rollback pipeline is configured. If a release introduces a regression:
+
+1. **GitHub Releases**: Locate the previous stable release on the GitHub Releases page and direct users to download it.
+2. **Docker (server mode)**: Redeploy the previous Docker image tag:
+   ```bash
+   docker pull cmdex:<previous-tag>
+   docker run --rm -p 8080:8080 cmdex:<previous-tag>
+   ```
+3. **Local installs**: Reinstall from the previous release's platform package (`.dmg`, `.exe`, `.AppImage`, `.deb`, `.rpm`).
+
+<!-- VERIFY: GitHub Releases page URL is specific to the repository and not discoverable from source -->
+
+---
+
+## 8. Monitoring
+
+No application-level monitoring (Sentry, Datadog, OpenTelemetry, etc.) is currently integrated. The application is a local-first desktop app and does not phone home or report telemetry.
+
+For server mode deployments, standard container monitoring tools (Docker health checks, log aggregation) can be used — configure health checks via the hosting platform.
+
+<!-- VERIFY: Confirm no monitoring/telemetry has been added since last audit -->
+
+---
+
+## 9. iOS (Experimental)
+
+Basic iOS device tasks are available in the build system (see `ios:device:list` and `ios:run:device` in `build/Taskfile.yml`). This target requires a configured Xcode project at `build/ios/xcode/` and appropriate signing profiles. iOS is not part of the automated CI pipeline and is currently **experimental**.
+
+---
+
 ## Related Files
 
 - `.github/workflows/ci.yml` — Continuous integration
 - `.github/workflows/release.yml` — Release automation
 - `Taskfile.yml` — Top-level build orchestration
+- `build/Taskfile.yml` — Shared build tasks (frontend, server, Docker, iOS)
 - `build/darwin/Taskfile.yml` — macOS build, sign, and package tasks
 - `build/windows/Taskfile.yml` — Windows build, sign, and package tasks
 - `build/linux/Taskfile.yml` — Linux build, sign, and package tasks
+- `build/docker/Dockerfile.server` — Server mode Docker image
+- `build/docker/Dockerfile.cross` — Cross-compilation Docker image
+- `build/config.yml` — Wails dev/build configuration
 - `wails.json` — Wails application configuration
+- `docs/CONFIGURATION.md` — Application settings reference

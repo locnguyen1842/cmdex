@@ -96,3 +96,72 @@ No additional configuration is required to run the app locally. On first launch,
 All data is stored locally — no accounts, cloud services, or API keys are needed.
 
 The project includes pre-configured environment files (`.env` and `frontend/.env`) that set the application name and development server port. You should not need to modify these for standard development.
+
+## Common setup issues
+
+### Port conflict (VITE_PORT=9245)
+
+The Vite dev server runs on port **9245** by default (configured in `.env` and `frontend/.env`). If that port is already in use, `wails3 dev` will fail and `task dev` will exit with an error because the frontend dev server uses `--strictPort`. To resolve this:
+
+- Free up port 9245, or
+- Change `VITE_PORT` in both `.env` and `frontend/.env` to an available port
+
+### Wails CLI version mismatch
+
+This project pins Wails to **`v3.0.0-alpha.74`** (as specified in `go.mod`). Installing a different version of `wails3` can cause binding generation failures or unexpected behavior at runtime. Verify your installed version:
+
+```bash
+wails3 version
+```
+
+If it does not match `v3.0.0-alpha.74`, reinstall the exact version:
+
+```bash
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.74
+```
+
+### Go toolchain version
+
+The `go.mod` file declares `go 1.25.0`. An older Go toolchain may produce compilation errors or Go module resolution failures. Verify your Go version matches:
+
+```bash
+go version  # should show go1.25.x or newer
+```
+
+### Wails bindings not generated
+
+If you encounter TypeScript errors about missing imports from `../wailsjs/go/main/App`, the Wails-generated bindings are out of date. Regenerate them manually:
+
+```bash
+wails3 generate bindings
+```
+
+This generates TypeScript bindings in `frontend/bindings/` based on the `App` and service structs in `app.go` and `*_service.go` files.
+
+### Linux: wrong WebKitGTK version
+
+The application requires **`libwebkit2gtk-4.1-dev`**, not `libwebkit2gtk-4.0-dev` (the older API version). Installing the wrong package will cause the application to fail on launch with a missing shared library error. The correct installation command is:
+
+```bash
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+### C compiler not found on Linux
+
+Linux builds require CGO (the CGo bridge for the SQLite dependency). If you see errors like `CGO_ENABLED=0` or `gcc not found`, install a C compiler:
+
+```bash
+sudo apt-get install -y build-essential
+```
+
+On Docker-based cross-compilation (`task setup:docker`), the Docker image provides the toolchain automatically.
+
+## Next steps
+
+Once you have the project running, refer to these guides to go deeper:
+
+- **[Development Guide](./DEVELOPMENT.md)** — Code style, build commands, branch conventions, and the PR process
+- **[Architecture Overview](./ARCHITECTURE.md)** — System components, data flow, and directory structure
+- **[Configuration](./CONFIGURATION.md)** — Environment variables, settings, and per-environment overrides
+- **[Testing Guide](./TESTING.md)** — Manual testing workflows and the roadmap for automated tests
+- **[Contributing](./CONTRIBUTING.md)** — Coding standards, PR guidelines, and how to report issues

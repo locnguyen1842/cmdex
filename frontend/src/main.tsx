@@ -9,6 +9,7 @@ import { THEMES, type CustomTheme } from './types'
 import { Events } from '@wailsio/runtime'
 import { eventNames } from './wails/events'
 import { toast } from 'sonner'
+import { applyTheme, applyDensity, applyFonts } from './lib/theme-apply'
 
 const container = document.getElementById('root')
 
@@ -17,22 +18,6 @@ const isSettingsWindow = new URLSearchParams(window.location.search).get('window
 const root = createRoot(container!)
 
 if (isSettingsWindow) {
-    const applyTheme = (themeId: string) => {
-        document.documentElement.setAttribute('data-theme', themeId)
-    }
-
-    const applyDensity = (density: string) => {
-        document.documentElement.setAttribute('data-density', density)
-    }
-
-    const applyFonts = (uiFont: string, monoFont: string) => {
-        const fontValue = uiFont === 'System Default'
-            ? 'system-ui, -apple-system, sans-serif'
-            : `'${uiFont}', system-ui, sans-serif`
-        document.documentElement.style.setProperty('--font-sans', fontValue)
-        document.documentElement.style.setProperty('--font-mono', `'${monoFont}', monospace`)
-    }
-
     function SettingsWindow() {
         const [theme, setTheme] = useState('vscode-dark')
         const [density, setDensity] = useState('comfortable')
@@ -90,27 +75,13 @@ if (isSettingsWindow) {
             const builtIn = THEMES.find(t => t.id === newTheme)
             const custom = customThemes.find(t => t.id === newTheme)
             const themeType = builtIn?.type ?? custom?.type ?? 'dark'
-            applyTheme(newTheme)
+            applyTheme(newTheme, custom?.colors ?? null)
             if (themeType === 'dark') {
                 setLastDarkTheme(newTheme)
                 document.documentElement.style.setProperty('--cmdex-last-dark-theme', newTheme)
             } else {
                 setLastLightTheme(newTheme)
                 document.documentElement.style.setProperty('--cmdex-last-light-theme', newTheme)
-            }
-            if (custom) {
-                Object.entries(custom.colors).forEach(([key, value]) => {
-                    document.documentElement.style.setProperty(`--${key}`, value)
-                })
-            } else {
-                const allVarKeys = [
-                    'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
-                    'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
-                    'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
-                    'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
-                    'tab-active-indicator', 'status-bar-bg', 'status-bar-fg'
-                ]
-                allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`))
             }
             setTheme(newTheme)
             const newSettings = {

@@ -291,3 +291,53 @@ pnpm tsc --noEmit   # Type-check without emitting
 - The terminal output panel renders plain text stdout. It does **not** support interactive shells (e.g., `vim`, `htop`, REPLs) or advanced ANSI color sequences.
 - Go code changes require a full restart of `wails3 dev`; only the frontend benefits from HMR.
 
+---
+
+## 8. Branch Conventions
+
+The default branch is `main`. All development work happens on feature branches created from `main`.
+
+Branch names follow a conventional-commit-style prefix:
+
+| Prefix | Usage |
+|--------|-------|
+| `feat/` | New features (e.g., `feat/execution-working-dir`) |
+| `fix/` | Bug fixes (e.g., `fix/parse-variables-duplicated`) |
+| `refactor/` | Code restructuring without behavior change |
+| `chore/` | Maintenance, tooling, dependency updates |
+| `ci/` | CI/CD configuration changes |
+| `docs/` | Documentation-only changes |
+| `lint/` | Linting and style enforcement changes |
+
+Use lowercase kebab-case for the description: `feat/add-command-preset-support`.
+
+---
+
+## 9. Pull Request Process
+
+1. **Fork the repo** and create a feature branch from `main`.
+2. **Make your changes**, following the code style conventions in [Section 6](#6-code-style--conventions).
+3. **Verify before pushing:**
+   ```bash
+   go build ./...                     # Go compiles
+   cd frontend && pnpm lint           # ESLint passes
+   cd frontend && pnpm tsc --noEmit   # TypeScript type-checks
+   ```
+   Or use the `make check` shortcut to run both language checks at once:
+   ```bash
+   make check
+   ```
+4. **Update documentation** if your changes affect user-facing behavior or public APIs.
+5. **Open a pull request against `main`** with a clear description of the change and the motivation behind it.
+
+### CI Checks
+
+Every pull request triggers the [CI workflow](.github/workflows/ci.yml) which runs:
+
+| Job | What it checks | Platform |
+|-----|---------------|----------|
+| **Type check** | Go compilation, ESLint, TypeScript `tsc --noEmit`, Wails bindings generation | Ubuntu |
+| **Build check** | `task build` cross-platform build verification | Ubuntu, macOS, Windows |
+
+All checks must pass before a PR can be merged. The CI caches Go modules, pnpm dependencies, Wails CLI, and platform-specific build tools (GTK, NSIS) to keep run times fast.
+

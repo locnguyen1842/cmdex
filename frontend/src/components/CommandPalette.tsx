@@ -5,7 +5,8 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
-import { type Command, type Category, getCommandDisplayTitle } from '../types';
+import { type Command, type Category } from '../types';
+import { getCommandDisplayTitle } from '../utils/tab';
 import { Kbd, ShortcutLabel } from './ui/kbd';
 import { FileText, Search, X } from 'lucide-react';
 

@@ -182,7 +182,8 @@
     "toggleShortcut": "Toggle output",
     "copyOutput": "Copy output",
     "copyCommand": "Copy command",
-    "emptyResponse": "Empty Response"
+    "emptyResponse": "Empty Response",
+    "copyFailed": "Failed to copy to clipboard"
   },
   "app": {
     "welcomeTitle": "Welcome to CmDex",
