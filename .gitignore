@@ -25,3 +25,21 @@ todos/
 
 .env
 .grepai/
+
+# Playwright
+.local-browsers/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+blob-report/
+allure-results/
+
+# Playwright traces and logs
+*.trace
+*.zip
+
+# Authentication state (contains sensitive session data/cookies)
+# It is a best practice to keep these in a dedicated directory
+.auth/
+playwright/.auth/

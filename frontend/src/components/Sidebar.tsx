@@ -323,6 +323,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 variant="ghost"
                 onClick={() => onAddCommand()}
                 className="ml-auto"
+                data-testid="sidebar-add-command"
               >
                 <Plus className="size-4" />
               </Button>
@@ -331,7 +332,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings}>
+              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} data-testid="sidebar-settings">
                 <Settings className="size-4" />
               </Button>
             </TooltipTrigger>
@@ -535,7 +536,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         const catToDelete = categories.find(c => c.id === pendingDeleteCat);
         return (
           <AlertDialog open={pendingDeleteCat !== null} onOpenChange={(open) => { if (!open) setPendingDeleteCat(null); }}>
-            <AlertDialogContent className="max-w-xs">
+            <AlertDialogContent className="max-w-xs" data-testid="confirm-dialog">
               <AlertDialogHeader>
                 <AlertDialogTitle>{t('sidebar.deleteCategory')}</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -543,11 +544,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setPendingDeleteCat(null)}>
+                <AlertDialogCancel data-testid="confirm-dialog-cancel" onClick={() => setPendingDeleteCat(null)}>
                   {t('common.cancel')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
+                  data-testid="confirm-dialog-confirm"
                   onClick={() => {
                     if (pendingDeleteCat) onDeleteCategory(pendingDeleteCat);
                     setPendingDeleteCat(null);

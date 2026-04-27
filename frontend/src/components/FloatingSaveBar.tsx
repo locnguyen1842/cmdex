@@ -19,14 +19,14 @@ const FloatingSaveBar: React.FC<FloatingSaveBarProps> = ({
   const { t } = useTranslation();
   if (!visible) return null;
   return (
-    <div className="floating-save-bar" role="toolbar" aria-label={t('commandEditor.saveChanges')}>
+    <div className="floating-save-bar" role="toolbar" aria-label={t('commandEditor.saveChanges')} data-testid="floating-save-bar">
       <div className="floating-save-group">
-        <Button type="button" variant="ghost" size="sm" className="floating-save-btn-discard" onClick={onDiscard}>
+        <Button type="button" variant="ghost" size="sm" className="floating-save-btn-discard" onClick={onDiscard} data-testid="save-bar-discard">
           <X className="size-4" />
           {t('commandEditor.discard')}
         </Button>
         <div className="floating-save-separator" />
-        <Button type="button" variant="ghost" size="sm" className="floating-save-btn-save" onClick={onSave} disabled={saveDisabled}>
+        <Button type="button" variant="ghost" size="sm" className="floating-save-btn-save" onClick={onSave} disabled={saveDisabled} data-testid="save-bar-save">
           <Save className="size-4" />
           {t('commandEditor.save')}
         </Button>
