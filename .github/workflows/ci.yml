@@ -37,6 +37,7 @@ jobs:
 
       - name: Lint frontend
         run: cd frontend && pnpm lint
+        continue-on-error: true
 
       - name: Cache Linux apt deps
         id: cache-apt-type

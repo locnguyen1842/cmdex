@@ -327,6 +327,10 @@ func (e *Executor) darwinTerminals() []terminalDef {
 		}
 	}
 
+	alacrittyBin, alacrittyBundle := "alacritty", "/Applications/Alacritty.app/Contents/MacOS/alacritty"
+	kittyBin, kittyBundle := "kitty", "/Applications/kitty.app/Contents/MacOS/kitty"
+	ghosttyBin, ghosttyBundle := "ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty"
+
 	return []terminalDef{
 		{
 			ID: "terminal", Name: "Terminal", Paths: []string{"/System/Applications/Utilities/Terminal.app"}, IsApp: true,
@@ -361,35 +365,35 @@ end tell`),
 			},
 		},
 		{
-			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app/Contents/MacOS/alacritty"}, IsApp: false,
+			ID: "alacritty", Name: "Alacritty", Paths: []string{alacrittyBin, alacrittyBundle}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--working-directory", workingDir}, args...)
 				}
-				bin := resolveDarwinBin("alacritty", "/Applications/Alacritty.app/Contents/MacOS/alacritty")
+				bin := resolveDarwinBin(alacrittyBin, alacrittyBundle)
 				return exec.Command(bin, args...).Start()
 			},
 		},
 		{
-			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app/Contents/MacOS/kitty"}, IsApp: false,
+			ID: "kitty", Name: "Kitty", Paths: []string{kittyBin, kittyBundle}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--directory", workingDir}, args...)
 				}
-				bin := resolveDarwinBin("kitty", "/Applications/kitty.app/Contents/MacOS/kitty")
+				bin := resolveDarwinBin(kittyBin, kittyBundle)
 				return exec.Command(bin, args...).Start()
 			},
 		},
 		{
-			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty"}, IsApp: false,
+			ID: "ghostty", Name: "Ghostty", Paths: []string{ghosttyBin, ghosttyBundle}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--working-directory=" + workingDir}, args...)
 				}
-				bin := resolveDarwinBin("ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty")
+				bin := resolveDarwinBin(ghosttyBin, ghosttyBundle)
 				return exec.Command(bin, args...).Start()
 			},
 		},

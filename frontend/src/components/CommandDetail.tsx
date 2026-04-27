@@ -244,7 +244,6 @@ export interface CommandDetailProps {
   onExecute: (values: Record<string, string>) => void;
   onRunInTerminal: (values: Record<string, string>) => void;
   onFillVariables: (initialValues: Record<string, string>) => void;
-  onDelete: () => void;
   onRenamePreset: (presetId: string, newName: string) => Promise<void>;
   onDeletePreset: (presetId: string) => Promise<void>;
   onAddPreset: (initialValues?: Record<string, string>) => Promise<string>;

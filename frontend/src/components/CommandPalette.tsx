@@ -85,12 +85,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   // Focus input when opened
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- reset state on open */
     if (open) {
+      const t = setTimeout(() => inputRef.current?.focus(), 30);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset state on open
       setQuery('');
       setActiveIndex(0);
-    /* eslint-enable react-hooks/set-state-in-effect */
-      const t = setTimeout(() => inputRef.current?.focus(), 30);
       return () => clearTimeout(t);
     }
   }, [open]);

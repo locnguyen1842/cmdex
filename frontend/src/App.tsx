@@ -718,7 +718,6 @@ function App() {
         onExecute: (values: Record<string, string>) => void;
         onRunInTerminal: (values: Record<string, string>) => void;
         onFillVariables: (initialValues: Record<string, string>) => void;
-        onDelete: () => void;
         onRenamePreset: (presetId: string, newName: string) => Promise<void>;
         onDeletePreset: (presetId: string) => Promise<void>;
         onAddPreset: (initialValues?: Record<string, string>) => Promise<string>;
@@ -1109,20 +1108,6 @@ function App() {
         }
     };
 
-    const makeHandleDelete = useCallback((tabId: string, closeTabFn: (id: string) => void) => {
-        return async () => {
-            try {
-                await DeleteCommand(tabId);
-                closeTabFn(tabId);
-                await loadData();
-                toast.success(t('toast.commandDeleted'));
-            } catch (err) {
-                console.error('Failed to delete command:', err);
-                toast.error(String(err));
-            }
-        };
-    }, [loadData, t]);
-
     const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
         const prev = commands;
         const prevAll = allCommandsRef.current;
@@ -1359,7 +1344,6 @@ function App() {
         'makeHandleExecute',
         'makeHandleRunInTerminal',
         'makeHandleFillVariables',
-        'makeHandleDelete',
         'makeHandleRenamePreset',
         'makeHandleDeletePreset',
         'makeHandleAddPreset',
@@ -1372,7 +1356,6 @@ function App() {
         makeHandleExecute,
         makeHandleRunInTerminal,
         makeHandleFillVariables,
-        makeHandleDelete,
         makeHandleRenamePreset,
         makeHandleDeletePreset,
         makeHandleAddPreset,
@@ -1642,7 +1625,6 @@ function App() {
                                                 onExecute: makeHandleExecute(tab.id),
                                                 onRunInTerminal: makeHandleRunInTerminal(tab.id),
                                                 onFillVariables: makeHandleFillVariables(tab.id),
-                                                onDelete: makeHandleDelete(tab.id, closeTab),
                                                 onRenamePreset: makeHandleRenamePreset(tab.id),
                                                 onDeletePreset: makeHandleDeletePreset(tab.id),
                                                 onAddPreset: makeHandleAddPreset(tab.id),
@@ -1671,7 +1653,6 @@ function App() {
                                                     onExecute={handlers.onExecute}
                                                     onRunInTerminal={handlers.onRunInTerminal}
                                                     onFillVariables={handlers.onFillVariables}
-                                                    onDelete={handlers.onDelete}
                                                     onRenamePreset={handlers.onRenamePreset}
                                                     onDeletePreset={handlers.onDeletePreset}
                                                     onAddPreset={handlers.onAddPreset}

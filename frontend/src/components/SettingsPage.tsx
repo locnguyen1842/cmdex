@@ -168,10 +168,54 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [draftWorkingDir, setDraftWorkingDir] = useState('');
   const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
 
+  // Refs track the latest values so the async GetSettings → merge → SetSettings
+  // chain always reads the most recent state, avoiding stale-closure races when
+  // the user changes multiple settings in rapid succession.
+  const localeRef = useRef(locale);
+  const terminalRef = useRef(terminal);
+  const draftThemeRef = useRef(draftTheme);
+  const draftUiFontRef = useRef(draftUiFont);
+  const draftMonoFontRef = useRef(draftMonoFont);
+  const draftDensityRef = useRef(draftDensity);
+
+  // Sync refs after every render so async callbacks always read the latest.
+  useEffect(() => {
+    localeRef.current = locale;
+    terminalRef.current = terminal;
+    draftThemeRef.current = draftTheme;
+    draftUiFontRef.current = draftUiFont;
+    draftMonoFontRef.current = draftMonoFont;
+    draftDensityRef.current = draftDensity;
+  });
+
   // Tracks whether the user has edited any draft field. While true, the
   // async GetSettings resolver below must NOT overwrite draft/saved values.
   const userTouchedRef = useRef(false);
   const markTouched = useCallback(() => { userTouchedRef.current = true; }, []);
+
+  // Persist the current in-memory settings to the store, merging with
+  // any per-field override passed by the caller.  All values are read
+  // from refs so rapid back-to-back changes always reflect the latest.
+  const persistSettings = useCallback((override?: Record<string, unknown>) => {
+    markTouched();
+    GetSettings().then(current => {
+      const merged = {
+        locale: localeRef.current,
+        terminal: terminalRef.current,
+        theme: draftThemeRef.current,
+        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
+        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        customThemes: current?.customThemes || customThemesStrRef.current,
+        uiFont: draftUiFontRef.current,
+        monoFont: draftMonoFontRef.current,
+        density: draftDensityRef.current,
+        defaultWorkingDir: current?.defaultWorkingDir || {},
+        ...override,
+      };
+      SetSettings(JSON.stringify(merged)).catch(() => {});
+      Events.Emit(eventNames.settingsChanged, merged);
+    }).catch(() => {});
+  }, [markTouched]);
 
   // Draft change helpers. In standalone mode SettingsPage drives its own
   // DOM preview via useEffects above, so it must NOT invoke the parent
@@ -179,119 +223,35 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   // auto-save and the prop round-trip that broke dirty state). Parent
   // callbacks run only on Save (in handleSave below).
   const changeTheme = useCallback((v: string) => {
-    markTouched();
     setDraftTheme(v);
-    GetSettings().then(current => {
-      const newSettings = {
-        locale, terminal, theme: v,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-        defaultWorkingDir: current?.defaultWorkingDir || {},
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
-    }).catch(() => {});
-  }, [markTouched, locale, terminal, draftUiFont, draftMonoFont, draftDensity]);
+    persistSettings({ theme: v });
+  }, [persistSettings]);
 
   const changeDensity = useCallback((v: string) => {
-    markTouched();
     setDraftDensity(v);
-    GetSettings().then(current => {
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: v,
-        defaultWorkingDir: current?.defaultWorkingDir || {},
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
-    }).catch(() => {});
-  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftMonoFont]);
+    persistSettings({ density: v });
+  }, [persistSettings]);
 
   const changeUiFont = useCallback((v: string) => {
-    markTouched();
     setDraftUiFont(v);
-    GetSettings().then(current => {
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: v,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-        defaultWorkingDir: current?.defaultWorkingDir || {},
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
-    }).catch(() => {});
-  }, [markTouched, locale, terminal, draftTheme, draftMonoFont, draftDensity]);
+    persistSettings({ uiFont: v });
+  }, [persistSettings]);
 
   const changeMonoFont = useCallback((v: string) => {
-    markTouched();
     setDraftMonoFont(v);
-    GetSettings().then(current => {
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: draftUiFont,
-        monoFont: v,
-        density: draftDensity,
-        defaultWorkingDir: current?.defaultWorkingDir || {},
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
-    }).catch(() => {});
-  }, [markTouched, locale, terminal, draftTheme, draftUiFont, draftDensity]);
+    persistSettings({ monoFont: v });
+  }, [persistSettings]);
 
   const changeLocale = useCallback((v: string) => {
-    markTouched();
     setLocale(v);
     i18n.changeLanguage(v).catch(() => {});
-    GetSettings().then(current => {
-      const newSettings = {
-        locale: v, terminal, theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-        defaultWorkingDir: current?.defaultWorkingDir || {},
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
-    }).catch(() => {});
-  }, [markTouched, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, i18n]);
+    persistSettings({ locale: v });
+  }, [persistSettings, i18n]);
 
   const changeTerminal = useCallback((v: string) => {
-    markTouched();
     setTerminal(v);
-    GetSettings().then(current => {
-      const newSettings = {
-        locale, terminal: v, theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-        defaultWorkingDir: current?.defaultWorkingDir || {},
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
-    }).catch(() => {});
-  }, [markTouched, locale, draftTheme, draftUiFont, draftMonoFont, draftDensity]);
+    persistSettings({ terminal: v });
+  }, [persistSettings]);
 
   const changeWorkingDir = useCallback((v: string) => {
     markTouched();
@@ -301,20 +261,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const persistWorkingDir = useCallback((path: string) => {
     if (currentOS === 'unknown') return;
     GetSettings().then(current => {
-      const newSettings = {
-        locale, terminal, theme: draftTheme,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
-        customThemes: current?.customThemes || customThemesStrRef.current,
-        uiFont: draftUiFont,
-        monoFont: draftMonoFont,
-        density: draftDensity,
-        defaultWorkingDir: setOSPath(current?.defaultWorkingDir, currentOS, path),
-      };
-      SetSettings(JSON.stringify(newSettings)).catch(() => {});
-      Events.Emit(eventNames.settingsChanged, newSettings);
+      const wd = setOSPath(current?.defaultWorkingDir, currentOS, path);
+      persistSettings({ defaultWorkingDir: wd });
     }).catch(() => {});
-  }, [locale, terminal, draftTheme, draftUiFont, draftMonoFont, draftDensity, currentOS]);
+  }, [currentOS, persistSettings]);
 
   const handleWorkingDirBlur = useCallback(() => {
     persistWorkingDir(draftWorkingDir);
