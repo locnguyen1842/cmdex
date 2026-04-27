@@ -35,23 +35,26 @@ jobs:
       - name: Install frontend deps
         run: cd frontend && pnpm install
 
+      - name: Lint frontend
+        run: cd frontend && pnpm lint
+
       - name: Cache Linux apt deps
-        id: cache-apt
+        id: cache-apt-type
         uses: actions/cache@v4
         with:
-          path: /tmp/apt-cache
+          path: /tmp/apt-cache-type
           key: apt-ubuntu-latest-${{ hashFiles('.github/workflows/ci.yml') }}
 
       - name: Install Linux build deps
         run: |
-          if [ -d /tmp/apt-cache ]; then
-            sudo cp -r /tmp/apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+          if [ -d /tmp/apt-cache-type ]; then
+            sudo cp -r /tmp/apt-cache-type/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
-          sudo mkdir -p /tmp/apt-cache
-          sudo cp /var/cache/apt/archives/*.deb /tmp/apt-cache/ 2>/dev/null || true
-          sudo chmod -R a+r /tmp/apt-cache
+          sudo mkdir -p /tmp/apt-cache-type
+          sudo cp /var/cache/apt/archives/*.deb /tmp/apt-cache-type/ 2>/dev/null || true
+          sudo chmod -R a+r /tmp/apt-cache-type
 
       - name: Create frontend/dist placeholder for go build
         run: mkdir -p frontend/dist && touch frontend/dist/.gitkeep
@@ -181,9 +184,6 @@ jobs:
 
       - name: Install frontend deps
         run: cd frontend && pnpm install
-
-      - name: Lint frontend
-        run: cd frontend && pnpm lint
 
       - name: Cache frontend build
         uses: actions/cache@v4

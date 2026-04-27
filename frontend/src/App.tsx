@@ -109,6 +109,7 @@ const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
 const FONT_SANS_KEY = 'cmdex-ui-font';
 const FONT_MONO_KEY = 'cmdex-mono-font';
 const DENSITY_KEY = 'cmdex-density';
+const MAX_STREAM_LINES = 5000;
 
 function App() {
     const { t } = useTranslation();
@@ -389,7 +390,6 @@ function App() {
                 };
 
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const osDefaultTheme = prefersDark ? 'vscode-dark' : 'vscode-light';
                 const migratedTheme = migrateField(s.theme, THEME_STORAGE_KEY, 'vscode-dark') ||
                     (prefersDark
                         ? (localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark')
@@ -464,9 +464,6 @@ function App() {
                     windowWidth: settingsRef.current.windowWidth,
                     windowHeight: settingsRef.current.windowHeight,
                 })).catch(() => {});
-
-                // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
-                void osDefaultTheme;
             })
             .catch(() => {
                 // Allow saves even if initial load fails
@@ -970,17 +967,6 @@ function App() {
         return !!(d && b && !draftsEqual(d, b));
     }, []);
 
-    const handleExecute = async (values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        if (isSavedCommandDraftDirty(selectedCommand.id)) {
-            toast.message(t('toast.saveBeforeExecute'));
-            return;
-        }
-        runCommandDirect(selectedCommand.id, values);
-    };
-
-    const MAX_STREAM_LINES = 5000;
-
     const flushStreamBuffer = useCallback(() => {
         const execTabId = executingTabIdRef.current;
         const newLines = streamBufferRef.current;
@@ -1455,13 +1441,13 @@ function App() {
             if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
             if (!selectedCommand || modal.type !== 'none' || isNewCommandTabId(selectedCommand.id)) return;
             if (resolvedVariables.length === 0) {
-                handleExecute({});
+                makeHandleExecute(selectedCommand!.id)({});
             } else {
                 const hasEmpty = resolvedVariables.some((v) => !currentResolvedValues[v.name]);
                 if (hasEmpty) {
                     handleFillVariables(currentResolvedValues);
                 } else {
-                    handleExecute(currentResolvedValues);
+                    makeHandleExecute(selectedCommand!.id)(currentResolvedValues);
                 }
             }
         },

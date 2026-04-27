@@ -280,6 +280,13 @@ func (e *Executor) GetAvailableTerminals() []TerminalInfo {
 	return result
 }
 
+func resolveDarwinBin(plain, bundleBin string) string {
+	if _, err := exec.LookPath(plain); err != nil {
+		return bundleBin
+	}
+	return plain
+}
+
 func (e *Executor) terminalExists(d terminalDef) bool {
 	for _, p := range d.Paths {
 		if d.IsApp {
@@ -354,44 +361,35 @@ end tell`),
 			},
 		},
 		{
-			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app", "/Applications/Alacritty.app/Contents/MacOS/alacritty"}, IsApp: false,
+			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app/Contents/MacOS/alacritty"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--working-directory", workingDir}, args...)
 				}
-				bin := "alacritty"
-				if _, err := exec.LookPath("alacritty"); err != nil {
-					bin = "/Applications/Alacritty.app/Contents/MacOS/alacritty"
-				}
+				bin := resolveDarwinBin("alacritty", "/Applications/Alacritty.app/Contents/MacOS/alacritty")
 				return exec.Command(bin, args...).Start()
 			},
 		},
 		{
-			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app", "/Applications/kitty.app/Contents/MacOS/kitty"}, IsApp: false,
+			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app/Contents/MacOS/kitty"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--directory", workingDir}, args...)
 				}
-				bin := "kitty"
-				if _, err := exec.LookPath("kitty"); err != nil {
-					bin = "/Applications/kitty.app/Contents/MacOS/kitty"
-				}
+				bin := resolveDarwinBin("kitty", "/Applications/kitty.app/Contents/MacOS/kitty")
 				return exec.Command(bin, args...).Start()
 			},
 		},
 		{
-			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app", "/Applications/Ghostty.app/Contents/MacOS/ghostty"}, IsApp: false,
+			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty"}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--working-directory=" + workingDir}, args...)
 				}
-				bin := "ghostty"
-				if _, err := exec.LookPath("ghostty"); err != nil {
-					bin = "/Applications/Ghostty.app/Contents/MacOS/ghostty"
-				}
+				bin := resolveDarwinBin("ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty")
 				return exec.Command(bin, args...).Start()
 			},
 		},
