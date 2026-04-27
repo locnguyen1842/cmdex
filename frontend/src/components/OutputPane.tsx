@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { type ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -105,13 +106,17 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
 
   const handleCopy = useCallback(() => {
     if (!allOutputText) return;
-    copyOutput(allOutputText);
-  }, [allOutputText, copyOutput]);
+    copyOutput(allOutputText).catch(() => {
+      toast.error(t('outputPane.copyFailed'));
+    });
+  }, [allOutputText, copyOutput, t]);
 
   const handleCopyCommand = useCallback(() => {
     if (!record?.finalCmd) return;
-    copyCommand(record.finalCmd);
-  }, [record, copyCommand]);
+    copyCommand(record.finalCmd).catch(() => {
+      toast.error(t('outputPane.copyFailed'));
+    });
+  }, [record, copyCommand, t]);
 
   const cmdPrefix = useMemo(() => {
     if (!showRecord) return null;

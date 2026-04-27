@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSyncedRef } from '../hooks/useSyncedRef';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -318,15 +319,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
   // In standalone mode, if the component unmounts (e.g. window closes)
   // with unsaved changes, revert DOM preview to the saved values so the
-  // next open starts clean.
+  // next open starts clean. A synced ref captures the latest saved state
+  // so the cleanup only runs on actual unmount, not on every dep change.
+  const savedSettingsRef = useSyncedRef({ savedTheme, savedDensity, savedUiFont, savedMonoFont, customThemes });
+
   useEffect(() => {
     return () => {
-      const custom = customThemes?.find(c => c.id === savedTheme);
-      applyTheme(savedTheme, custom?.colors ?? null);
-      applyDensity(savedDensity);
-      applyFonts(savedUiFont, savedMonoFont);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- syncedRef.current is intentionally read in cleanup for latest value
+      const { savedTheme: st, savedDensity: sd, savedUiFont: suf, savedMonoFont: smf, customThemes: ct } = savedSettingsRef.current;
+      const custom = ct?.find(c => c.id === st);
+      applyTheme(st, custom?.colors ?? null);
+      applyDensity(sd);
+      applyFonts(suf, smf);
     };
-  }, [savedTheme, savedDensity, savedUiFont, savedMonoFont, customThemes]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (customThemes && customThemes.length > 0) {

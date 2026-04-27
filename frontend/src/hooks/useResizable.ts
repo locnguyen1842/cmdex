@@ -13,7 +13,7 @@ export function useResizable(options: UseResizableOptions) {
   const { axis, direction, minSize, maxSize, defaultSize, storageKey } = options;
 
   const [size, setSize] = useState<number>(() => {
-    const saved = localStorage.getItem(`${storageKey}-size`);
+    const saved = localStorage.getItem(storageKey);
     const parsed = saved ? Number(saved) : NaN;
     return Number.isFinite(parsed) ? Math.min(maxSize, Math.max(minSize, parsed)) : defaultSize;
   });
@@ -50,7 +50,7 @@ export function useResizable(options: UseResizableOptions) {
       isDraggingRef.current = false;
       setIsDragging(false);
       setSize((current) => {
-        localStorage.setItem(`${storageKey}-size`, String(current));
+        localStorage.setItem(storageKey, String(current));
         return current;
       });
     };

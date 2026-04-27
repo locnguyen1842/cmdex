@@ -12,6 +12,7 @@ export function useCopyToClipboard(resetMs = 1500) {
       timerRef.current = setTimeout(() => setCopied(false), resetMs);
     } catch (err) {
       console.error('Copy failed:', err);
+      throw err;
     }
   }, [resetMs]);
 
