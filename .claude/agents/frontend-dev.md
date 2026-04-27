@@ -88,6 +88,7 @@ You work primarily within the `./frontend` directory. You are responsible for:
 - [ ] No direct DOM manipulation (use React state/refs)
 - [ ] shadcn/ui components used where applicable instead of custom HTML
 - [ ] Wails binding imports are from the correct generated path
+- [ ] ESLint passes (`cd frontend && pnpm lint`) with no errors or warnings
 
 **Update your agent memory** as you discover frontend patterns, component structures, state management conventions, and recurring UI patterns in this codebase. This builds up institutional knowledge across conversations.
 

@@ -13,7 +13,7 @@ This guide covers how to set up, build, and develop the **Cmdex** application lo
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Go | `>= 1.25.0` | Backend services and Wails runtime |
-| Node.js | `>= 20` | Frontend build tooling (Vite, TypeScript) |
+| Node.js | `>= 20.19.0 || >=22.13.0 || >=24` | Frontend build tooling (Vite, TypeScript) |
 | pnpm | latest | Frontend package manager |
 | Wails CLI | `v3` | Desktop app framework and binding generator |
 
@@ -106,6 +106,8 @@ The dev server runs on the port defined by `VITE_PORT` (default `9245`). When la
 | `pnpm build` | Production build (TypeScript compile + Vite bundle) |
 | `pnpm build:dev` | Development build (unminified) |
 | `pnpm preview` | Preview the production build locally |
+| `pnpm lint` | Run ESLint on all frontend source files |
+| `pnpm lint:fix` | Run ESLint and auto-fix issues where possible |
 
 ### Path Aliases
 
@@ -231,7 +233,7 @@ Main window dimensions, title, background color, and macOS-specific options are 
 
 ### TypeScript / React
 
-- **No explicit ESLint or Prettier config** is present; rely on TypeScript strictness and consistent manual formatting.
+- ESLint is configured in `frontend/eslint.config.mjs` using `@eslint/js`, `typescript-eslint`, and `eslint-plugin-react-hooks`. Run `pnpm lint` before committing frontend changes.
 - Use functional components and hooks.
 - Custom hooks live in `frontend/src/hooks/`.
 - Utility functions live in `frontend/src/utils/`.
@@ -277,6 +279,8 @@ The project uses Tailwind v4 with the new `@tailwindcss/vite` plugin. Styles are
 
 ```bash
 cd frontend
+pnpm lint           # Run ESLint
+pnpm lint:fix       # Auto-fix ESLint issues where possible
 pnpm tsc --noEmit   # Type-check without emitting
 ```
 

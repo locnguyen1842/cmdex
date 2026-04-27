@@ -24,3 +24,4 @@ todos/
 .claude/settings.local.json
 
 .env
+.grepai/

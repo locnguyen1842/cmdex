@@ -280,6 +280,13 @@ func (e *Executor) GetAvailableTerminals() []TerminalInfo {
 	return result
 }
 
+func resolveDarwinBin(plain, bundleBin string) string {
+	if _, err := exec.LookPath(plain); err != nil {
+		return bundleBin
+	}
+	return plain
+}
+
 func (e *Executor) terminalExists(d terminalDef) bool {
 	for _, p := range d.Paths {
 		if d.IsApp {
@@ -320,6 +327,10 @@ func (e *Executor) darwinTerminals() []terminalDef {
 		}
 	}
 
+	alacrittyBin, alacrittyBundle := "alacritty", "/Applications/Alacritty.app/Contents/MacOS/alacritty"
+	kittyBin, kittyBundle := "kitty", "/Applications/kitty.app/Contents/MacOS/kitty"
+	ghosttyBin, ghosttyBundle := "ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty"
+
 	return []terminalDef{
 		{
 			ID: "terminal", Name: "Terminal", Paths: []string{"/System/Applications/Utilities/Terminal.app"}, IsApp: true,
@@ -354,33 +365,36 @@ end tell`),
 			},
 		},
 		{
-			ID: "alacritty", Name: "Alacritty", Paths: []string{"alacritty", "/Applications/Alacritty.app"}, IsApp: false,
+			ID: "alacritty", Name: "Alacritty", Paths: []string{alacrittyBin, alacrittyBundle}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--working-directory", workingDir}, args...)
 				}
-				return exec.Command("alacritty", args...).Start()
+				bin := resolveDarwinBin(alacrittyBin, alacrittyBundle)
+				return exec.Command(bin, args...).Start()
 			},
 		},
 		{
-			ID: "kitty", Name: "Kitty", Paths: []string{"kitty", "/Applications/kitty.app"}, IsApp: false,
+			ID: "kitty", Name: "Kitty", Paths: []string{kittyBin, kittyBundle}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--directory", workingDir}, args...)
 				}
-				return exec.Command("kitty", args...).Start()
+				bin := resolveDarwinBin(kittyBin, kittyBundle)
+				return exec.Command(bin, args...).Start()
 			},
 		},
 		{
-			ID: "ghostty", Name: "Ghostty", Paths: []string{"ghostty", "/Applications/Ghostty.app"}, IsApp: false,
+			ID: "ghostty", Name: "Ghostty", Paths: []string{ghosttyBin, ghosttyBundle}, IsApp: false,
 			LaunchFn: func(ex *Executor, body string, workingDir string) error {
 				args := []string{"-e", ex.shell, ex.flag, body + "; exec " + ex.shell}
 				if workingDir != "" {
 					args = append([]string{"--working-directory=" + workingDir}, args...)
 				}
-				return exec.Command("ghostty", args...).Start()
+				bin := resolveDarwinBin(ghosttyBin, ghosttyBundle)
+				return exec.Command(bin, args...).Start()
 			},
 		},
 		{

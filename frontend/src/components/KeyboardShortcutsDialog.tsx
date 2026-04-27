@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Kbd } from '@/components/ui/kbd';
-import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
+import { shortcutLabel } from '@/lib/shortcuts';
 
 const SHORTCUT_GROUPS = [
   {

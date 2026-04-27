@@ -35,6 +35,20 @@ Data is stored locally in `~/.cmdex/cmdex.db`.
 
 ## Common Tasks for Agents
 
+### Before committing frontend changes
+1. Run the linter and fix any issues:
+   ```bash
+   cd frontend && pnpm lint
+   ```
+   To auto-fix issues where possible:
+   ```bash
+   cd frontend && pnpm lint:fix
+   ```
+2. Verify TypeScript compiles:
+   ```bash
+   cd frontend && npx tsc --noEmit
+   ```
+
 ### Adding a new field to a Command or Category
 1. Update the struct in `models.go`.
 2. Update the `Create` and `Update` method signatures in `app.go`.
@@ -63,6 +77,14 @@ Window dimensions, title, background color, and platform-specific tweaks (like M
 - **Check TypeScript Types**:
   ```bash
   cd frontend && npx tsc --noEmit
+  ```
+- **Lint Frontend Code** (run this whenever you make changes to frontend code):
+  ```bash
+  cd frontend && pnpm lint
+  ```
+  To automatically fix fixable issues:
+  ```bash
+  cd frontend && pnpm lint:fix
   ```
 
 ## Current Limitations & Known Considerations

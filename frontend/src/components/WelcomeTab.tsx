@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
-import { SHORTCUTS, shortcutLabel } from '@/lib/shortcuts';
+import { shortcutLabel } from '@/lib/shortcuts';
 import { MainLogo } from '@/assets/images/main-logo';
 
 interface WelcomeTabProps {

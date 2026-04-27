@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExecutionRecord } from '../types';
+import { type ExecutionRecord } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -153,14 +153,14 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
     }).catch((err) => {
       console.error('Failed to copy command:', err);
     });
-  }, [record?.finalCmd]);
+  }, [record]);
 
   const cmdPrefix = useMemo(() => {
     if (!showRecord) return null;
     const time = formatTime(record.executedAt, i18nInstance.language);
     const dir = shortenDir(record.workingDir || '');
     return `[${time}] ${dir} ➤ `;
-  }, [showRecord, record?.executedAt, record?.workingDir]);
+  }, [showRecord, record, i18nInstance.language]);
 
   return (
     <Collapsible open={isOpen} className="output-pane">

@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { VariablePrompt as VariablePromptType, VariablePreset } from '../types';
+import { type VariablePrompt as VariablePromptType, type VariablePreset } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,17 +106,41 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     return nameChanged || valuesChanged;
   }, [values, snapshotValues, selectedPreset, variables, toolbarName, snapshotName, isCreatingNew]);
 
+  const selectedPresetIdRef = useRef(selectedPresetId);
+  useEffect(() => { selectedPresetIdRef.current = selectedPresetId; });
   const prevPresetsRef = useRef(presets);
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- auto-select newest preset on add, fallback on delete */
     if (mode !== 'manage') return;
     const prev = prevPresetsRef.current;
     if (presets.length > prev.length) {
       const newest = presets[presets.length - 1];
-      if (newest) handleSelectPreset(newest.id);
+      if (newest) {
+        setSelectedPresetId(newest.id);
+        onPresetChange?.(newest.id);
+        const newValues: Record<string, string> = {};
+        variables.forEach(v => {
+          newValues[v.name] = newest.values[v.name] ?? v.defaultValue ?? '';
+        });
+        setValues(newValues);
+        setSnapshotValues({ ...newValues });
+        setToolbarName(newest.name);
+        setSnapshotName(newest.name);
+      }
     } else if (presets.length < prev.length) {
-      if (!presets.find(p => p.id === selectedPresetId)) {
+      if (!presets.find(p => p.id === selectedPresetIdRef.current)) {
         if (presets.length > 0) {
-          handleSelectPreset(presets[0].id);
+          const first = presets[0];
+          setSelectedPresetId(first.id);
+          onPresetChange?.(first.id);
+          const newValues: Record<string, string> = {};
+          variables.forEach(v => {
+            newValues[v.name] = first.values[v.name] ?? v.defaultValue ?? '';
+          });
+          setValues(newValues);
+          setSnapshotValues({ ...newValues });
+          setToolbarName(first.name);
+          setSnapshotName(first.name);
         } else {
           setSelectedPresetId('');
           setToolbarName('Default');
@@ -127,7 +151,8 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
       }
     }
     prevPresetsRef.current = presets;
-  }, [presets]);
+  }, [presets, mode, variables, onPresetChange]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (editingPresetNameId && nameInputRef.current) {

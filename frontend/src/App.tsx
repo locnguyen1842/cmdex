@@ -8,7 +8,7 @@ import VariablePrompt from './components/VariablePrompt';
 import HistoryPane from './components/HistoryPane';
 import OutputPane from './components/OutputPane';
 import ResizablePanel from './components/ResizablePanel';
-import TabBar, { Tab } from './components/TabBar';
+import TabBar, { type Tab } from './components/TabBar';
 import CommandPalette from './components/CommandPalette';
 import WelcomeTab from './components/WelcomeTab';
 import FloatingSaveBar from './components/FloatingSaveBar';
@@ -17,7 +17,6 @@ import { useKeyboardShortcuts, cmdOrCtrl, SHORTCUTS } from './hooks/useKeyboardS
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 import {
@@ -33,20 +32,19 @@ import {
 import { Events } from '@wailsio/runtime';
 import { eventNames, initEventNames } from './wails/events';
 import {
-    Category,
-    Command,
-    VariableDefinition,
-    VariablePrompt as VarPromptType,
-    VariablePreset,
-    ExecutionRecord,
-    TabDraft,
+    type Category,
+    type Command,
+    type VariableDefinition,
+    type VariablePrompt as VarPromptType,
+    type VariablePreset,
+    type ExecutionRecord,
+    type TabDraft,
     createNewTabId,
     isNewCommandTabId,
     getCommandDisplayTitle,
-    SettingsPayload,
-    OSPathMap,
+    type SettingsPayload,
+    type OSPathMap,
     normalizeOS,
-    THEMES,
     type OSKey,
     type CustomTheme,
 } from './types';
@@ -66,7 +64,6 @@ import {
     DeletePreset,
     ReorderCommand,
     GetScriptBody,
-    ResetAllData,
     ReorderPresets,
 } from '../bindings/cmdex/commandservice';
 import {
@@ -112,6 +109,7 @@ const CUSTOM_THEMES_KEY = 'cmdex-custom-themes';
 const FONT_SANS_KEY = 'cmdex-ui-font';
 const FONT_MONO_KEY = 'cmdex-mono-font';
 const DENSITY_KEY = 'cmdex-density';
+const MAX_STREAM_LINES = 5000;
 
 function App() {
     const { t } = useTranslation();
@@ -141,32 +139,39 @@ function App() {
     const tabPaneStateRef = useRef<Record<string, { outputOpen: boolean; historyOpen: boolean }>>({});
     const [historyPaneOpen, setHistoryPaneOpen] = useState(false);
     const selectedRecordRef = useRef<ExecutionRecord | null>(null);
-    selectedRecordRef.current = selectedRecord;
     const selectedCommandRef = useRef<Command | null>(null);
-    selectedCommandRef.current = selectedCommand;
+    const selectedCommandId = selectedCommand?.id;
     const streamLinesRef = useRef<string[]>([]);
-    streamLinesRef.current = streamLines;
     const outputPaneOpenRef = useRef(false);
-    outputPaneOpenRef.current = outputPaneOpen;
     const historyPaneOpenRef = useRef(false);
-    historyPaneOpenRef.current = historyPaneOpen;
 
     const [openTabs, setOpenTabs] = useState<Tab[]>([]);
     const openTabsRef = useRef<Tab[]>([]);
 
     const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
-    openTabsRef.current = openTabs;
     const scriptFetchGenRef = useRef<Record<string, number>>({});
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const activeTabIdRef = useRef<string | null>(null);
-    activeTabIdRef.current = activeTabId;
     const prevTabIdRef = useRef<string | null>(null);
     const [tabDrafts, setTabDrafts] = useState<Record<string, TabDraft>>({});
     const [tabBaselines, setTabBaselines] = useState<Record<string, TabDraft>>({});
     const tabDraftsRef = useRef<Record<string, TabDraft>>({});
-    tabDraftsRef.current = tabDrafts;
     const tabBaselinesRef = useRef<Record<string, TabDraft>>({});
-    tabBaselinesRef.current = tabBaselines;
+
+    useEffect(() => {
+        selectedRecordRef.current = selectedRecord;
+        selectedCommandRef.current = selectedCommand;
+        streamLinesRef.current = streamLines;
+        outputPaneOpenRef.current = outputPaneOpen;
+        historyPaneOpenRef.current = historyPaneOpen;
+    }, [selectedRecord, selectedCommand, streamLines, outputPaneOpen, historyPaneOpen]);
+
+    useEffect(() => {
+        openTabsRef.current = openTabs;
+        activeTabIdRef.current = activeTabId;
+        tabDraftsRef.current = tabDrafts;
+        tabBaselinesRef.current = tabBaselines;
+    }, [openTabs, activeTabId, tabDrafts, tabBaselines]);
 
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
@@ -174,7 +179,7 @@ function App() {
     const mainContentRef = useRef<HTMLDivElement>(null);
 
     const [theme, setTheme] = useState<string>('vscode-dark');
-    const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+
     const [uiFont, setUiFont] = useState<string>('Inter');
     const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
     const [density, setDensity] = useState<string>('comfortable');
@@ -234,7 +239,7 @@ function App() {
         document.documentElement.setAttribute('data-theme', theme);
         settingsRef.current.theme = theme;
         flushSettings();
-    }, [theme]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [theme]);  
 
     useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -253,19 +258,19 @@ function App() {
         document.documentElement.style.setProperty('--font-sans', fontValue);
         settingsRef.current.uiFont = uiFont;
         flushSettings();
-    }, [uiFont]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [uiFont]);  
 
     useEffect(() => {
         document.documentElement.style.setProperty('--font-mono', `'${monoFont}', monospace`);
         settingsRef.current.monoFont = monoFont;
         flushSettings();
-    }, [monoFont]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [monoFont]);  
 
     useEffect(() => {
         document.documentElement.setAttribute('data-density', density);
         settingsRef.current.density = density;
         flushSettings();
-    }, [density]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [density]);  
 
     // Tab switch fade: trigger opacity fade-in on the main-content area when activeTabId changes.
     // With per-tab mounts, this animates the entire main-content area on tab switch.
@@ -285,12 +290,12 @@ function App() {
 
     const resolvedVariables = useMemo(() => {
         if (!selectedCommand) return [];
-        if (isNewCommandTabId(selectedCommand.id)) {
-            const d = tabDrafts[selectedCommand.id];
+        if (isNewCommandTabId(selectedCommandId)) {
+            const d = tabDrafts[selectedCommandId];
             if (!d) return [];
             return variableDefinitionsToPrompts(d.variables);
         }
-        const d = tabDrafts[selectedCommand.id];
+        const d = tabDrafts[selectedCommandId];
         if (d) {
             const serverMap = new Map(serverVariables.map(v => [v.name, v]));
             return d.variables.map(dv => {
@@ -307,20 +312,21 @@ function App() {
             });
         }
         return serverVariables;
-    }, [selectedCommand?.id, tabDrafts, serverVariables]);
+    }, [selectedCommand, selectedCommandId, tabDrafts, serverVariables]);
 
     const variablesRequestIdRef = useRef(0);
     useEffect(() => {
         if (!selectedCommand) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setServerVariables([]);
             return;
         }
-        if (isNewCommandTabId(selectedCommand.id)) {
+        if (isNewCommandTabId(selectedCommandId)) {
             setServerVariables([]);
             return;
         }
         const requestId = ++variablesRequestIdRef.current;
-        GetVariables(selectedCommand.id)
+        GetVariables(selectedCommandId)
             .then((v) => {
                 if (variablesRequestIdRef.current === requestId) {
                     setServerVariables(v || []);
@@ -331,39 +337,17 @@ function App() {
                     setServerVariables([]);
                 }
             });
-    }, [selectedCommand?.id]);
+    }, [selectedCommand, selectedCommandId]);
 
     useEffect(() => {
-        if (!activeTabId || !tabDrafts[activeTabId]) return;
-        const draft = tabDrafts[activeTabId];
-        const title = draft.title.trim();
-        // If title is empty, use script body as fallback (trimmed to 50 chars)
-        let displayTitle = title;
-        if (!displayTitle) {
-            const body = draft.scriptBody.replace(/\n/g, ' ').trim();
-            if (body.length > 0) {
-                displayTitle = body.length > 50 ? body.slice(0, 50) + '...' : body;
-            } else {
-                displayTitle = isNewCommandTabId(activeTabId)
-                    ? t('commandEditor.newCommand')
-                    : t('common.untitled');
-            }
-        }
-        setOpenTabs((prev) =>
-            prev.map((tt) =>
-                tt.id === activeTabId ? { ...tt, title: displayTitle } : tt,
-            ),
-        );
-    }, [activeTabId, tabDrafts, t]);
-
-    useEffect(() => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const d = tabDrafts[selectedCommand.id];
-        const b = tabBaselines[selectedCommand.id];
+        if (!selectedCommand || isNewCommandTabId(selectedCommandId)) return;
+        const d = tabDrafts[selectedCommandId];
+        const b = tabBaselines[selectedCommandId];
         if (d && b && !draftsEqual(d, b)) return;
-        const fresh = commands.find((c) => c.id === selectedCommand.id);
+        const fresh = commands.find((c) => c.id === selectedCommandId);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing selected command from fresh data after external reload
         if (fresh) setSelectedCommand(fresh);
-    }, [commands, selectedCommand?.id, tabDrafts, tabBaselines]);
+    }, [selectedCommand, commands, selectedCommandId, tabDrafts, tabBaselines]);
 
     const loadData = useCallback(async () => {
         try {
@@ -388,6 +372,7 @@ function App() {
     }, []);
 
     useEffect(() => {
+        /* eslint-disable react-hooks/set-state-in-effect -- one-time init data loading */
         GetOS().then((os) => setCurrentOS(normalizeOS(os))).catch(() => setCurrentOS('unknown'));
         loadData();
         loadHistory();
@@ -405,7 +390,6 @@ function App() {
                 };
 
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const osDefaultTheme = prefersDark ? 'vscode-dark' : 'vscode-light';
                 const migratedTheme = migrateField(s.theme, THEME_STORAGE_KEY, 'vscode-dark') ||
                     (prefersDark
                         ? (localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark')
@@ -452,7 +436,6 @@ function App() {
 
                 // Apply state — each setter triggers its effect which calls flushSettings
                 setTheme(migratedTheme);
-                setCustomThemes(migratedCustomThemes);
                 setUiFont(migratedUiFont);
                 setMonoFont(migratedMonoFont);
                 setDensity(migratedDensity);
@@ -481,9 +464,6 @@ function App() {
                     windowWidth: settingsRef.current.windowWidth,
                     windowHeight: settingsRef.current.windowHeight,
                 })).catch(() => {});
-
-                // Suppress unused variable warning for osDefaultTheme (used in migration logic above)
-                void osDefaultTheme;
             })
             .catch(() => {
                 // Allow saves even if initial load fails
@@ -492,6 +472,7 @@ function App() {
         setOpenTabs([]);
         setActiveTabId(null);
     }, [loadData, loadHistory]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const openSettingsWithToast = async () => {
         try {
@@ -557,7 +538,6 @@ function App() {
                         ? JSON.parse(payload.customThemes)
                         : payload.customThemes;
                     if (Array.isArray(parsed)) {
-                        setCustomThemes(parsed);
                         settingsRef.current.customThemes = parsed;
                     }
                 } catch {
@@ -585,6 +565,12 @@ function App() {
         },
         [tabBaselines],
     );
+
+    const applyPaneState = (tabId: string) => {
+        const saved = tabPaneStateRef.current[tabId];
+        setOutputPaneOpen(saved?.outputOpen ?? false);
+        setHistoryPaneOpen(saved?.historyOpen ?? false);
+    };
 
     const finalizeCloseTab = useCallback(
         (tabId: string) => {
@@ -635,12 +621,6 @@ function App() {
         },
         [activeTabId],
     );
-
-    const applyPaneState = (tabId: string) => {
-        const saved = tabPaneStateRef.current[tabId];
-        setOutputPaneOpen(saved?.outputOpen ?? false);
-        setHistoryPaneOpen(saved?.historyOpen ?? false);
-    };
 
     const openNewCommandTab = useCallback(
         (defaultCategoryId?: string) => {
@@ -738,7 +718,6 @@ function App() {
         onExecute: (values: Record<string, string>) => void;
         onRunInTerminal: (values: Record<string, string>) => void;
         onFillVariables: (initialValues: Record<string, string>) => void;
-        onDelete: () => void;
         onRenamePreset: (presetId: string, newName: string) => Promise<void>;
         onDeletePreset: (presetId: string) => Promise<void>;
         onAddPreset: (initialValues?: Record<string, string>) => Promise<string>;
@@ -918,9 +897,25 @@ function App() {
                     const d = tabDrafts[tab.id];
                     const b = tabBaselines[tab.id];
                     const dirty = !!(d && b && !draftsEqual(d, b));
-                    return { ...tab, isDirty: dirty };
+                    let title = tab.title;
+                    if (d) {
+                        const trimmedTitle = d.title.trim();
+                        if (trimmedTitle) {
+                            title = trimmedTitle;
+                        } else {
+                            const body = d.scriptBody.replace(/\n/g, ' ').trim();
+                            if (body.length > 0) {
+                                title = body.length > 50 ? body.slice(0, 50) + '...' : body;
+                            } else if (isNewCommandTabId(tab.id)) {
+                                title = t('commandEditor.newCommand');
+                            } else {
+                                title = t('common.untitled');
+                            }
+                        }
+                    }
+                    return { ...tab, title, isDirty: dirty };
                 }),
-        [openTabs, tabDrafts, tabBaselines],
+        [openTabs, tabDrafts, tabBaselines, t],
     );
 
     const activeDraft = activeTabId ? tabDrafts[activeTabId] : null;
@@ -971,128 +966,6 @@ function App() {
         return !!(d && b && !draftsEqual(d, b));
     }, []);
 
-    const handleExecute = async (values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        if (isSavedCommandDraftDirty(selectedCommand.id)) {
-            toast.message(t('toast.saveBeforeExecute'));
-            return;
-        }
-        runCommandDirect(selectedCommand.id, values);
-    };
-
-    const makeHandleExecute = useCallback((tabId: string) => {
-        return async (values: Record<string, string>) => {
-            if (isNewCommandTabId(tabId)) return;
-            if (isSavedCommandDraftDirty(tabId)) {
-                toast.message(t('toast.saveBeforeExecute'));
-                return;
-            }
-            runCommandDirect(tabId, values);
-        };
-    }, [isSavedCommandDraftDirty, t]);
-
-    const makeHandleRunInTerminal = useCallback((tabId: string) => {
-        return async (values: Record<string, string>) => {
-            if (isNewCommandTabId(tabId)) return;
-            if (isSavedCommandDraftDirty(tabId)) {
-                toast.message(t('toast.saveBeforeExecute'));
-                return;
-            }
-            try {
-                await RunInTerminal(tabId, values);
-            } catch (err) {
-                toast.error(String(err));
-            }
-        };
-    }, [isSavedCommandDraftDirty, t]);
-
-    const handleDeleteCommand = async (cmd: Command) => {
-        try {
-            await DeleteCommand(cmd.id);
-            if (selectedCommand?.id === cmd.id) {
-                closeTab(cmd.id);
-            }
-            await loadData();
-            toast.success(t('toast.commandDeleted'));
-        } catch (err) {
-            console.error('Failed to delete command:', err);
-        }
-    };
-
-    const makeHandleDelete = useCallback((tabId: string, closeTabFn: (id: string) => void) => {
-        return async () => {
-            try {
-                await DeleteCommand(tabId);
-                closeTabFn(tabId);
-                await loadData();
-                toast.success(t('toast.commandDeleted'));
-            } catch (err) {
-                console.error('Failed to delete command:', err);
-                toast.error(String(err));
-            }
-        };
-    }, [loadData, t]);
-
-    const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
-        const prev = commands;
-        const prevAll = allCommandsRef.current;
-        const optimistic = prev.map(cmd => {
-            if (cmd.id === id) {
-                return { ...cmd, categoryId: newCategoryId, position: newPosition };
-            }
-            return cmd;
-        });
-        allCommandsRef.current = optimistic;
-        setCommands(optimistic);
-        try {
-            const reordered = await ReorderCommand(id, newPosition, newCategoryId);
-            if (reordered) {
-                allCommandsRef.current = reordered;
-                setCommands(reordered);
-            }
-        } catch (err) {
-            console.error('Failed to reorder command:', err);
-            allCommandsRef.current = prevAll;
-            setCommands(prev);
-        }
-    };
-
-    const handleFillVariables = async (initialValues: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        const vars = await GetVariables(selectedCommand.id);
-        setModal({
-            type: 'fillVariables',
-            variables: vars || [],
-            commandId: selectedCommand.id,
-            initialValues,
-        });
-    };
-
-    const makeHandleFillVariables = useCallback((tabId: string) => {
-        return async (initialValues: Record<string, string>) => {
-            if (isNewCommandTabId(tabId)) return;
-            const vars = await GetVariables(tabId);
-            setModal({
-                type: 'fillVariables',
-                variables: vars || [],
-                commandId: tabId,
-                initialValues,
-            });
-        };
-    }, []);
-
-    const handleVariableSubmit = async (values: Record<string, string>) => {
-        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
-        if (isSavedCommandDraftDirty(selectedCommand.id)) {
-            toast.message(t('toast.saveBeforeExecute'));
-            return;
-        }
-        setModal({ type: 'none' });
-        runCommandDirect(selectedCommand.id, values);
-    };
-
-    const MAX_STREAM_LINES = 5000;
-
     const flushStreamBuffer = useCallback(() => {
         const execTabId = executingTabIdRef.current;
         const newLines = streamBufferRef.current;
@@ -1102,10 +975,12 @@ function App() {
         if (execTabId) {
             const slot = tabOutputRef.current[execTabId] || { record: null, streamLines: [] };
             const combined = [...slot.streamLines, ...newLines];
-            slot.streamLines = combined.length > MAX_STREAM_LINES
-                ? combined.slice(combined.length - MAX_STREAM_LINES)
-                : combined;
-            tabOutputRef.current[execTabId] = slot;
+            tabOutputRef.current[execTabId] = {
+                ...slot,
+                streamLines: combined.length > MAX_STREAM_LINES
+                    ? combined.slice(combined.length - MAX_STREAM_LINES)
+                    : combined,
+            };
         }
 
         if (execTabId === activeTabIdRef.current) {
@@ -1119,7 +994,7 @@ function App() {
         }
     }, []);
 
-    const runCommandDirect = async (commandId: string, variables: Record<string, string>) => {
+    const runCommandDirect = useCallback(async (commandId: string, variables: Record<string, string>) => {
         const execTabId = activeTabIdRef.current;
         executingTabIdRef.current = execTabId;
         setExecutingTabIdState(execTabId);
@@ -1192,6 +1067,103 @@ function App() {
             setExecutingTabIdState(null);
             setIsExecuting(false);
         }
+    }, [flushStreamBuffer, t, loadHistory]);
+
+    const makeHandleExecute = useCallback((tabId: string) => {
+        return async (values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            if (isSavedCommandDraftDirty(tabId)) {
+                toast.message(t('toast.saveBeforeExecute'));
+                return;
+            }
+            runCommandDirect(tabId, values);
+        };
+    }, [isSavedCommandDraftDirty, runCommandDirect, t]);
+
+    const makeHandleRunInTerminal = useCallback((tabId: string) => {
+        return async (values: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            if (isSavedCommandDraftDirty(tabId)) {
+                toast.message(t('toast.saveBeforeExecute'));
+                return;
+            }
+            try {
+                await RunInTerminal(tabId, values);
+            } catch (err) {
+                toast.error(String(err));
+            }
+        };
+    }, [isSavedCommandDraftDirty, t]);
+
+    const handleDeleteCommand = async (cmd: Command) => {
+        try {
+            await DeleteCommand(cmd.id);
+            if (selectedCommand?.id === cmd.id) {
+                closeTab(cmd.id);
+            }
+            await loadData();
+            toast.success(t('toast.commandDeleted'));
+        } catch (err) {
+            console.error('Failed to delete command:', err);
+        }
+    };
+
+    const handleReorderCommand = async (id: string, newPosition: number, newCategoryId: string) => {
+        const prev = commands;
+        const prevAll = allCommandsRef.current;
+        const optimistic = prev.map(cmd => {
+            if (cmd.id === id) {
+                return { ...cmd, categoryId: newCategoryId, position: newPosition };
+            }
+            return cmd;
+        });
+        allCommandsRef.current = optimistic;
+        setCommands(optimistic);
+        try {
+            const reordered = await ReorderCommand(id, newPosition, newCategoryId);
+            if (reordered) {
+                allCommandsRef.current = reordered;
+                setCommands(reordered);
+            }
+        } catch (err) {
+            console.error('Failed to reorder command:', err);
+            allCommandsRef.current = prevAll;
+            setCommands(prev);
+        }
+    };
+
+    const handleFillVariables = async (initialValues: Record<string, string>) => {
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        const vars = await GetVariables(selectedCommand.id);
+        setModal({
+            type: 'fillVariables',
+            variables: vars || [],
+            commandId: selectedCommand.id,
+            initialValues,
+        });
+    };
+
+    const makeHandleFillVariables = useCallback((tabId: string) => {
+        return async (initialValues: Record<string, string>) => {
+            if (isNewCommandTabId(tabId)) return;
+            const vars = await GetVariables(tabId);
+            setModal({
+                type: 'fillVariables',
+                variables: vars || [],
+                commandId: tabId,
+                initialValues,
+            });
+        };
+    }, []);
+
+    const handleVariableSubmit = async (values: Record<string, string>) => {
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (isSavedCommandDraftDirty(selectedCommand.id)) {
+            toast.message(t('toast.saveBeforeExecute'));
+            return;
+        }
+        setModal({ type: 'none' });
+        runCommandDirect(selectedCommand.id, values);
     };
 
     const handleSavePreset = async (name: string, values: Record<string, string>) => {
@@ -1355,7 +1327,7 @@ function App() {
                 console.error('Failed to save script:', err);
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, [loadData, t]);
 
     const handleSaveScriptDirect = useCallback(async (tabId: string, scriptBody: string) => {
@@ -1372,7 +1344,6 @@ function App() {
         'makeHandleExecute',
         'makeHandleRunInTerminal',
         'makeHandleFillVariables',
-        'makeHandleDelete',
         'makeHandleRenamePreset',
         'makeHandleDeletePreset',
         'makeHandleAddPreset',
@@ -1385,7 +1356,6 @@ function App() {
         makeHandleExecute,
         makeHandleRunInTerminal,
         makeHandleFillVariables,
-        makeHandleDelete,
         makeHandleRenamePreset,
         makeHandleDeletePreset,
         makeHandleAddPreset,
@@ -1398,98 +1368,15 @@ function App() {
         Object.fromEntries(factoryNames.map((name) => [name, null]))
     );
 
-    const pf = prevFactoriesRef.current;
-    if (factoryNames.some((name) => pf[name] !== factories[name])) {
-        tabHandlerCacheRef.current.clear();
-        factoryNames.forEach((name) => {
-            pf[name] = factories[name];
-        });
-    }
-
-    const handleResetAllData = useCallback(async () => {
-        try {
-            await ResetAllData();
-            await loadData();
-            await loadHistory();
-            setSelectedCommand(null);
-            setTabDrafts({});
-            setTabBaselines({});
-            setOpenTabs([]);
-            setActiveTabId(null);
-            setStreamLines([]);
-            tabOutputRef.current = {};
-            setModal({ type: 'none' });
-        } catch (err) {
-            console.error('Failed to reset data:', err);
-        }
-    }, [loadData, loadHistory]);
-
-    const handleThemeChange = useCallback((newTheme: string) => {
-        // Find type from built-in themes first, then custom themes
-        const builtIn = THEMES.find(t => t.id === newTheme);
-        const custom = customThemes.find(t => t.id === newTheme);
-        const themeType = builtIn?.type ?? custom?.type ?? 'dark';
-
-        if (themeType === 'dark') {
-            settingsRef.current.lastDarkTheme = newTheme;
-        } else {
-            settingsRef.current.lastLightTheme = newTheme;
-        }
-
-        // Apply custom theme CSS vars if it's an imported theme
-        if (custom) {
-            // Apply this custom theme's colors as inline CSS vars
-            Object.entries(custom.colors).forEach(([key, value]) => {
-                document.documentElement.style.setProperty(`--${key}`, value);
+    useEffect(() => {
+        const pf = prevFactoriesRef.current;
+        if (factoryNames.some((name) => pf[name] !== factories[name])) {
+            tabHandlerCacheRef.current.clear();
+            factoryNames.forEach((name) => {
+                pf[name] = factories[name];
             });
-        } else {
-            // Built-in theme — remove any inline custom vars so [data-theme] CSS takes over
-            const allVarKeys = [
-                'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
-                'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground',
-                'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'success', 'success-foreground',
-                'border', 'input', 'ring', 'tab-bar-bg', 'tab-active-bg', 'tab-inactive-bg',
-                'tab-active-indicator', 'status-bar-bg', 'status-bar-fg'
-            ];
-            allVarKeys.forEach(key => document.documentElement.style.removeProperty(`--${key}`));
         }
-
-        setTheme(newTheme);
-    }, [customThemes]);
-
-    const handleImportTheme = useCallback((newTheme: CustomTheme) => {
-        setCustomThemes(prev => {
-            const updated = [...prev, newTheme];
-            settingsRef.current.customThemes = updated;
-            flushSettings();
-            return updated;
-        });
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleRemoveCustomTheme = useCallback((themeId: string) => {
-        setCustomThemes(prev => {
-            const updated = prev.filter(t => t.id !== themeId);
-            settingsRef.current.customThemes = updated;
-            flushSettings();
-            // If the removed theme was active, fall back to vscode-dark
-            if (theme === themeId) {
-                handleThemeChange('vscode-dark');
-            }
-            return updated;
-        });
-    }, [theme, handleThemeChange]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleUiFontChange = useCallback((font: string) => {
-        setUiFont(font);
-    }, []);
-
-    const handleMonoFontChange = useCallback((font: string) => {
-        setMonoFont(font);
-    }, []);
-
-    const handleDensityChange = useCallback((d: string) => {
-        setDensity(d);
-    }, []);
+    });
 
     const handleSelectCommand = (cmd: Command) => {
         openTab(cmd);
@@ -1522,6 +1409,7 @@ function App() {
         }
     };
 
+    /* eslint-disable react-hooks/refs -- keyboard shortcuts use ref-based handlers (not called during render) */
     useKeyboardShortcuts({
         [`${cmdOrCtrl}+p`]: () => setPaletteOpen(true),
         'ctrl+p': () => setPaletteOpen(true),
@@ -1536,13 +1424,13 @@ function App() {
             if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
             if (!selectedCommand || modal.type !== 'none' || isNewCommandTabId(selectedCommand.id)) return;
             if (resolvedVariables.length === 0) {
-                handleExecute({});
+                makeHandleExecute(selectedCommand!.id)({});
             } else {
                 const hasEmpty = resolvedVariables.some((v) => !currentResolvedValues[v.name]);
                 if (hasEmpty) {
                     handleFillVariables(currentResolvedValues);
                 } else {
-                    handleExecute(currentResolvedValues);
+                    makeHandleExecute(selectedCommand!.id)(currentResolvedValues);
                 }
             }
         },
@@ -1613,12 +1501,14 @@ function App() {
         ...(paletteOpen ? { escape: () => setPaletteOpen(false) } : {}),
     });
 
+    /* eslint-enable react-hooks/refs */
+
     const commandHistory = useMemo(
         () =>
-            selectedCommand && !isNewCommandTabId(selectedCommand.id)
-                ? executionHistory.filter((r) => r.commandId === selectedCommand.id)
+            selectedCommand && !isNewCommandTabId(selectedCommandId)
+                ? executionHistory.filter((r) => r.commandId === selectedCommandId)
                 : executionHistory,
-        [selectedCommand?.id, executionHistory],
+        [selectedCommand, selectedCommandId, executionHistory],
     );
 
     // Memoize per-tab variable definitions so inactive tabs get stable references
@@ -1708,13 +1598,14 @@ function App() {
                                     Handlers are cached per tab so React.memo can skip re-renders. */}
                                 {openTabs
                                     .filter((tab) => tab.id !== '__welcome__')
+                                    // eslint-disable-next-line react-hooks/refs -- handler cache ref accessed during render for React.memo optimization
                                     .map((tab) => {
                                         const draft = tabDrafts[tab.id];
                                         const baseline = tabBaselines[tab.id];
                                         const isTabNew = isNewCommandTabId(tab.id);
                                         const command = isTabNew
                                             ? makePlaceholderCommand(tab.id, draft?.categoryId)
-                                            : allCommandsRef.current.find((c) => c.id === tab.id) ?? null;
+                                            : commands.find((c) => c.id === tab.id) ?? null;
                                         const isTabDirty = !!(draft && baseline && !draftsEqual(draft, baseline));
                                         const isTabActive = tab.id === activeTabId;
 
@@ -1734,7 +1625,6 @@ function App() {
                                                 onExecute: makeHandleExecute(tab.id),
                                                 onRunInTerminal: makeHandleRunInTerminal(tab.id),
                                                 onFillVariables: makeHandleFillVariables(tab.id),
-                                                onDelete: makeHandleDelete(tab.id, closeTab),
                                                 onRenamePreset: makeHandleRenamePreset(tab.id),
                                                 onDeletePreset: makeHandleDeletePreset(tab.id),
                                                 onAddPreset: makeHandleAddPreset(tab.id),
@@ -1763,7 +1653,6 @@ function App() {
                                                     onExecute={handlers.onExecute}
                                                     onRunInTerminal={handlers.onRunInTerminal}
                                                     onFillVariables={handlers.onFillVariables}
-                                                    onDelete={handlers.onDelete}
                                                     onRenamePreset={handlers.onRenamePreset}
                                                     onDeletePreset={handlers.onDeletePreset}
                                                     onAddPreset={handlers.onAddPreset}
@@ -1936,7 +1825,7 @@ function App() {
                 </AlertDialog>
                 <CommandPalette
                     open={paletteOpen}
-                    commands={allCommandsRef.current}
+                    commands={commands}
                     categories={categories}
                     onClose={() => setPaletteOpen(false)}
                     onOpen={handleSelectCommand}
