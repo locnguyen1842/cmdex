@@ -125,8 +125,11 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	defer cancel()
 
 	var cmd *exec.Cmd
-	// Both platforms use e.flag: /C on Windows, -lc on Unix
-	cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
+	} else {
+		cmd = exec.CommandContext(ctx, e.shell, "-l", tmpPath)
+	}
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
