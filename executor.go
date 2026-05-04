@@ -97,6 +97,14 @@ type OutputChunk struct {
 
 // ExecuteScript runs a resolved script (all {{var}} already replaced) and streams output via callback.
 func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChunk func(OutputChunk)) ExecutionResult {
+	// Strip any existing shebang from stored content (backward compat with old DB records)
+	scriptContent = stripShebang(scriptContent)
+
+	// Add platform-appropriate shebang at execution time
+	if runtime.GOOS != "windows" {
+		scriptContent = "#!/bin/sh\n" + scriptContent
+	}
+
 	tmpPath, err := writeTempScript(scriptContent)
 	if err != nil {
 		return ExecutionResult{Error: err.Error(), ExitCode: -1}
@@ -107,13 +115,8 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	defer cancel()
 
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		// Windows: cmd /C tmp.bat
-		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
-	} else {
-		// Unix: shell can execute the temp script file directly.
-		cmd = exec.CommandContext(ctx, e.shell, tmpPath)
-	}
+	// Both platforms use e.flag: /C on Windows, -lc on Unix
+	cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
@@ -198,6 +201,18 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	}
 
 	return result
+}
+
+// stripShebang removes any shebang line (#!...) from the beginning of script content.
+// Used for backward compatibility with old DB records that stored scripts with #!/bin/bash.
+func stripShebang(content string) string {
+	s := strings.TrimSpace(content)
+	if strings.HasPrefix(s, "#!") {
+		if idx := strings.Index(s, "\n"); idx != -1 {
+			return s[idx+1:]
+		}
+	}
+	return s
 }
 
 // OpenInTerminal opens a terminal and runs the resolved script.
