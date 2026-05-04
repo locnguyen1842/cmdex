@@ -122,7 +122,7 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 		defer os.Remove(tmpPath)
 		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
 	} else {
-		cmd = exec.CommandContext(ctx, e.shell, "-lc")
+		cmd = exec.CommandContext(ctx, e.shell, "-ls")
 		cmd.Stdin = strings.NewReader(scriptContent)
 	}
 	if workingDir != "" {
