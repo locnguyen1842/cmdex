@@ -1605,16 +1605,17 @@ function App() {
                         }
                     }}
                 >
-                    <AlertDialogContent>
+                    <AlertDialogContent data-testid="confirm-dialog">
                         <AlertDialogHeader>
                             <AlertDialogTitle>{t('app.discardTitle')}</AlertDialogTitle>
                             <AlertDialogDescription>{t('app.discardDescription')}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                            <AlertDialogCancel>{t('app.cancel')}</AlertDialogCancel>
-                            <AlertDialogAction
-                                variant="destructive"
-                                onClick={() => {
+                            <AlertDialogCancel data-testid="confirm-dialog-cancel">{t('app.cancel')}</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            data-testid="confirm-dialog-confirm"
+                            onClick={() => {
                                     setModal({ type: 'none' });
                                     const tabId = pendingCloseTabIdRef.current;
                                     pendingCloseTabIdRef.current = null;

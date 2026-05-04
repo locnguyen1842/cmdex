@@ -24,7 +24,7 @@ const TabBar: React.FC<TabBarProps> = ({ tabs, activeTabId, onSelectTab, onClose
   if (tabs.length === 0) return null;
 
   return (
-    <div className="tab-bar">
+    <div className="tab-bar" data-testid="tab-bar">
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         return (

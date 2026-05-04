@@ -39,7 +39,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" data-testid="category-editor">
         <DialogHeader>
           <DialogTitle>{category ? t('categoryEditor.editCategory') : t('categoryEditor.newCategory')}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -51,6 +51,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             <Label htmlFor="cat-name">{t('categoryEditor.name')}</Label>
             <Input
               id="cat-name"
+              data-testid="category-name-input"
               placeholder={t('categoryEditor.namePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}

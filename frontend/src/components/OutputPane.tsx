@@ -126,7 +126,7 @@ const OutputPane: React.FC<OutputPaneProps> = ({ record, streamLines, isExecutin
   }, [showRecord, record, i18nInstance.language]);
 
   return (
-    <Collapsible open={isOpen} className="output-pane">
+    <Collapsible open={isOpen} className="output-pane" data-testid="output-pane">
       {isOpen && (
         <div className="output-resize-handle" onMouseDown={handleResizeStart} />
       )}

@@ -87,6 +87,7 @@ interface HighlightedTextareaProps {
   autoFocus?: boolean;
   placeholder?: string;
   className?: string;
+  'data-testid'?: string;
 }
 
 const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
@@ -98,6 +99,7 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
   autoFocus,
   placeholder,
   className = '',
+  'data-testid': dataTestId,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -120,7 +122,7 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
   }, [value]);
 
   return (
-    <div className={`highlighted-textarea-wrap ${className}`}>
+    <div className={`highlighted-textarea-wrap ${className}`} data-testid={dataTestId}>
       <div ref={backdropRef} className="highlighted-textarea-backdrop" aria-hidden>
         <code>{highlighted}{'\n'}</code>
       </div>
@@ -663,6 +665,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                 )}
                 contentEditable
                 suppressContentEditableWarning
+                data-testid="command-title"
                 aria-label={t('commandEditor.title')}
                 data-placeholder={t('commandEditor.titlePlaceholder')}
                 onInput={handleTitleInput}
@@ -795,6 +798,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </Tooltip>
             <Textarea
               className="detail-description-textarea"
+              data-testid="command-description"
               value={draft?.description}
               onChange={(e) => {
                 onDraftChange({ description: e.target.value });
@@ -895,6 +899,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                         size="icon-xs"
                         className="text-primary hover:text-primary"
                         disabled={isExecuting}
+                        data-testid="command-run-btn"
                         onClick={() => {
                           if (variables.length > 0) {
                             const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
@@ -997,6 +1002,7 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
                   <div className="script-edit-wrap">
                     <HighlightedTextarea
                       className="detail-script-textarea"
+                      data-testid="command-script"
                       autoFocus={!isNewCommand}
                       value={isNewCommand ? scriptBody : scriptEditDraft}
                       onChange={(val) => {

@@ -9,6 +9,9 @@ build:
 generate:
 	wails3 generate bindings
 
+test:
+	cd frontend && pnpm test:e2e
+
 check:
 	go build ./...
 	cd frontend && pnpm tsc --noEmit
