@@ -68,11 +68,21 @@ func writeTempScript(content string) (string, error) {
 }
 
 // BuildFinalCommand builds a display string showing the variable values used.
-func BuildFinalCommand(variables map[string]string) string {
-	if len(variables) == 0 {
-		return "bash <script>"
+// Uses the platform-appropriate shell name (basename of e.shell) instead of hardcoded "bash".
+func (e *Executor) BuildFinalCommand(variables map[string]string) string {
+	shellName := e.shell
+	// Use basename for display (e.g., "/bin/zsh" → "zsh", "/bin/sh" → "sh")
+	if idx := strings.LastIndex(shellName, "/"); idx != -1 {
+		shellName = shellName[idx+1:]
 	}
-	parts := []string{"bash <script>"}
+	if shellName == "" {
+		shellName = "sh"
+	}
+
+	if len(variables) == 0 {
+		return shellName + " <script>"
+	}
+	parts := []string{shellName + " <script>"}
 	for k, v := range variables {
 		parts = append(parts, fmt.Sprintf("%s=%q", k, v))
 	}
