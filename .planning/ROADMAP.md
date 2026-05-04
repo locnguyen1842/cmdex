@@ -160,8 +160,8 @@ Plans:
 
 Plans:
 - [x] 15-01: Centralize shebang handling (script.go + executor.go core)
-- [ ] 15-02: Fix display commands and terminal execution
-- [ ] 15-03: Tests and verification
+- [x] 15-02: Fix display commands and terminal execution
+- [x] 15-03: Tests and verification
 
 ### 📋 v2.0 Workspaces (Planned)
 
@@ -176,7 +176,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 -> 15
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -194,4 +194,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14
 | 12. Settings UI | v1.3 | 3/3 | Complete    | 2026-04-23 |
 | 13. Command Editor & List UI | v1.3 | 3/3 | Complete | 2026-04-23 |
 | 14. Editor Multi-Mount Refactor | v1.4 | 3/3 | Complete | 2026-04-23 |
-| 15. Cross-Platform Execution | v1.5 | 1/3 | In Progress | — |
+| 15. Cross-Platform Execution | v1.5 | 1/3 | Complete | 2026-05-04 |
