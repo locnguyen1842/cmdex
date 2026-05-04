@@ -110,21 +110,26 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	// Strip any existing shebang from stored content (backward compat with old DB records)
 	scriptContent = stripShebang(scriptContent)
 
+	// Add platform-appropriate shebang at execution time
+	if runtime.GOOS != "windows" {
+		scriptContent = "#!/bin/sh\n" + scriptContent
+	}
+
+	tmpPath, err := writeTempScript(scriptContent)
+	if err != nil {
+		return ExecutionResult{Error: err.Error(), ExitCode: -1}
+	}
+	defer os.Remove(tmpPath)
+
+	if runtime.GOOS != "windows" {
+		os.Chmod(tmpPath, 0755)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		tmpPath, err := writeTempScript(scriptContent)
-		if err != nil {
-			return ExecutionResult{Error: err.Error(), ExitCode: -1}
-		}
-		defer os.Remove(tmpPath)
-		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
-	} else {
-		cmd = exec.CommandContext(ctx, e.shell, "-ls")
-		cmd.Stdin = strings.NewReader(scriptContent)
-	}
+	cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
@@ -227,12 +232,7 @@ func stripShebang(content string) string {
 // OpenInTerminal opens a terminal and runs the resolved script.
 // Each LaunchFn receives the raw script body and handles its own quoting.
 func (e *Executor) OpenInTerminal(terminalID string, scriptContent string, workingDir string) error {
-	body := scriptContent
-	if strings.HasPrefix(body, "#!") {
-		if idx := strings.Index(body, "\n"); idx != -1 {
-			body = body[idx+1:]
-		}
-	}
+	body := stripShebang(scriptContent)
 	body = strings.TrimSpace(body)
 	defs := e.terminalDefs()
 

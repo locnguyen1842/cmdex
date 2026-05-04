@@ -178,6 +178,12 @@ func TestParseScriptBody(t *testing.T) {
 	if result != "" {
 		t.Errorf("ParseScriptBody shebang only: got %q, want empty", result)
 	}
+
+	// Shebang with no trailing newline
+	result = ParseScriptBody("#!/bin/bash")
+	if result != "" {
+		t.Errorf("ParseScriptBody shebang no newline: got %q, want empty", result)
+	}
 }
 
 func TestExtractTemplateVars(t *testing.T) {
