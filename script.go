@@ -26,6 +26,9 @@ func ParseScriptBody(scriptContent string) string {
 	if strings.HasPrefix(s, "#!") {
 		if idx := strings.Index(s, "\n"); idx != -1 {
 			s = s[idx+1:]
+		} else {
+			// Entire content is just a shebang line — no body
+			return ""
 		}
 	}
 	return strings.TrimSpace(s)
