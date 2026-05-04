@@ -110,25 +110,20 @@ func (e *Executor) ExecuteScript(scriptContent string, workingDir string, onChun
 	// Strip any existing shebang from stored content (backward compat with old DB records)
 	scriptContent = stripShebang(scriptContent)
 
-	// Add platform-appropriate shebang at execution time
-	if runtime.GOOS != "windows" {
-		scriptContent = "#!/bin/sh\n" + scriptContent
-	}
-
-	tmpPath, err := writeTempScript(scriptContent)
-	if err != nil {
-		return ExecutionResult{Error: err.Error(), ExitCode: -1}
-	}
-	defer os.Remove(tmpPath)
-
 	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
 	defer cancel()
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
+		tmpPath, err := writeTempScript(scriptContent)
+		if err != nil {
+			return ExecutionResult{Error: err.Error(), ExitCode: -1}
+		}
+		defer os.Remove(tmpPath)
 		cmd = exec.CommandContext(ctx, e.shell, e.flag, tmpPath)
 	} else {
-		cmd = exec.CommandContext(ctx, e.shell, "-l", tmpPath)
+		cmd = exec.CommandContext(ctx, e.shell, "-lc")
+		cmd.Stdin = strings.NewReader(scriptContent)
 	}
 	if workingDir != "" {
 		cmd.Dir = workingDir
@@ -224,6 +219,7 @@ func stripShebang(content string) string {
 		if idx := strings.Index(s, "\n"); idx != -1 {
 			return s[idx+1:]
 		}
+		return ""
 	}
 	return s
 }
