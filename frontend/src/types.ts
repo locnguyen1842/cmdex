@@ -129,4 +129,21 @@ export interface SettingsPayload {
   windowY?: number;
   windowWidth?: number;
   windowHeight?: number;
+  autoUpdateCheck?: boolean;
+  betaChannel?: boolean;
+  lastUpdateCheck?: string;
+}
+
+/** About dialog snapshot from UpdateService.GetAppInfo. */
+export interface AppInfo {
+  version: string;
+  arch: string;
+  updatesEnabled: boolean;
+  betaChannel: boolean;
+  /** Last completed check, RFC3339 UTC; '' = never. */
+  lastCheck: string;
+  state: string;
+  pendingVersion: string;
+  /** Message of the last check/download failure; '' unless state is 'error'. */
+  lastError: string;
 }

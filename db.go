@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,12 @@ import (
 type DB struct {
 	conn    *sql.DB
 	dataDir string
+	// settingsMu serializes SetSettings' read-merge-write cycle. Without it,
+	// two concurrent partial updates (e.g. the background update-check loop
+	// stamping LastUpdateCheck while the user changes a setting) can each read
+	// the same pre-update row and the later write silently drops the other's
+	// change.
+	settingsMu sync.Mutex
 }
 
 // appendToEndPosition is an out-of-range index passed to UpdateCommandPosition
@@ -1318,6 +1325,13 @@ func (db *DB) GetSettings() (AppSettings, error) {
 	launcherEnabled, launchAtLogin := false, false
 	defaults.LauncherEnabled = &launcherEnabled
 	defaults.LaunchAtLogin = &launchAtLogin
+	// Background update checks are opt-in too.
+	autoUpdateCheck := false
+	defaults.AutoUpdateCheck = &autoUpdateCheck
+	// Stable-only update channel by default; LastUpdateCheck stays nil until
+	// the first check completes (older rows simply lack both keys).
+	betaChannel := false
+	defaults.BetaChannel = &betaChannel
 	x, y, w, h := -1, -1, 640, 520
 	defaults.WindowX = &x
 	defaults.WindowY = &y
@@ -1346,6 +1360,9 @@ func (db *DB) GetSettings() (AppSettings, error) {
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
+	db.settingsMu.Lock()
+	defer db.settingsMu.Unlock()
+
 	existing, err := db.GetSettings()
 	if err != nil {
 		return fmt.Errorf("get existing settings: %w", err)
@@ -1388,6 +1405,15 @@ func (db *DB) SetSettings(s AppSettings) error {
 	}
 	if s.LaunchAtLogin != nil {
 		existing.LaunchAtLogin = s.LaunchAtLogin
+	}
+	if s.AutoUpdateCheck != nil {
+		existing.AutoUpdateCheck = s.AutoUpdateCheck
+	}
+	if s.BetaChannel != nil {
+		existing.BetaChannel = s.BetaChannel
+	}
+	if s.LastUpdateCheck != nil {
+		existing.LastUpdateCheck = s.LastUpdateCheck
 	}
 	if s.WindowX != nil {
 		existing.WindowX = s.WindowX
