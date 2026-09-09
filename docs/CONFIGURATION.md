@@ -29,11 +29,12 @@ Cmdex supports a collection of built-in color themes, plus the ability to import
 | `monokai` | Monokai | Dark |
 | `tokyo-night` | Tokyo Night | Dark |
 | `one-dark` | One Dark Pro | Dark |
-| `classic` | Classic (Purple) | Dark |
+| `classic` | Cmdex Classic — the design-system dark theme (default) | Dark |
+| `classic-light` | Cmdex Classic Light — the design-system light theme | Light |
 | `catppuccin-mocha` | Catppuccin Mocha | Dark |
 | `dracula` | Dracula | Dark |
 
-- **Default:** `vscode-dark`
+- **Default:** `classic` (dark) / `classic-light` (light)
 - The app tracks the last used dark and light theme separately, enabling quick toggling when the OS color scheme changes.
 - **Custom themes** can be imported via a JSON file. The expected format includes `name`, `type` (`dark` or `light`), and a `colors` object with CSS variable mappings (e.g., `background`, `foreground`, `primary`, `accent`, `border`).
 
@@ -70,7 +71,30 @@ Shell integration activates OSC 133 semantic-prompt markers in the session's she
 
 Supported shells: **bash**, **zsh**, **fish**, and **PowerShell**. Integration works by pointing the shell at extra startup files that Cmdex materializes under `~/.cmdex` — it never modifies the user's own dotfiles.
 
+The same startup files also report the shell's current directory after every prompt (the standard OSC 7 `file://` sequence, as used by macOS Terminal, VTE and kitty), which is what lets the terminal's Tab completion list the directory you have `cd`'d into rather than the one the session started in. Without integration, path completion is relative to the session's starting directory.
+
 > A change to this setting applies to **newly started sessions only**. Existing sessions keep whatever mode they were started with.
+
+### Terminal Autosuggestions
+
+| Setting | Values | Default |
+|---|---|---|
+| `terminalSuggestions` | `true` / `false` / unset | Unset, which means **enabled** |
+
+Warp-style suggestions while you type at the prompt of the built-in terminal:
+
+- The most recent matching command appears as dimmed **ghost text** after the cursor. Accept it with `→`, `End`, or `Ctrl+F`; `Alt+→` accepts one word.
+- A **menu** under the input lists contextual completions (directories, files, commands, subcommands, options — grouped with a small label above each group) ahead of matching shell history and saved commands. Press `↓` to highlight a row, then `⇥` to insert it or `↵` to insert and run it; `↑` past the top deselects, `Esc` hides the suggestions until you type something else.
+- With nothing highlighted, every key still goes to the shell, **except** `⇥` when the top row is a contextual completion — it completes that row, the same way Warp completes the top match on Tab. With only shell-history/saved-command rows, `⇥` still runs the shell's own completion. `↑` always browses shell history, `↵` always runs what you typed.
+- Saved commands with `{{variables}}` or several lines are listed but never shown as ghost text; accepting one erases what you typed and runs it through the usual variable prompt.
+
+**Tab completion**: typing a command name (`gi…`) offers matching executables on the shell's `$PATH`; a recognized command's own verb position (`git ch…`) offers its subcommands, and a `-`-prefixed token offers that subcommand's flags — both come from a small built-in spec covering ~60 common CLIs (git, docker, npm/pnpm/yarn/bun, kubectl, cargo, and more), each with a one-line description. Anywhere else — an unrecognized command, or one whose spec says its arguments are a path (`cd`, `ls`, `cat`, `git add`/`checkout`/`diff`/`restore`, `docker build`, the file after `kubectl apply -f`, …) — the menu lists the shell's actual current directory. Accepting a directory (it ends in `/`) leaves the prompt ready to keep typing straight into it, with no trailing space; everything else adds one. `cd`/`rmdir`/`pushd` only ever offer directories.
+
+Suggestions come from three sources, in this order of precedence: commands run in the current session, the shell's history file (`~/.zsh_history`, `~/.bash_history`, fish's `fish_history`, or PSReadLine's `ConsoleHost_history.txt`; `HISTFILE`/`ZDOTDIR`/`XDG_DATA_HOME` are honored when the app inherits them), and the saved-command library. Cmdex only ever reads these files.
+
+This works best with **shell integration** enabled: its OSC 133 markers tell Cmdex whether your keystrokes are going to the prompt or to a running program. Without it, typing into an interactive program (an editor, a pager) can briefly show suggestions, and suggestions may not appear until the next command after such a program exits. cmd.exe has neither shell integration nor a readable history file, so only saved commands are suggested there.
+
+> Unlike shell integration, a change to this setting applies to **every open session** immediately.
 
 ---
 
@@ -175,11 +199,11 @@ The `data` column contains a JSON object with the following fields:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `locale` | string | `"en"` | UI language code |
-| `theme` | string | `"vscode-dark"` | Active theme ID |
-| `lastDarkTheme` | string | `"vscode-dark"` | Last selected dark theme |
-| `lastLightTheme` | string | `"vscode-light"` | Last selected light theme |
+| `theme` | string | `"classic"` | Active theme ID |
+| `lastDarkTheme` | string | `"classic"` | Last selected dark theme |
+| `lastLightTheme` | string | `"classic-light"` | Last selected light theme |
 | `customThemes` | string | `"[]"` | JSON-encoded array of custom theme objects |
-| `uiFont` | string | `"Inter"` | Sans-serif UI font family |
+| `uiFont` | string | `"Manrope"` | Sans-serif UI font family |
 | `monoFont` | string | `"JetBrains Mono"` | Monospace font for script editor |
 | `density` | string | `"comfortable"` | Layout density (`compact`, `comfortable`, `spacious`) |
 | `windowX` | int | `-1` | Settings window X position; `-1` = center |
@@ -341,11 +365,11 @@ This section consolidates all default values in one place. These originate from 
 | Setting | Default Value | Source |
 |---------|--------------|--------|
 | `locale` | `"en"` | `db.go` `GetSettings()` |
-| `theme` | `"vscode-dark"` | `db.go` `GetSettings()` |
-| `lastDarkTheme` | `"vscode-dark"` | `db.go` `GetSettings()` |
-| `lastLightTheme` | `"vscode-light"` | `db.go` `GetSettings()` |
+| `theme` | `"classic"` | `db.go` `GetSettings()` |
+| `lastDarkTheme` | `"classic"` | `db.go` `GetSettings()` |
+| `lastLightTheme` | `"classic-light"` | `db.go` `GetSettings()` |
 | `customThemes` | `"[]"` (empty JSON array) | `db.go` `GetSettings()` |
-| `uiFont` | `"Inter"` | `db.go` `GetSettings()` |
+| `uiFont` | `"Manrope"` | `db.go` `GetSettings()` |
 | `monoFont` | `"JetBrains Mono"` | `db.go` `GetSettings()` |
 | `density` | `"comfortable"` | `db.go` `GetSettings()` |
 | `defaultWorkingDir` | `{}` (empty OSPathMap; no OS-keyed paths) | `db.go` `GetSettings()` |

@@ -57,13 +57,13 @@ export default function KeyboardShortcutsDialog({
         <div className="space-y-4">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.label}>
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-[var(--fg-faint)] mb-2">
                 {group.label}
               </div>
               <div className="space-y-1.5">
                 {group.items.map((item) => (
                   <div key={item.description} className="flex items-center justify-between py-1">
-                    <span className="text-sm">{item.description}</span>
+                    <span className="text-[12.5px] text-[var(--fg)]">{item.description}</span>
                     <span className="flex gap-1">
                       {item.keys.map((k) => (
                         <Kbd key={k}>{k}</Kbd>

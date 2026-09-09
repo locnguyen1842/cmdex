@@ -195,11 +195,11 @@ const LauncherSettings: React.FC = () => {
   const displayShortcut = pendingShortcut || status.shortcut;
 
   return (
-    <div className="border-t border-border pt-4 mt-2 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5 pr-4">
+    <div className="space-y-4">
+      <div className="settings-toggle-row">
+        <div>
           <Label>{t('settings.launcherEnabled')}</Label>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="settings-hint">
             {t('settings.launcherEnabledHint')}
           </p>
         </div>
@@ -210,8 +210,8 @@ const LauncherSettings: React.FC = () => {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>{t('settings.launcherShortcut')}</Label>
+      <div className="settings-field">
+        <Label className="settings-field-label">{t('settings.launcherShortcut')}</Label>
         <div className="flex gap-2 items-center">
           <input
             ref={captureRef}
@@ -221,7 +221,7 @@ const LauncherSettings: React.FC = () => {
             onBlur={() => setCapturing(false)}
             onClick={() => setCapturing(true)}
             disabled={!status.supported || !status.enabled}
-            className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm font-mono shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="settings-text-input flex-1 font-mono"
           />
           <Button
             type="button"
@@ -237,12 +237,12 @@ const LauncherSettings: React.FC = () => {
 
         {status.enabled && status.supported && (
           status.registered ? (
-            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 size={12} className="text-[var(--success)]" />
+            <p className="settings-hint flex items-center gap-1">
+              <CheckCircle2 size={12} className="text-[var(--ok)]" />
               {t('settings.launcherRegistered')}
             </p>
           ) : (
-            <p className="text-[11px] text-destructive flex items-start gap-1">
+            <p className="settings-hint flex items-start gap-1" style={{ color: 'var(--danger)' }}>
               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
               {status.error || t('settings.launcherNotRegistered')}
             </p>
@@ -250,24 +250,24 @@ const LauncherSettings: React.FC = () => {
         )}
 
         {!status.supported && (
-          <p className="text-[11px] text-destructive flex items-start gap-1">
+          <p className="settings-hint flex items-start gap-1" style={{ color: 'var(--danger)' }}>
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             {t('settings.launcherUnsupported')}
           </p>
         )}
 
         {status.warning && (
-          <p className="text-[11px] text-muted-foreground flex items-start gap-1">
+          <p className="settings-hint flex items-start gap-1">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             {status.warning}
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5 pr-4">
+      <div className="settings-toggle-row">
+        <div>
           <Label>{t('settings.launchAtLogin')}</Label>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="settings-hint">
             {t('settings.launchAtLoginHint')}
           </p>
         </div>

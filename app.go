@@ -19,12 +19,14 @@ var (
 )
 
 const (
-	settingsWindowWidth  = 640
-	settingsWindowHeight = 520
-	settingsWindowBgR    = 15
-	settingsWindowBgG    = 15
-	settingsWindowBgB    = 20
-	settingsWindowBgA    = 255
+	settingsWindowWidth     = 960
+	settingsWindowHeight    = 680
+	settingsWindowMinWidth  = 760
+	settingsWindowMinHeight = 560
+	settingsWindowBgR       = 15
+	settingsWindowBgG       = 15
+	settingsWindowBgB       = 20
+	settingsWindowBgA       = 255
 )
 
 // App handles application lifecycle and settings window management.
@@ -109,9 +111,10 @@ func (a *App) createSettingsWindowLocked() {
 			settingsWindowBgA,
 		),
 		HideOnEscape:        true,
-		DisableResize:       true,
 		Width:               settingsWindowWidth,
 		Height:              settingsWindowHeight,
+		MinWidth:            settingsWindowMinWidth,
+		MinHeight:           settingsWindowMinHeight,
 		MinimiseButtonState: application.ButtonDisabled,
 		MaximiseButtonState: application.ButtonDisabled,
 		URL:                 "/?window=settings",

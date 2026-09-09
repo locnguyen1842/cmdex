@@ -47,7 +47,7 @@ make test
 
 ### Service registration (not the old v2 single-App pattern)
 
-In `main.go`, eight services are registered as `application.Service`:
+In `main.go`, ten services are registered as `application.Service`:
 
 | Service struct | File | Frontend binding import |
 |---|---|---|
@@ -59,6 +59,8 @@ In `main.go`, eight services are registered as `application.Service`:
 | `ImportExportService` | `importexport_service.go` | `../bindings/cmdex/importexportservice` |
 | `EventService` | `event_service.go` | `../bindings/cmdex/eventservice` |
 | `LauncherService` | `launcher_service.go` | `../bindings/cmdex/launcherservice` |
+| `UpdateService` | `update_service.go` | `../bindings/cmdex/updateservice` |
+| `SuggestionService` | `suggestion_service.go` | `../bindings/cmdex/suggestionservice` |
 
 Each service is a struct implementing `ServiceStartup(ctx, options) error`. Wails generates bindings from exported methods into `frontend/bindings/cmdex/<servicename>.js` (JS with JSDoc types, plus `models.js` and a barrel `index.js`). **Never hand-edit `frontend/bindings/`** — it's generated output, but it **is** committed (so a fresh clone type-checks without the Wails CLI installed); regenerate with `wails3 generate bindings` and commit the result alongside the Go change that caused it.
 

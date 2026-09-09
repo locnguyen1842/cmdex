@@ -2,7 +2,12 @@ package main
 
 import (
 	"bytes"
+	"net/url"
+	"path"
+	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 )
 
 // This file implements capture of "last command output" from OSC 133
@@ -21,6 +26,18 @@ import (
 // lastValid stays false forever and the frontend falls back to scraping the
 // xterm buffer (Terminal.tsx's getLastOutput).
 //
+// The same scripts also emit the standard OSC 7 working-directory report
+// right after every D marker (and once at startup):
+//
+//	ESC ] 7 ; file://<host><percent-encoded absolute cwd> BEL
+//
+// captureScan decodes it into sessionState.cwd — the live directory
+// SessionInfo.Cwd reports and shell_completion.go's path completion lists —
+// and, like the 133 markers, keeps its bytes out of the captured output.
+// OSC 7 deliberately carries NO nonce: it is a standard sequence other
+// terminals and shells already exchange, and the only thing it steers is
+// which directory Tab completion reads, so a forged one is harmless.
+//
 // <nonce> is a random per-session token (sessionState.oscNonce, set from
 // generateOSCNonce in shell_integration.go) that a forked child process of
 // the shell never sees (see stripNonce) — without it, a plain command could
@@ -35,6 +52,13 @@ const (
 	// looks for, shared by both the "C" (output start) and "D" (command
 	// done) forms.
 	oscCapturePrefix = "\x1b]133;"
+
+	// oscCwdPrefix is the fixed portion of the OSC 7 working-directory
+	// report; what follows it (up to the terminator) is a file:// URL.
+	oscCwdPrefix = "\x1b]7;"
+
+	// oscFileScheme is the URL scheme an OSC 7 payload must start with.
+	oscFileScheme = "file://"
 
 	// maxCaptureBytes bounds the in-flight captured output for a single
 	// command. On overflow, the tail is kept and capTruncated is set —
@@ -51,24 +75,40 @@ const (
 	maxMarkerCarryBytes = 4096
 )
 
-// oscCapturePrefixBytes is oscCapturePrefix pre-converted to []byte once, so
-// captureScan's per-ESC-byte prefix checks (run on every ANSI escape in the
-// stream, not just OSC 133 markers) don't reallocate it on every call.
-var oscCapturePrefixBytes = []byte(oscCapturePrefix)
+// oscCapturePrefixBytes and oscCwdPrefixBytes are oscCapturePrefix and
+// oscCwdPrefix pre-converted to []byte once, so captureScan's per-ESC-byte
+// prefix checks (run on every ANSI escape in the stream, not just our
+// markers) don't reallocate them on every call.
+var (
+	oscCapturePrefixBytes = []byte(oscCapturePrefix)
+	oscCwdPrefixBytes     = []byte(oscCwdPrefix)
+)
 
-// captureScan feeds newly read PTY bytes through the OSC 133 marker scanner.
-// It must be called from the session's single readLoop goroutine only (it is
-// not safe to call concurrently with itself), but it takes capMu because
-// GetLastOutput reads the resulting fields from a different goroutine.
+// captureScan feeds newly read PTY bytes through the OSC 133 / OSC 7 marker
+// scanner. It must be called from the session's single readLoop goroutine
+// only (it is not safe to call concurrently with itself), but it takes capMu
+// because GetLastOutput and liveCwd read the resulting fields from other
+// goroutines.
+//
+// It returns the session's working directory as of the end of data and
+// whether that value changed during this call, so the caller can publish
+// the change (see scanOutput in terminal_service.go) without holding capMu.
 //
 // data is treated as read-only and immutable after this call — callers
 // (readLoop) must not reuse or mutate the backing array afterward, since
 // captureScan may retain a copy of a trailing partial marker in capCarry
 // until the next call resolves it.
-func (ss *sessionState) captureScan(data []byte) {
+func (ss *sessionState) captureScan(data []byte) (string, bool) {
 	ss.capMu.Lock()
 	defer ss.capMu.Unlock()
 
+	before := ss.cwd
+	ss.scanLocked(data)
+	return ss.cwd, ss.cwd != before
+}
+
+// scanLocked is captureScan's body; capMu must be held.
+func (ss *sessionState) scanLocked(data []byte) {
 	buf := data
 	if len(ss.capCarry) > 0 {
 		buf = make([]byte, 0, len(ss.capCarry)+len(data))
@@ -101,10 +141,34 @@ func (ss *sessionState) captureScan(data []byte) {
 			i = escIdx + 1
 		}
 
+		// OSC 7 first: its prefix is shorter than OSC 133's, so it must be
+		// recognized before the "too short to tell yet" check below or a
+		// chunk ending in e.g. "\x1b]7;f" would be passed through as content.
+		if bytes.HasPrefix(remaining, oscCwdPrefixBytes) {
+			paramsIdx := escIdx + len(oscCwdPrefix)
+			termIdx, termLen, found := findOSCTerminator(buf, paramsIdx)
+			if !found {
+				if len(remaining) > maxMarkerCarryBytes {
+					passOneByte()
+					continue
+				}
+				ss.capCarry = append([]byte(nil), remaining...)
+				return
+			}
+			if cwd, ok := parseOSC7(buf[paramsIdx:termIdx]); ok {
+				ss.cwd = cwd
+			}
+			// Consumed either way: a malformed report is still an OSC 7 the
+			// terminal would swallow, never visible command output.
+			i = termIdx + termLen
+			continue
+		}
+
 		if len(remaining) < len(oscCapturePrefix) {
-			// Not enough bytes yet to know whether this is our marker. Only
-			// worth carrying if what we have so far could still become it.
-			if bytes.HasPrefix(oscCapturePrefixBytes, remaining) {
+			// Not enough bytes yet to know whether this is one of our
+			// markers. Only worth carrying if what we have so far could
+			// still become one.
+			if bytes.HasPrefix(oscCapturePrefixBytes, remaining) || bytes.HasPrefix(oscCwdPrefixBytes, remaining) {
 				ss.capCarry = append([]byte(nil), remaining...)
 				return
 			}
@@ -202,6 +266,94 @@ func stripNonce(params []byte, nonce string) ([]byte, bool) {
 		return nil, false
 	}
 	return params[len(prefix):], true
+}
+
+// parseOSC7 decodes the payload of an OSC 7 report (the bytes between
+// "\x1b]7;" and the terminator) into a local absolute path. Accepted forms
+// are "file:///path", "file://localhost/path" and "file://<hostname>/path"
+// — the host is ignored, since the shell runs on this machine by
+// definition — plus the Windows drive form "file:///C:/Users/me", whose
+// leading slash is dropped. Percent-escapes are decoded (a payload with a
+// stray, unencoded "%" is kept verbatim rather than rejected). Anything
+// else — no file:// scheme, no path, a relative path — returns ok=false so
+// the previous value is kept.
+func parseOSC7(params []byte) (string, bool) {
+	rest, ok := strings.CutPrefix(string(params), oscFileScheme)
+	if !ok {
+		return "", false
+	}
+	slash := strings.IndexByte(rest, '/')
+	if slash < 0 {
+		return "", false
+	}
+	p := rest[slash:]
+	if decoded, err := url.PathUnescape(p); err == nil {
+		p = decoded
+	}
+	if isDrivePath(p) {
+		// "/C:/..." -> "C:/...". Cleaned with path (not filepath) so this is
+		// deterministic on every OS, then converted to the host's separator.
+		p = path.Clean(p[1:])
+		if len(p) == windowsDriveRootLen {
+			// path.Clean("C:/") is "C:", which on Windows means "the current
+			// directory on C", not the drive's root — put the slash back.
+			p += "/"
+		}
+		if runtime.GOOS == "windows" {
+			p = filepath.FromSlash(p)
+		}
+		return p, true
+	}
+	if !strings.HasPrefix(p, "/") {
+		return "", false
+	}
+	return path.Clean(p), true
+}
+
+const (
+	// driveSpecLen is the length of the "/C:" run that opens a Windows
+	// drive path inside a file:// URL.
+	driveSpecLen = 3
+	// windowsDriveRootLen is the length of a bare drive spec ("C:") once
+	// that leading slash is gone.
+	windowsDriveRootLen = 2
+)
+
+// isDrivePath reports whether p is a file:// path of the Windows form
+// "/C:" or "/C:/...".
+func isDrivePath(p string) bool {
+	if len(p) < driveSpecLen || p[0] != '/' || p[2] != ':' {
+		return false
+	}
+	if len(p) > driveSpecLen && p[driveSpecLen] != '/' {
+		return false
+	}
+	c := p[1]
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+}
+
+// liveCwd returns the working directory the shell last reported via OSC 7,
+// or "" if it hasn't reported one since the session (re)started. Callers
+// fall back to sessionState.workingDir in that case. Safe to call from any
+// goroutine, including while holding ss.mu (mu -> capMu is the established
+// lock order; see Clear).
+func (ss *sessionState) liveCwd() string {
+	ss.capMu.Lock()
+	defer ss.capMu.Unlock()
+	return ss.cwd
+}
+
+// resetCwd forgets the last OSC 7 report. Called on the restart path only
+// (a fresh shell starts back in workingDir and will report itself) — NOT
+// from Clear/resetCapture, since clearing the screen doesn't move the
+// shell, and zsh/bash don't run their prompt hooks on Ctrl+L, so the value
+// would otherwise stay stale until the next command finished. Same
+// ordering rule as resetCapture: only call it once the previous readLoop
+// goroutine has exited.
+func (ss *sessionState) resetCwd() {
+	ss.capMu.Lock()
+	defer ss.capMu.Unlock()
+	ss.cwd = ""
 }
 
 // appendCapture writes b to capBuf when a command's output is actively being

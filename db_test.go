@@ -313,3 +313,37 @@ func TestMergeDetectedVars(t *testing.T) {
 		t.Errorf("MergeDetectedVars order: got %v", result)
 	}
 }
+
+func TestMigrateLegacyDefaults(t *testing.T) {
+	w, h := 640, 520
+	legacy := AppSettings{
+		Theme: "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
+		UIFont: "Inter", WindowWidth: &w, WindowHeight: &h,
+	}
+	if !migrateLegacyDefaults(&legacy) {
+		t.Fatal("expected a never-customized row to migrate")
+	}
+	if legacy.Theme != "classic" || legacy.LastDarkTheme != "classic" || legacy.LastLightTheme != "classic-light" {
+		t.Errorf("themes = %q/%q/%q, want classic/classic/classic-light",
+			legacy.Theme, legacy.LastDarkTheme, legacy.LastLightTheme)
+	}
+	if legacy.UIFont != "Manrope" {
+		t.Errorf("UIFont = %q, want Manrope", legacy.UIFont)
+	}
+	if *legacy.WindowWidth != 960 || *legacy.WindowHeight != 680 {
+		t.Errorf("window = %dx%d, want 960x680", *legacy.WindowWidth, *legacy.WindowHeight)
+	}
+
+	custom := AppSettings{Theme: "vscode-dark", LastDarkTheme: "vscode-dark", UIFont: "Geist"}
+	if migrateLegacyDefaults(&custom) {
+		t.Error("a row with a customized font must not migrate")
+	}
+	if custom.Theme != "vscode-dark" {
+		t.Errorf("customized row changed: theme = %q", custom.Theme)
+	}
+
+	fresh := AppSettings{Theme: "classic", LastDarkTheme: "classic", UIFont: "Manrope"}
+	if migrateLegacyDefaults(&fresh) {
+		t.Error("a row already on the new defaults must not migrate")
+	}
+}

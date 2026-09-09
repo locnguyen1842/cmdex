@@ -1,5 +1,20 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { useResizable } from '../hooks/useResizable';
+
+export interface ResizablePanelApi {
+  collapse: () => void;
+  expand: () => void;
+  collapsed: boolean;
+}
+
+const ResizablePanelContext = createContext<ResizablePanelApi | null>(null);
+
+/** Lets a panel's children (e.g. Sidebar's header button) trigger collapse/expand
+ *  without ResizablePanel needing to know anything about them. Returns null when
+ *  not rendered inside a ResizablePanel. */
+export function useResizablePanelApi(): ResizablePanelApi | null {
+  return useContext(ResizablePanelContext);
+}
 
 interface ResizablePanelProps {
   side: 'left' | 'right';
@@ -8,6 +23,10 @@ interface ResizablePanelProps {
   maxWidth: number;
   storageKey: string;
   collapsedIcon: React.ReactNode;
+  /** Full rail UI for the collapsed state. When set it replaces the single
+   *  expand button built around `collapsedIcon`; it renders inside the panel
+   *  context so it can call `useResizablePanelApi().expand()`. */
+  collapsedContent?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   defaultCollapsed?: boolean;
@@ -20,6 +39,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   maxWidth,
   storageKey,
   collapsedIcon,
+  collapsedContent,
   children,
   className,
   defaultCollapsed,
@@ -86,15 +106,21 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
     </div>
   );
 
+  const panelApi: ResizablePanelApi = { collapse, expand, collapsed };
+
   return (
     <div
       className={`resizable-panel ${side} ${collapsed ? 'is-collapsed' : ''} ${dragging ? 'is-resizing' : ''} ${className ?? ''}`}
       style={collapsed
-        ? { width: 44, minWidth: 44, maxWidth: 44 }
+        ? { width: 48, minWidth: 48, maxWidth: 48 }
         : { width, minWidth, maxWidth }
       }
     >
-      {collapsed ? (
+      {collapsed && collapsedContent ? (
+        <ResizablePanelContext.Provider value={panelApi}>
+          {collapsedContent}
+        </ResizablePanelContext.Provider>
+      ) : collapsed ? (
         <button
           className="resizable-panel-rail-inner"
           onClick={expand}
@@ -105,11 +131,11 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
           {collapsedIcon}
         </button>
       ) : (
-        <>
+        <ResizablePanelContext.Provider value={panelApi}>
           {side === 'right' && handle}
           {children}
           {side === 'left' && handle}
-        </>
+        </ResizablePanelContext.Provider>
       )}
     </div>
   );

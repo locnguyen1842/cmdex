@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import CommandDetail from './CommandDetail';
 import FloatingSaveBar from './FloatingSaveBar';
-import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey } from '../types';
+import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey, Category } from '../types';
 import { makePlaceholderCommand } from '../utils/tabDraft';
 import { variableDefinitionsToPrompts } from '../utils/templateVars';
 
@@ -22,6 +22,10 @@ interface CommandDetailTabProps {
   variables: VariablePrompt[];
   currentOS: OSKey;
   defaultWorkingDir: OSPathMap;
+  /** Full category list, threaded down to CommandDetail for the breadcrumb.
+   * Optional — App.tsx does not currently pass this; until it does, the
+   * breadcrumb simply does not render. See CommandDetail's `categories` prop. */
+  categories?: Category[];
   onDraftChange: (tabId: string, partial: Partial<TabDraft>) => void;
   onExecute: (tabId: string, values: Record<string, string>) => void;
   onFillVariables: (tabId: string, initialValues: Record<string, string>) => void;
@@ -34,6 +38,10 @@ interface CommandDetailTabProps {
   onResolvedValuesChange?: (values: Record<string, string>) => void;
   onSave: (tabId: string) => void;
   onDiscard: (tabId: string) => void;
+  /** Header "Duplicate" / ⋮ menu "Duplicate" — creates a copy of this saved command. */
+  onDuplicate: (commandId: string) => void;
+  /** ⋮ menu "Delete command". */
+  onDeleteCommand: (command: Command) => void;
 }
 
 const CommandDetailTab = React.memo<CommandDetailTabProps>(function CommandDetailTab({
@@ -48,6 +56,7 @@ const CommandDetailTab = React.memo<CommandDetailTabProps>(function CommandDetai
   variables,
   currentOS,
   defaultWorkingDir,
+  categories,
   onDraftChange,
   onExecute,
   onFillVariables,
@@ -60,6 +69,8 @@ const CommandDetailTab = React.memo<CommandDetailTabProps>(function CommandDetai
   onResolvedValuesChange,
   onSave,
   onDiscard,
+  onDuplicate,
+  onDeleteCommand,
 }) {
   const boundExecute = useCallback(
     (values: Record<string, string>) => onExecute(tabId, values),
@@ -144,6 +155,11 @@ const CommandDetailTab = React.memo<CommandDetailTabProps>(function CommandDetai
         onSaveScript={boundSaveScript}
         currentOS={currentOS}
         defaultWorkingDir={defaultWorkingDir}
+        categories={categories}
+        onSave={boundSave}
+        isDirty={isTabDirty}
+        onDuplicate={onDuplicate}
+        onDeleteCommand={onDeleteCommand}
       />
       <FloatingSaveBar
         visible={isTabDirty}

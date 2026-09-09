@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -369,5 +370,227 @@ func TestGetLastOutput_UnknownSession(t *testing.T) {
 	s := &TerminalService{sessions: map[string]*sessionState{}}
 	if _, err := s.GetLastOutput("does-not-exist"); err == nil {
 		t.Error("expected an error for an unknown session id")
+	}
+}
+
+// --- OSC 7 working-directory reports (see parseOSC7 / sessionState.cwd) ---
+
+func TestCaptureScan_OSC7UpdatesCwd(t *testing.T) {
+	ss := newCaptureTestSession()
+	cwd, changed := ss.captureScan([]byte("\x1b]7;file://myhost.local/Users/me/proj\x07"))
+
+	if !changed || cwd != "/Users/me/proj" {
+		t.Errorf("captureScan = (%q, %v), want (\"/Users/me/proj\", true)", cwd, changed)
+	}
+	if got := ss.liveCwd(); got != "/Users/me/proj" {
+		t.Errorf("liveCwd = %q, want /Users/me/proj", got)
+	}
+}
+
+func TestCaptureScan_OSC7UnchangedValueReportsNoChange(t *testing.T) {
+	ss := newCaptureTestSession()
+	ss.captureScan([]byte("\x1b]7;file:///tmp/a\x07"))
+	if _, changed := ss.captureScan([]byte("prompt$ \x1b]7;file:///tmp/a\x07")); changed {
+		t.Error("re-reporting the same directory must not count as a change")
+	}
+	if _, changed := ss.captureScan([]byte("\x1b]7;file:///tmp/b\x07")); !changed {
+		t.Error("a different directory must count as a change")
+	}
+}
+
+func TestCaptureScan_OSC7PercentDecoding(t *testing.T) {
+	ss := newCaptureTestSession()
+	ss.captureScan([]byte("\x1b]7;file://host/Users/me/My%20Docs/caf%C3%A9%23%3F%25\x07"))
+
+	if got := ss.liveCwd(); got != "/Users/me/My Docs/café#?%" {
+		t.Errorf("liveCwd = %q, want the percent-decoded path", got)
+	}
+}
+
+func TestCaptureScan_OSC7AcceptedForms(t *testing.T) {
+	cases := map[string]string{
+		"file:///home/me":                "/home/me",
+		"file://localhost/home/me":       "/home/me",
+		"file://box.example.com/home/me": "/home/me",
+		"file:///":                       "/",
+		"file:///home/me/":               "/home/me",
+		"file:///home/me/with%20space":   "/home/me/with space",
+		"file:///raw space/kept":         "/raw space/kept",
+	}
+	for payload, want := range cases {
+		ss := newCaptureTestSession()
+		ss.captureScan([]byte("\x1b]7;" + payload + "\x07"))
+		if got := ss.liveCwd(); got != want {
+			t.Errorf("%q: liveCwd = %q, want %q", payload, got, want)
+		}
+	}
+}
+
+func TestParseOSC7_WindowsDriveForm(t *testing.T) {
+	cases := map[string]string{
+		"file:///C:/Users/me/Proj%20X": filepath.FromSlash("C:/Users/me/Proj X"),
+		"file://host/D:/data":          filepath.FromSlash("D:/data"),
+		"file:///C:/":                  filepath.FromSlash("C:/"),
+		"file:///C:":                   filepath.FromSlash("C:/"),
+	}
+	for payload, want := range cases {
+		got, ok := parseOSC7([]byte(payload))
+		if !ok || got != want {
+			t.Errorf("parseOSC7(%q) = (%q, %v), want (%q, true)", payload, got, ok, want)
+		}
+	}
+}
+
+func TestCaptureScan_OSC7MalformedIsIgnored(t *testing.T) {
+	for _, payload := range []string{
+		"not-a-url",
+		"file://host",     // no path at all
+		"file://relative", // no slash after the host
+		"http://host/x",   // wrong scheme
+		"",                // empty
+	} {
+		ss := newCaptureTestSession()
+		ss.captureScan([]byte("\x1b]7;file:///keep\x07"))
+		_, changed := ss.captureScan([]byte("\x1b]7;" + payload + "\x07"))
+		if changed || ss.liveCwd() != "/keep" {
+			t.Errorf("%q: changed=%v liveCwd=%q, want the previous value kept", payload, changed, ss.liveCwd())
+		}
+	}
+}
+
+func TestCaptureScan_OSC7DoesNotRequireNonce(t *testing.T) {
+	ss := &sessionState{} // no nonce: shell integration inactive or not yet set
+	ss.captureScan([]byte("\x1b]7;file:///srv\x07"))
+	if got := ss.liveCwd(); got != "/srv" {
+		t.Errorf("liveCwd = %q, want /srv (OSC 7 is a standard sequence, never nonce-gated)", got)
+	}
+}
+
+func TestCaptureScan_OSC7STTerminator(t *testing.T) {
+	ss := newCaptureTestSession()
+	ss.captureScan([]byte("\x1b]7;file:///opt\x1b\\"))
+	if got := ss.liveCwd(); got != "/opt" {
+		t.Errorf("liveCwd = %q, want /opt", got)
+	}
+}
+
+func TestCaptureScan_OSC7SplitAcrossCalls(t *testing.T) {
+	full := "\x1b]133;C;test-nonce\x07out\x1b]133;D;test-nonce;0\x07\x1b]7;file://h/Users/me/x\x07"
+	for split := 1; split < len(full); split++ {
+		ss := newCaptureTestSession()
+		ss.captureScan([]byte(full[:split]))
+		ss.captureScan([]byte(full[split:]))
+
+		if got := ss.liveCwd(); got != "/Users/me/x" {
+			t.Fatalf("split at %d: liveCwd = %q, want /Users/me/x", split, got)
+		}
+		if !ss.lastValid || ss.lastOutput != "out" {
+			t.Fatalf("split at %d: lastValid=%v lastOutput=%q, want true/\"out\"", split, ss.lastValid, ss.lastOutput)
+		}
+	}
+}
+
+func TestCaptureScan_OSC7BytesAreKeptOutOfCapturedOutput(t *testing.T) {
+	ss := newCaptureTestSession()
+	// A nested shell (or a cd inside a script) reporting mid-command: the
+	// directory is tracked, but the sequence never becomes "output".
+	ss.captureScan([]byte(
+		"\x1b]133;C;test-nonce\x07before\x1b]7;file:///tmp/nested\x07after\x1b]133;D;test-nonce;0\x07",
+	))
+
+	if ss.lastOutput != "beforeafter" {
+		t.Errorf("lastOutput = %q, want %q", ss.lastOutput, "beforeafter")
+	}
+	if got := ss.liveCwd(); got != "/tmp/nested" {
+		t.Errorf("liveCwd = %q, want /tmp/nested", got)
+	}
+}
+
+func TestCaptureScan_OtherOSCDoesNotTouchCwd(t *testing.T) {
+	ss := newCaptureTestSession()
+	ss.captureScan([]byte("\x1b]7;file:///start\x07"))
+	ss.captureScan([]byte(
+		"\x1b]133;C;test-nonce\x07" +
+			"\x1b]0;title\x07\x1b]8;;file:///not/a/cwd\x07link\x1b]8;;\x07\x1b]777;notify;x\x07" +
+			"\x1b]133;D;test-nonce;0\x07",
+	))
+
+	if got := ss.liveCwd(); got != "/start" {
+		t.Errorf("liveCwd = %q, want /start (OSC 0/8/777 must be ignored)", got)
+	}
+	if ss.lastOutput != "link" {
+		t.Errorf("lastOutput = %q, want %q", ss.lastOutput, "link")
+	}
+}
+
+func TestCaptureScan_OSC7UnterminatedBeyondCarryLimitGivesUp(t *testing.T) {
+	ss := newCaptureTestSession()
+	ss.captureScan([]byte("\x1b]7;file:///" + strings.Repeat("z", maxMarkerCarryBytes+10)))
+	ss.captureScan([]byte("\x1b]7;file:///recovered\x07"))
+
+	if got := ss.liveCwd(); got != "/recovered" {
+		t.Errorf("liveCwd = %q, want /recovered (scanner should recover)", got)
+	}
+}
+
+func TestResetCapture_DoesNotForgetCwd(t *testing.T) {
+	ss := newCaptureTestSession()
+	ss.captureScan([]byte("\x1b]7;file:///work\x07"))
+	ss.resetCapture() // Clear: the screen is wiped, the shell hasn't moved
+	if got := ss.liveCwd(); got != "/work" {
+		t.Errorf("liveCwd = %q after resetCapture, want /work", got)
+	}
+	ss.resetCwd()
+	if got := ss.liveCwd(); got != "" {
+		t.Errorf("liveCwd = %q after resetCwd, want \"\"", got)
+	}
+}
+
+// TestSessionInfoCwd_FollowsOSC7AndResetsOnRestart covers the service-level
+// contract: SessionInfo.Cwd is the start directory until the shell reports,
+// then the live value, and a restart puts it back to the start directory.
+func TestSessionInfoCwd_FollowsOSC7AndResetsOnRestart(t *testing.T) {
+	s := &TerminalService{ptyBackend: &restartRaceBackend{}}
+	s.sessions = make(map[string]*sessionState)
+	previous := terminalSvc
+	terminalSvc = s
+	t.Cleanup(func() { terminalSvc = previous })
+
+	info, err := s.CreateSession()
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	t.Cleanup(func() { s.CloseSession(info.ID) })
+	if info.Cwd != info.WorkingDir || info.Cwd == "" {
+		t.Fatalf(
+			"fresh session: Cwd=%q WorkingDir=%q, want Cwd to equal the (non-empty) start directory",
+			info.Cwd,
+			info.WorkingDir,
+		)
+	}
+
+	s.mu.RLock()
+	ss := s.sessions[info.ID]
+	s.mu.RUnlock()
+	ss.captureScan([]byte("\x1b]7;file:///tmp/elsewhere\x07"))
+
+	if got := s.GetActiveSession().Cwd; got != "/tmp/elsewhere" {
+		t.Errorf("GetActiveSession().Cwd = %q, want /tmp/elsewhere", got)
+	}
+	if got := sessionCwd(info.ID); got != "/tmp/elsewhere" {
+		t.Errorf("sessionCwd = %q, want /tmp/elsewhere", got)
+	}
+	if got := sessionCwd(""); got != "/tmp/elsewhere" {
+		t.Errorf("sessionCwd(active) = %q, want /tmp/elsewhere", got)
+	}
+
+	if err := s.Start(info.ID, defaultTerminalCols, defaultTerminalRows); err != nil {
+		t.Fatalf("Start (restart) failed: %v", err)
+	}
+	if got := s.GetActiveSession().Cwd; got != info.WorkingDir {
+		t.Errorf("after restart: Cwd = %q, want the start directory %q", got, info.WorkingDir)
+	}
+	if got := sessionCwd(info.ID); got != info.WorkingDir {
+		t.Errorf("after restart: sessionCwd = %q, want %q", got, info.WorkingDir)
 	}
 }

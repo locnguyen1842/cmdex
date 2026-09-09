@@ -94,6 +94,39 @@ fi
 
 autoload -Uz add-zsh-hook
 
+# __cmdex_urlencode percent-encodes its argument for the path part of a
+# file:// URL: everything except unreserved ASCII and "/" is written as %XX
+# per UTF-8 byte. Pure shell — no fork per prompt — using the same
+# "copy the safe run, encode one byte, repeat" loop as vte.sh. no_multibyte
+# makes ${str#?} strip a single byte (not a character) and "'$str" yield that
+# byte's value, so "é" becomes %C3%A9 rather than its code point.
+__cmdex_urlencode() {
+    emulate -L zsh
+    setopt no_multibyte
+    local str="$1" safe
+    while [ -n "$str" ]; do
+        safe="${str%%[^A-Za-z0-9/._~-]*}"
+        print -rn -- "$safe"
+        str="${str#"$safe"}"
+        if [ -n "$str" ]; then
+            printf '%%%02X' "'$str"
+            str="${str#?}"
+        fi
+    done
+}
+
+# __cmdex_report_cwd emits the standard OSC 7 "current working directory"
+# sequence (ESC ] 7 ; file://<host><percent-encoded $PWD> BEL) that
+# terminal_capture.go decodes into SessionInfo.Cwd, so the app's own path
+# completion (shell_completion.go) can list the directory the shell is
+# actually in rather than the one it was started in. Unlike the OSC 133
+# markers this carries no nonce: it's a standard, widely emitted sequence
+# (macOS Terminal, VTE, kitty, fish all speak it), and the worst a forged one
+# can do is point Tab completion at the wrong directory.
+__cmdex_report_cwd() {
+    print -n "\e]7;file://${HOST}$(__cmdex_urlencode "$PWD")\a"
+}
+
 # __cmdex_preexec fires just before a command's output starts, i.e. right as
 # the command begins executing.
 __cmdex_preexec() {
@@ -103,11 +136,24 @@ __cmdex_preexec() {
 # __cmdex_precmd fires once the command has finished, right before zsh
 # redraws the prompt. $? here is the finished command's real exit status —
 # reading it as literally the first thing in this function (before any other
-# statement can run and change it) is what makes that reliable.
+# statement can run and change it) is what makes that reliable. The cwd
+# report comes AFTER the D marker so it never lands inside a C..D capture
+# span, and it runs on every prompt (not only when $PWD changes) so a
+# session restart or a cd inside a sourced script is still picked up.
 __cmdex_precmd() {
     local __cmdex_ec=$?
     print -n "\e]133;D;$__cmdex_nonce;$__cmdex_ec\a"
+    __cmdex_report_cwd
 }
 
 add-zsh-hook preexec __cmdex_preexec
 add-zsh-hook precmd __cmdex_precmd
+
+# Report the starting directory right away so completion has a value before
+# the first prompt (precmd will report it again then). Interactive shells
+# only: this file also runs for every `zsh -c ...` and zsh-shebang script
+# spawned inside the session, whose stdout may be a pipe or a file that must
+# not receive terminal escape sequences.
+if [[ -o interactive ]]; then
+    __cmdex_report_cwd
+fi

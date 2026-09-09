@@ -22,8 +22,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { type Category, type Command } from '../types';
+import BrandMark from './BrandMark';
 import { getCommandDisplayTitle } from '../utils/tab';
-import { Button } from '@/components/ui/button';
+import { matchesCommand } from '../utils/commandSearch';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
@@ -32,7 +33,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '@/components/ui/context-menu';
-import { Plus, Pencil, X, ChevronRight, Terminal, Settings, Group, Trash2, Download, Upload } from 'lucide-react';
+import { Plus, Pencil, X, ChevronRight, Terminal, Search, Settings, Menu, Group, Trash2, Download, Upload } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -44,7 +45,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { ExportCommands, ImportCommands } from '../../bindings/cmdex/importexportservice';
-import { MainLogo } from '@/assets/images/main-logo';
+import { useResizablePanelApi } from './ResizablePanel';
 
 const STORAGE_KEY = 'cmdex-expanded-categories';
 
@@ -107,7 +108,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
+      <Terminal className="size-3.5 shrink-0" />
       <span className="cmd-body">
         <span className="cmd-title">{getCommandDisplayTitle(cmd)}</span>
         {cmd.tags && cmd.tags.length > 0 && (
@@ -121,7 +122,7 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
       <span className="cmd-actions">
         {isPendingDelete ? (
           <>
-          <button
+            <button
               className="cmd-cancel-delete-icon-btn"
               onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
               title={t('common.cancel')}
@@ -135,7 +136,6 @@ const SortableCommandItem: React.FC<SortableCommandItemProps> = ({
             >
               <Trash2 className="size-3" />
             </button>
-            
           </>
         ) : isHovered ? (
           <button
@@ -181,6 +181,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t } = useTranslation();
   const prevCatIdsRef = useRef<string[]>([]);
+  const panelApi = useResizablePanelApi();
 
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => {
     try {
@@ -191,6 +192,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     initial.add('__uncategorized__');
     return initial;
   });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const trimmedQuery = searchQuery.trim();
 
   useEffect(() => {
     const prevIds = prevCatIdsRef.current;
@@ -221,11 +225,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getCommandsForCategory = (categoryId: string) =>
-    commands.filter(cmd => cmd.categoryId === categoryId).sort((a, b) => a.position - b.position);
+    commands
+      .filter(cmd => cmd.categoryId === categoryId)
+      .filter(cmd => !trimmedQuery || matchesCommand(trimmedQuery, cmd))
+      .sort((a, b) => a.position - b.position);
 
   const uncategorizedCommands = commands
     .filter(cmd => !cmd.categoryId || cmd.categoryId === '')
+    .filter(cmd => !trimmedQuery || matchesCommand(trimmedQuery, cmd))
     .sort((a, b) => a.position - b.position);
+
+  const filteredCategories = categories.map(cat => ({ cat, cmds: getCommandsForCategory(cat.id) }));
+  const hasAnyResults = !trimmedQuery
+    || filteredCategories.some(fc => fc.cmds.length > 0)
+    || uncategorizedCommands.length > 0;
 
   // Inline delete confirmation state
   const [pendingDeleteCmd, setPendingDeleteCmd] = useState<string | null>(null);
@@ -308,39 +321,72 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const isUncatDropTarget = overCategoryId === '';
   const isUncatOpen = openCategories.has('__uncategorized__');
+  const showUncategorized = !trimmedQuery || uncategorizedCommands.length > 0;
 
   return (
     <div className="sidebar">
       {/* Header — outside context menu trigger so right-click doesn't fire */}
       <div className="sidebar-header">
-        <div className="sidebar-logo">
-          <div className="logo-icon">
-            <MainLogo width="32" height="32" />
-          </div>
-          <h1>CmDex</h1>
+        <div className="sidebar-brand">
+          <BrandMark size={20} />
+          <h1 className="brand-name">CmDex</h1>
+        </div>
+        <div className="sidebar-header-actions">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                size="icon-sm"
-                variant="ghost"
+              <button
+                type="button"
+                className="icon-btn"
                 onClick={() => onAddCommand()}
-                className="ml-auto"
                 data-testid="sidebar-add-command"
+                aria-label={t('sidebar.newCommand')}
               >
-                <Plus className="size-4" />
-              </Button>
+                <Plus size={15} strokeWidth={1.8} />
+              </button>
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.newCommand')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} data-testid="sidebar-settings">
-                <Settings className="size-4" />
-              </Button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={onOpenSettings}
+                data-testid="sidebar-settings"
+                aria-label={t('sidebar.settings')}
+              >
+                <Settings size={15} strokeWidth={1.8} />
+              </button>
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.settings')}</TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => panelApi?.collapse()}
+                aria-label={t('sidebar.collapseSidebar')}
+              >
+                <Menu size={15} strokeWidth={1.8} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t('sidebar.collapseSidebar')}</TooltipContent>
+          </Tooltip>
         </div>
+      </div>
+
+      <div className="sidebar-search-wrap">
+        <Search className="sidebar-search-icon" size={14} strokeWidth={1.8} />
+        <input
+          className="sidebar-search-input"
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('sidebar.searchPlaceholder')}
+          aria-label={t('sidebar.searchPlaceholder')}
+          data-testid="sidebar-search-input"
+        />
       </div>
 
       {/* Command list with DnD — context menu scoped to scroll area only */}
@@ -354,9 +400,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div className="sidebar-content overflow-y-auto scrollbar-thin scrollbar-w-1 scrollbar-thumb-border scrollbar-track-transparent">
-              {categories.map(cat => {
-                const catCommands = getCommandsForCategory(cat.id);
-                const isOpen = openCategories.has(cat.id);
+              {filteredCategories.map(({ cat, cmds: catCommands }) => {
+                if (trimmedQuery && catCommands.length === 0) return null;
+                const isOpen = trimmedQuery ? true : openCategories.has(cat.id);
                 const isDropTarget = overCategoryId === cat.id;
 
                 return (
@@ -368,11 +414,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                           <CollapsibleTrigger asChild>
                             <div className="sidebar-section-header" data-category-id={cat.id}>
                               <div className="section-left">
-                                <ChevronRight className={`size-3.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                                <ChevronRight className={`chev size-3 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                                 <span className="category-dot" style={{ backgroundColor: cat.color || '#7c6aef' }} />
-                                <span className="text-sm">{cat.name}</span>
+                                <span className="category-name text-sm">{cat.name}</span>
                               </div>
-                              <div className="section-right" />
+                              <span className="category-count">{catCommands.length}</span>
                             </div>
                           </CollapsibleTrigger>
                         </ContextMenuTrigger>
@@ -445,55 +491,61 @@ const Sidebar: React.FC<SidebarProps> = ({
                 );
               })}
 
-              {/* Uncategorized — always rendered so it's a valid drop target */}
-              <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
-                <DroppableCategoryHeader categoryId="">
-                <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
-                  <ContextMenu>
-                    <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
-                      <CollapsibleTrigger asChild>
-                        <div className="sidebar-section-header">
-                          <div className="section-left">
-                            <ChevronRight className={`size-3.5 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
-                            <span className="category-dot" style={{ backgroundColor: '#6c6c88' }} />
-                            <span className="text-xs uppercase">{t('sidebar.uncategorized')}</span>
+              {/* Uncategorized — always rendered (unless actively searching with no match)
+                  so it stays a valid drop target. */}
+              {showUncategorized && (
+                <Collapsible open={isUncatOpen} onOpenChange={() => toggleCategory('__uncategorized__')}>
+                  <DroppableCategoryHeader categoryId="">
+                  <div className={`sidebar-section ${isUncatDropTarget ? 'drop-target' : ''}`}>
+                    <ContextMenu>
+                      <ContextMenuTrigger asChild onContextMenu={(e) => e.stopPropagation()}>
+                        <CollapsibleTrigger asChild>
+                          <div className="sidebar-section-header uncat-header">
+                            <div className="section-left">
+                              <ChevronRight className={`chev size-3 transition-transform ${isUncatOpen ? 'rotate-90' : ''}`} />
+                              <span className="category-name text-xs uppercase">{t('sidebar.uncategorized')}</span>
+                            </div>
                           </div>
-                        </div>
-                      </CollapsibleTrigger>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onSelect={() => onAddCommand()}>
-                        <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
-                      </ContextMenuItem>
-                      <ContextMenuItem onSelect={onAddCategory}>
-                        <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                  <CollapsibleContent>
-                    <SortableContext
-                      items={uncategorizedCommands.map(c => c.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <DroppableCategoryZone categoryId="">
-                        {uncategorizedCommands.map(cmd => (
-                          <SortableCommandItem
-                            key={cmd.id}
-                            cmd={cmd}
-                            isSelected={selectedCommandId === cmd.id}
-                            onSelect={() => onSelectCommand(cmd)}
-                            onDelete={() => { onDeleteCommand(cmd); setPendingDeleteCmd(null); }}
-                            isPendingDelete={pendingDeleteCmd === cmd.id}
-                            onRequestDelete={() => setPendingDeleteCmd(cmd.id)}
-                            onCancelDelete={() => setPendingDeleteCmd(null)}
-                          />
-                        ))}
-                      </DroppableCategoryZone>
-                    </SortableContext>
-                  </CollapsibleContent>
-                </div>
-                </DroppableCategoryHeader>
-              </Collapsible>
+                        </CollapsibleTrigger>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => onAddCommand()}>
+                          <Plus className="size-3.5" /> {t('sidebar.contextMenu.newCommand')}
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={onAddCategory}>
+                          <ChevronRight className="size-3.5" /> {t('sidebar.contextMenu.newGroup')}
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                    <CollapsibleContent>
+                      <SortableContext
+                        items={uncategorizedCommands.map(c => c.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <DroppableCategoryZone categoryId="">
+                          {uncategorizedCommands.map(cmd => (
+                            <SortableCommandItem
+                              key={cmd.id}
+                              cmd={cmd}
+                              isSelected={selectedCommandId === cmd.id}
+                              onSelect={() => onSelectCommand(cmd)}
+                              onDelete={() => { onDeleteCommand(cmd); setPendingDeleteCmd(null); }}
+                              isPendingDelete={pendingDeleteCmd === cmd.id}
+                              onRequestDelete={() => setPendingDeleteCmd(cmd.id)}
+                              onCancelDelete={() => setPendingDeleteCmd(null)}
+                            />
+                          ))}
+                        </DroppableCategoryZone>
+                      </SortableContext>
+                    </CollapsibleContent>
+                  </div>
+                  </DroppableCategoryHeader>
+                </Collapsible>
+              )}
+
+              {!hasAnyResults && (
+                <div className="sidebar-empty-search">{t('sidebar.noResults', { query: trimmedQuery })}</div>
+              )}
             </div>
           </ContextMenuTrigger>
           {/* Empty-space context menu (scoped to scroll area) */}
@@ -526,12 +578,24 @@ const Sidebar: React.FC<SidebarProps> = ({
         <DragOverlay>
           {activeCommand && (
             <div className="command-item dragging-ghost">
-              <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
+              <Terminal className="size-3.5 shrink-0" />
               <span className="cmd-title">{getCommandDisplayTitle(activeCommand)}</span>
             </div>
           )}
         </DragOverlay>
       </DndContext>
+
+      <div className="sidebar-footer">
+        <button
+          type="button"
+          className="ghost-row"
+          onClick={onAddCategory}
+          data-testid="sidebar-new-category"
+        >
+          <Plus size={13} strokeWidth={2} />
+          <span>{t('sidebar.newCategory')}</span>
+        </button>
+      </div>
 
       {/* Category delete — AlertDialog renders as body portal, covers full window */}
       {(() => {

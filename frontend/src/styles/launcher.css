@@ -1,0 +1,294 @@
+/* ==========================================================================
+   Global quick launcher (/?window=launcher)
+   Frameless, always-on-top window: there is no OS chrome or Cmdex UI behind
+   it, so the whole viewport IS the floating panel. Unlike .palette-* there is
+   no overlay/centring layer to draw around it.
+   ========================================================================== */
+
+.launcher-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-sans);
+}
+
+/* Search row -------------------------------------------------------------- */
+
+.launcher-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  /* Frameless window: this strip is the only place to grab and move it. */
+  --wails-draggable: drag;
+}
+
+.launcher-search-icon {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+.launcher-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  caret-color: var(--brand);
+  --wails-draggable: no-drag;
+}
+
+.launcher-input::placeholder {
+  color: var(--fg-faint);
+}
+
+.launcher-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: var(--surface-2);
+  border-radius: 50%;
+  color: var(--fg-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  --wails-draggable: no-drag;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.launcher-clear:hover {
+  background: var(--accent);
+  color: var(--fg);
+}
+
+/* Results ----------------------------------------------------------------- */
+
+.launcher-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.launcher-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 13px;
+}
+
+.launcher-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.launcher-item:hover,
+.launcher-item.active {
+  background: var(--brand-soft);
+}
+
+.launcher-item-icon {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+.launcher-item:hover .launcher-item-icon,
+.launcher-item.active .launcher-item-icon {
+  color: var(--brand);
+}
+
+.launcher-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.launcher-item-title {
+  font-size: 13px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.launcher-item-script {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* {{variable}} placeholder inside a script preview row. */
+.launcher-var-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--brand-soft-strong);
+  color: var(--brand);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.launcher-cat-badge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--fg-faint);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Inline run panel -------------------------------------------------------- */
+
+.launcher-run-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.launcher-run-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.launcher-run-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.launcher-run-back {
+  border: none;
+  background: transparent;
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.launcher-run-back:hover {
+  background: var(--accent);
+  color: var(--fg);
+}
+
+.launcher-terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px;
+  background: var(--bg);
+}
+
+.launcher-terminal .terminal-container {
+  height: 100%;
+}
+
+/* Footer -------------------------------------------------------------------- */
+
+.launcher-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+.launcher-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Scope the shared <Kbd> primitive to the launcher's own key-pill look
+   (bg-2 fill, hairline border, 4px radius, 10.5px) rather than the shadcn
+   `bg-muted` default it ships with. */
+.launcher-footer [data-slot='kbd'] {
+  height: auto;
+  min-width: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10.5px;
+  color: var(--fg-faint);
+}
+
+.launcher-hint-count {
+  margin-left: auto;
+  opacity: 0.75;
+}
+
+.launcher-open-app {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.launcher-hint-count + .launcher-open-app {
+  margin-left: 12px;
+}
+
+.launcher-open-app:hover {
+  background: var(--accent);
+  color: var(--fg);
+}
+
+/* Visible keyboard focus for launcher controls. */
+.launcher-clear:focus-visible,
+.launcher-run-back:focus-visible,
+.launcher-input:focus-visible,
+.launcher-open-app:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}

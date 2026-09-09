@@ -1316,8 +1316,8 @@ func (db *DB) searchCommandsLike(query string) ([]Command, error) {
 func (db *DB) GetSettings() (AppSettings, error) {
 	defaults := AppSettings{
 		Locale: "en",
-		Theme:  "vscode-dark", LastDarkTheme: "vscode-dark", LastLightTheme: "vscode-light",
-		CustomThemes: "[]", UIFont: "Inter", MonoFont: "JetBrains Mono", Density: "comfortable",
+		Theme:  "classic", LastDarkTheme: "classic", LastLightTheme: "classic-light",
+		CustomThemes: "[]", UIFont: "Manrope", MonoFont: "JetBrains Mono", Density: "comfortable",
 		DefaultWorkingDir: &OSPathMap{},
 		LauncherShortcut:  DefaultLauncherShortcut,
 	}
@@ -1332,7 +1332,7 @@ func (db *DB) GetSettings() (AppSettings, error) {
 	// the first check completes (older rows simply lack both keys).
 	betaChannel := false
 	defaults.BetaChannel = &betaChannel
-	x, y, w, h := -1, -1, 640, 520
+	x, y, w, h := -1, -1, 960, 680
 	defaults.WindowX = &x
 	defaults.WindowY = &y
 	defaults.WindowWidth = &w
@@ -1356,7 +1356,45 @@ func (db *DB) GetSettings() (AppSettings, error) {
 	if err := json.Unmarshal([]byte(raw), &merged); err != nil {
 		return defaults, fmt.Errorf("unmarshal settings: %w", err)
 	}
+	if migrateLegacyDefaults(&merged) {
+		// Best effort: the migrated values are returned either way, and the
+		// next SetSettings persists them if this write fails.
+		if data, err := json.Marshal(merged); err == nil {
+			_, _ = db.conn.ExecContext(context.Background(), `UPDATE app_settings SET data = ?`, string(data))
+		}
+	}
 	return merged, nil
+}
+
+// Pre-redesign defaults. A settings row that still holds all of them was never
+// customized by the user, so the redesign's new defaults apply to it too.
+const (
+	legacyDefaultTheme      = "vscode-dark"
+	legacyDefaultLightTheme = "vscode-light"
+	legacyDefaultUIFont     = "Inter"
+)
+
+// migrateLegacyDefaults moves a never-customized settings row from the
+// pre-redesign defaults (VS Code Dark+, Inter) to the Cmdex Classic theme and
+// Manrope, and grows the settings window to the redesigned layout's size. It
+// reports whether anything changed. A row where the user picked any of those
+// values deliberately alongside other choices is left alone: the check
+// requires theme, last dark theme and UI font to all still be the old
+// defaults.
+func migrateLegacyDefaults(s *AppSettings) bool {
+	if s.Theme != legacyDefaultTheme || s.LastDarkTheme != legacyDefaultTheme || s.UIFont != legacyDefaultUIFont {
+		return false
+	}
+	s.Theme = "classic"
+	s.LastDarkTheme = "classic"
+	if s.LastLightTheme == legacyDefaultLightTheme {
+		s.LastLightTheme = "classic-light"
+	}
+	s.UIFont = "Manrope"
+	w, h := 960, 680
+	s.WindowWidth = &w
+	s.WindowHeight = &h
+	return true
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
@@ -1430,6 +1468,9 @@ func (db *DB) SetSettings(s AppSettings) error {
 	if s.ShellIntegration != nil {
 		existing.ShellIntegration = s.ShellIntegration
 	}
+	if s.TerminalSuggestions != nil {
+		existing.TerminalSuggestions = s.TerminalSuggestions
+	}
 
 	data, err := json.Marshal(existing)
 	if err != nil {
@@ -1469,14 +1510,14 @@ func (db *DB) ResetAll() error {
 	}
 
 	defaultSettingsX, defaultSettingsY := -1, -1
-	defaultSettingsW, defaultSettingsH := 640, 520
+	defaultSettingsW, defaultSettingsH := 960, 680
 	defaultSettings, _ := json.Marshal(AppSettings{
 		Locale:         "en",
-		Theme:          "vscode-dark",
-		LastDarkTheme:  "vscode-dark",
-		LastLightTheme: "vscode-light",
+		Theme:          "classic",
+		LastDarkTheme:  "classic",
+		LastLightTheme: "classic-light",
 		CustomThemes:   "[]",
-		UIFont:         "Inter",
+		UIFont:         "Manrope",
 		MonoFont:       "JetBrains Mono",
 		Density:        "comfortable",
 		WindowX:        &defaultSettingsX,

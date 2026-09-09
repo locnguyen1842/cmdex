@@ -1,1 +1,13 @@
-<svg width="1024" height="1024" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="10" width="120" height="120" rx="16" stroke="#feb127" stroke-width="10" fill="none" opacity=".9"/><rect x="25" y="25" width="90" height="90" rx="8" stroke="#feb127" stroke-width="4" stroke-opacity=".8" fill="none"/><path d="m50 45 25 25-25 25" stroke="#feb127" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" style="fill:none;filter:saturate(2) brightness(1.1)"/><path stroke="#feb127" stroke-width="12" stroke-linecap="round" style="fill:none;filter:saturate(2) brightness(1.1)" d="M80 95h10"/><circle cx="105" cy="70" r="6" fill="#feb127" opacity=".8"/><rect x="30" y="130" width="25" height="10" rx="2" fill="#feb127"/><rect x="85" y="130" width="25" height="10" rx="2" fill="#feb127"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="0 0 140 140" fill="none">
+  <defs>
+    <linearGradient id="cmdex-brand" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#5b9dff"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="124" height="124" rx="30" fill="url(#cmdex-brand)"/>
+  <g stroke="#fdfdff" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polyline points="46 92 68 70 46 48"/>
+    <line x1="74" y1="100" x2="100" y2="100"/>
+  </g>
+</svg>

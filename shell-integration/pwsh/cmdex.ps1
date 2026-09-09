@@ -67,6 +67,48 @@ if (-not (Test-Path Variable:\global:cmdexNonce)) {
     Remove-Item Env:\CMDEX_OSC_NONCE_FILE -ErrorAction SilentlyContinue
 }
 
+# __cmdexOsc7Path returns $PWD as the percent-encoded path part of a file://
+# URL ("/C:/Users/me/My%20Docs" on Windows, "/home/me" elsewhere): every
+# UTF-8 byte other than unreserved ASCII, "/" and ":" is written as %XX. It
+# returns $null on a non-filesystem drive (cd HKLM:\, Cert:\ ...), which has
+# no directory for path completion to list.
+function global:__cmdexOsc7Path {
+    if ($PWD.Provider.Name -ne 'FileSystem') {
+        return $null
+    }
+    $cmdexPath = $PWD.ProviderPath -replace '\\', '/'
+    if ($cmdexPath -notmatch '^/') {
+        $cmdexPath = '/' + $cmdexPath
+    }
+    $cmdexOut = [System.Text.StringBuilder]::new()
+    foreach ($cmdexByte in [System.Text.Encoding]::UTF8.GetBytes($cmdexPath)) {
+        if (($cmdexByte -ge 0x30 -and $cmdexByte -le 0x39) -or
+            ($cmdexByte -ge 0x41 -and $cmdexByte -le 0x5A) -or
+            ($cmdexByte -ge 0x61 -and $cmdexByte -le 0x7A) -or
+            ($cmdexByte -in (0x2F, 0x2E, 0x5F, 0x7E, 0x2D, 0x3A))) {
+            [void]$cmdexOut.Append([char]$cmdexByte)
+        } else {
+            [void]$cmdexOut.AppendFormat('%{0:X2}', $cmdexByte)
+        }
+    }
+    return $cmdexOut.ToString()
+}
+
+# __cmdexReportCwd emits the standard OSC 7 "current working directory"
+# sequence (ESC ] 7 ; file://<host><percent-encoded cwd> BEL) that
+# terminal_capture.go decodes into SessionInfo.Cwd, so the app's own path
+# completion (shell_completion.go) can list the directory the shell is
+# actually in rather than the one it was started in. Unlike the OSC 133
+# markers this carries no nonce: it's a standard, widely emitted sequence
+# (Windows Terminal, macOS Terminal, VTE and kitty all speak it), and the
+# worst a forged one can do is point Tab completion at the wrong directory.
+function global:__cmdexReportCwd {
+    $cmdexOsc7 = __cmdexOsc7Path
+    if ($cmdexOsc7) {
+        [Console]::Out.Write("`e]7;file://$([Environment]::MachineName)$cmdexOsc7`a")
+    }
+}
+
 # Without a nonce, terminal_capture.go's stripNonce can never authenticate a
 # marker this session emits (see the nonce comment above) — GetLastOutput
 # would simply stay Available=false forever and the frontend would fall back
@@ -113,6 +155,9 @@ if (Test-Path Variable:\global:cmdexNonce) {
             $global:LASTEXITCODE = $null
 
             [Console]::Out.Write("`e]133;D;$cmdexNonce;$cmdexExitCode`a")
+            # After the D marker, never before it, so the cwd report can't
+            # land inside a C..D capture span.
+            __cmdexReportCwd
             $global:__cmdexOriginalPrompt.Invoke()
         }
     }
@@ -130,3 +175,10 @@ if (Test-Path Variable:\global:cmdexNonce) {
         }
     }
 }
+
+# Report the starting directory right away so completion has a value before
+# the first prompt (the prompt wrapper reports it again on every redraw).
+# This file is only ever dot-sourced by Cmdex's own interactive launch
+# command (see integrationForPwsh), never by a nested `pwsh -c`, so no
+# interactivity guard is needed here.
+__cmdexReportCwd

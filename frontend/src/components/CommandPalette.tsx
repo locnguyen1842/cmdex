@@ -5,12 +5,13 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { type Command, type Category } from '../types';
 import { getCommandDisplayTitle } from '../utils/tab';
 import { filterCommands, scriptSnippet } from '../utils/commandSearch';
 import { Kbd, ShortcutLabel } from './ui/kbd';
-import { isCmdOrCtrl } from '../lib/shortcuts';
-import { FileText, Search, X } from 'lucide-react';
+import { isCmdOrCtrl, cmdSymbol } from '../lib/shortcuts';
+import { FileText, Search } from 'lucide-react';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -35,6 +36,20 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** Render a script snippet in mono, turning {{var}} placeholders into pills */
+function ScriptPreview({ text }: { text: string }) {
+  const parts = text.split(/(\{\{[^}]+\}\})/g);
+  return (
+    <span className="palette-item-script mono">
+      {parts.map((part, i) => {
+        const m = /^\{\{([^}]+)\}\}$/.exec(part);
+        if (m) return <span key={i} className="palette-var-chip">{m[1]}</span>;
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      })}
+    </span>
+  );
+}
+
 const CommandPalette: React.FC<CommandPaletteProps> = ({
   open,
   commands,
@@ -43,6 +58,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpen,
   onExecute,
 }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,82 +129,68 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         {/* Search row */}
         <div className="palette-search">
-          <Search size={15} className="palette-search-icon" />
+          <Search size={17} className="palette-search-icon" strokeWidth={1.8} />
           <input
             ref={inputRef}
             className="palette-input"
             data-testid="palette-input"
-            placeholder="Search commands…"
+            placeholder={t('palette.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             autoComplete="off"
             spellCheck={false}
           />
-          {query && (
-            <button className="palette-clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }}>
-              <X size={13} />
-            </button>
-          )}
-          <div className="palette-shortcut-badge">
-            <ShortcutLabel id="palette" />
-          </div>
+          <Kbd className="palette-esc-kbd">{t('palette.esc')}</Kbd>
         </div>
 
         {/* Results */}
         <div className="palette-results" ref={listRef}>
           {filtered.length === 0 ? (
-            <div className="palette-empty" data-testid="palette-empty">No commands match "{query}"</div>
+            <div className="palette-empty" data-testid="palette-empty">
+              {t('palette.noMatches', { query })}
+            </div>
           ) : (
-            filtered.map((cmd, i) => {
-              const catName = cmd.categoryId ? catMap[cmd.categoryId] : null;
-              const isActive = i === activeIndex;
-              return (
-                <div
-                  key={cmd.id}
-                  data-idx={i}
-                  data-testid={`palette-item-${cmd.id}`}
-                  className={`palette-item${isActive ? ' active' : ''}`}
-                  onMouseEnter={() => setActiveIndex(i)}
-                  onClick={() => { onOpen(cmd); onClose(); }}
-                >
-                  <FileText size={13} className="palette-item-icon" />
-                  <div className="palette-item-body">
-                    <span className="palette-item-title">
-                      <Highlight text={getCommandDisplayTitle(cmd)} query={query.trim()} />
-                    </span>
-                    {cmd.description?.Valid && (
-                      <span className="palette-item-desc">
-                        <Highlight text={cmd.description.String} query={query.trim()} />
-                      </span>
-                    )}
-                    {cmd.scriptContent && (
-                      <span className="palette-item-script">
-                        {scriptSnippet(cmd.scriptContent)}
-                      </span>
-                    )}
+            <>
+              <div className="palette-group-label">{t('palette.commandsGroup')}</div>
+              {filtered.map((cmd, i) => {
+                const catName = cmd.categoryId ? catMap[cmd.categoryId] : null;
+                const isActive = i === activeIndex;
+                const hasTitle = !!(cmd.title?.Valid && cmd.title.String.trim());
+                return (
+                  <div
+                    key={cmd.id}
+                    data-idx={i}
+                    data-testid={`palette-item-${cmd.id}`}
+                    className={`palette-item${isActive ? ' active' : ''}`}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => { onOpen(cmd); onClose(); }}
+                  >
+                    <FileText size={15} className="palette-item-icon" strokeWidth={1.8} />
+                    <div className="palette-item-body">
+                      {hasTitle ? (
+                        <span className="palette-item-title">
+                          <Highlight text={getCommandDisplayTitle(cmd)} query={query.trim()} />
+                        </span>
+                      ) : (
+                        <ScriptPreview text={scriptSnippet(cmd.scriptContent)} />
+                      )}
+                    </div>
+                    {catName && <span className="palette-item-cat">{catName}</span>}
+                    {i < 9 && <Kbd className="palette-item-kbd">{cmdSymbol}{i + 1}</Kbd>}
                   </div>
-                  <div className="palette-item-meta">
-                    {catName && <span className="palette-cat-badge">{catName}</span>}
-                    {(cmd.tags || []).slice(0, 2).map((tag) => (
-                      <span key={tag} className="palette-tag-badge">#{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </>
           )}
         </div>
 
         {/* Footer hints */}
         <div className="palette-footer">
-          <span className="palette-hint"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
-          <span className="palette-hint"><Kbd>↩</Kbd> open</span>
-          <span className="palette-hint"><ShortcutLabel id="execute" /> execute</span>
-          <span className="palette-hint"><Kbd>Esc</Kbd> close</span>
-          <span className="palette-hint" style={{ marginLeft: 'auto', opacity: 0.5 }}>
-            {filtered.length} result{filtered.length !== 1 ? 's' : ''}
-          </span>
+          <span className="palette-hint"><Kbd>↑</Kbd><Kbd>↓</Kbd> {t('palette.hintNavigate')}</span>
+          <span className="palette-hint"><Kbd>↩</Kbd> {t('palette.hintOpen')}</span>
+          <span className="palette-hint"><ShortcutLabel id="execute" /> {t('palette.hintExecute')}</span>
+          <span className="palette-hint"><Kbd>Esc</Kbd> {t('palette.hintClose')}</span>
         </div>
       </div>
     </div>

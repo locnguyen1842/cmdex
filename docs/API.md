@@ -6,7 +6,7 @@ CmDex exposes its backend through Wails v3 **service method bindings** and **run
 
 ## Wails Service Architecture
 
-The Go backend registers eight services, each scoped to a domain:
+The Go backend registers ten services, each scoped to a domain:
 
 | Service | Go Struct | Frontend Module | Purpose |
 |---|---|---|---|
@@ -173,6 +173,17 @@ A terminal session, as returned by `CreateSession`, `ListSessions`, and `GetActi
 | `running` | `boolean` | Whether the PTY process is alive |
 | `shellPath` | `string` | Resolved shell binary for this session |
 | `workingDir` | `string` | Directory the session was started in |
+| `cwd` | `string` | Directory the shell is in **now**, as last reported by shell integration's OSC 7 sequence; equals `workingDir` until the first report, and again right after a restart. Changes are pushed as [`pty-cwd:<id>`](#pty-cwdsessionid) events |
+
+### `PathCompletion`
+
+One filesystem entry offered by `SuggestionService.CompletePath`.
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` | Display name; directories end with `/` |
+| `insert` | `string` | Full replacement for the token being completed: the typed directory part verbatim plus the entry, shell-quoted for the session's shell (backslash escapes for POSIX shells, `'…'` for PowerShell, `"…"` for cmd.exe), with a trailing separator for directories so the user can keep drilling down |
+| `isDir` | `boolean` | Whether the entry is a directory (symlinks to directories count) |
 
 ### `TerminalLastOutput`
 
@@ -205,6 +216,7 @@ User preferences persisted to the SQLite database.
 | `windowWidth` | `number` | No | Settings window width (min 480) |
 | `windowHeight` | `number` | No | Settings window height (min 400) |
 | `shellIntegration` | `boolean` | No | OSC 133 shell-integration markers. Unset (`null`) = enabled. Applies to **newly started sessions only** |
+| `terminalSuggestions` | `boolean` | No | Warp-style autosuggestions in the built-in terminal (ghost text + menu from shell history and saved commands). Unset (`null`) = enabled. Applies to every open session immediately |
 
 There is no `terminal` field — the external-terminal-emulator preference was removed when execution moved into the built-in PTY terminal.
 
@@ -223,7 +235,7 @@ Returned by `GetEventNames()` with the following fields:
 | `settingsChanged` | `"settings-changed"` | `Partial<SettingsPayload>` |
 | `settingsWindowClosing` | `"settings-window-closing"` | none |
 
-Per-session terminal events (`pty-output:<id>`, `pty-exit:<id>`, `pty-cleared:<id>`) are **not** in `EventNames` — they are built by string concatenation from a session ID. See [Wails Runtime Events](#wails-runtime-events).
+Per-session terminal events (`pty-output:<id>`, `pty-exit:<id>`, `pty-cleared:<id>`, `pty-cwd:<id>`) are **not** in `EventNames` — they are built by string concatenation from a session ID. See [Wails Runtime Events](#wails-runtime-events).
 
 ---
 
@@ -618,6 +630,48 @@ Requires `AppSettings.shellIntegration` to have been enabled **when the session 
 
 ---
 
+## SuggestionService API
+
+Backs the terminal's Warp-style autosuggestions (`Terminal.tsx`): the frontend already holds the saved-command library, and this service supplies the other candidate source — the shell's own history file.
+
+#### `GetShellHistory(sessionId: string, limit: number)`
+
+Returns the most recent **distinct, single-line** commands from the history file of the shell running in `sessionId` (`""` = the active session), newest first. `limit <= 0` means 2000; values above 10000 are capped. Supported formats: zsh (plain and `EXTENDED_HISTORY`, metafied bytes decoded), bash (`HISTTIMEFORMAT` comment lines skipped), fish (`- cmd:` records), and PSReadLine (`ConsoleHost_history.txt`, backtick continuations). Only the last 2 MiB of the file is read, and the parsed result is cached by size + mtime, so calling this after every finished command is cheap.
+
+Read-style: it never rejects. A shell with no readable history (cmd.exe, or a history file that does not exist yet) simply yields `[]`, as does any read error (logged backend-side).
+
+```typescript
+import { GetShellHistory } from '../bindings/cmdex/suggestionservice';
+const entries: string[] = await GetShellHistory(sessionId, 2000);
+```
+
+#### `CompletePath(sessionId: string, partial: string, dirsOnly: boolean)`
+
+Tab completion for a path argument. Lists the entries of the directory named by `partial` — relative to the session's **live** working directory (`SessionInfo.cwd`, kept current by shell integration's OSC 7 reports), with `~`/`~/…` and absolute paths honored — whose names start with `partial`'s last segment. Matching is case-insensitive on macOS and Windows and exact on Linux; hidden entries appear only when that segment itself starts with `.`. Directories come first, then files, each group sorted; `dirsOnly` keeps only directories (for `cd`). Returns at most 50 `PathCompletion`s.
+
+`partial` may already carry the shell's own quoting — a backslash-escaped space, or an opening `"`/`'` — which is understood and preserved in `insert`. Read-style: a directory that does not exist or cannot be read simply yields `[]`.
+
+```typescript
+import { CompletePath } from '../bindings/cmdex/suggestionservice';
+const entries: PathCompletion[] = await CompletePath(sessionId, 'src/comp', false);
+// e.g. [{ name: 'components/', insert: 'src/components/', isDir: true }]
+```
+
+Without shell integration (cmd.exe, `/bin/sh`, or the setting off) the shell never reports its directory, so completion is relative to the directory the session was **started** in.
+
+#### `CompleteCommands(sessionId: string, prefix: string)`
+
+Tab completion for the command position: executables on the session shell's PATH plus that shell's builtins (and, for PowerShell, common cmdlets and aliases) whose names start with `prefix`, case-insensitively — deduplicated, sorted, at most 50. An empty `prefix` yields `[]`.
+
+The shell's PATH is resolved by asking the login shell itself (`<shell> -l -c …`, 3 s timeout) rather than trusting the app's own environment — a GUI app launched from the Dock inherits a minimal PATH without Homebrew, nvm, cargo, etc. — and the scan is cached per shell for 60 s. On Windows the process PATH is used directly.
+
+```typescript
+import { CompleteCommands } from '../bindings/cmdex/suggestionservice';
+const commands: string[] = await CompleteCommands(sessionId, 'gi'); // ['git', 'gitk', ...]
+```
+
+---
+
 ## SettingsService API
 
 #### `GetSettings()`
@@ -845,7 +899,20 @@ Emitted after a successful `Clear(sessionId)` so the frontend can reset its xter
 Events.On(`pty-cleared:${sessionId}`, () => term.clear());
 ```
 
-> **Note:** these three are the only output-bearing events. There is no `cmd-output` event — earlier revisions of this document described one, but command output has never flowed through a Go-side streaming callback since execution moved into the PTY terminal.
+### `pty-cwd:<sessionId>`
+
+Emitted from the session's read loop whenever shell integration's OSC 7 report (`ESC ] 7 ; file://<host><path> BEL`, printed by the integration scripts after every prompt and once at startup) names a different directory than the last one — i.e. after each `cd`, and once when a restarted shell first reports. Requires shell integration; a shell without it never emits this event, and `SessionInfo.cwd` stays at `workingDir`.
+
+**Data:** `{ cwd: string }` — the decoded, percent-unescaped absolute path (`C:\…` form on Windows)
+
+```typescript
+Events.On(`pty-cwd:${sessionId}`, (event) => {
+  const { cwd } = event.data as { cwd: string };
+  setSessionCwd(sessionId, cwd); // e.g. shown in the tab title, used to scope CompletePath
+});
+```
+
+> **Note:** `pty-output`, `pty-exit` and `pty-cleared` are the only output-bearing events. There is no `cmd-output` event — earlier revisions of this document described one, but command output has never flowed through a Go-side streaming callback since execution moved into the PTY terminal.
 
 ### `open-settings`
 

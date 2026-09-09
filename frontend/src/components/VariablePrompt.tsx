@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Plus, Check, X, Play } from 'lucide-react';
 import {
@@ -25,6 +26,10 @@ interface VariablePromptProps {
   presets: VariablePreset[];
   defaultPresetId?: string;
   initialValues?: Record<string, string>;
+  /** Fill mode: the command being run, for the "Run <title>" header. */
+  commandTitle?: string;
+  /** Fill mode: the script template, rendered resolved with the current values. */
+  script?: string;
   onPresetChange?: (presetId: string) => void;
   onSubmit: (values: Record<string, string>) => void;
   onCancel: () => void;
@@ -39,6 +44,8 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
   presets,
   defaultPresetId,
   initialValues,
+  commandTitle,
+  script,
   onPresetChange,
   onSubmit,
   onCancel,
@@ -245,20 +252,52 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
     <>
     {mode === 'fill' ? (
       <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
-        <DialogContent className="max-w-sm p-0 gap-0" data-testid="fill-variables-dialog">
-          <DialogHeader className="px-5 pt-5 pb-3">
-            <DialogTitle className="text-base">{t('variablePrompt.fillTitle')}</DialogTitle>
-            <DialogDescription className="sr-only">{t('variablePrompt.fillDescription')}</DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-[520px]" data-testid="fill-variables-dialog">
+          <DialogHeader className="vp-fill-head">
+            <DialogTitle className="vp-fill-head-title">
+              {commandTitle ? t('variablePrompt.runTitle', { title: commandTitle }) : t('variablePrompt.fillTitle')}
+            </DialogTitle>
+            <DialogDescription className="vp-fill-head-sub">{t('variablePrompt.fillDescription')}</DialogDescription>
           </DialogHeader>
-          <div className="vp-fill-vars px-5 pb-2">
-            {variables.map((v, i) => (
-                <div key={v.name} className="vp-fill-row" data-testid={`fill-var-row-${v.name}`}>
-                  <div className="vp-fill-label">
-                    <code className="vp-fill-varname">{v.name}</code>
-                    {v.description && <span className="vp-fill-desc">{v.description}</span>}
+
+          <div className="vp-fill-body">
+            {/* presets are only ever passed to the fill dialog as an empty
+                array today (App.tsx hardcodes presets={[]} for mode="fill"),
+                so this section is inert in the current app — kept so preset
+                selection lights up for free if that ever changes. */}
+            {presets.length > 0 && (
+              <>
+                <div className="vp-section-label">{t('variablePrompt.presets')}</div>
+                <div className="vp-preset-row">
+                  {presets.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`vp-preset-chip${selectedPresetId === p.id ? ' selected' : ''}`}
+                      onClick={() => handleSelectPreset(p.id)}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="vp-fill-vars">
+              {variables.map((v, i) => (
+                <div key={v.name} className="vp-var-card" data-testid={`fill-var-row-${v.name}`}>
+                  <div className="vp-var-label">
+                    <code className="vp-var-name">{v.name}</code>
+                    {v.description ? (
+                      <span className="vp-var-hint">{v.description}</span>
+                    ) : (
+                      <span className="vp-var-hint">
+                        {i === variables.length - 1 ? t('variablePrompt.hintEnterRun') : t('variablePrompt.hintTabNext')}
+                      </span>
+                    )}
                   </div>
                   <Input
-                    className="vp-fill-input font-mono text-sm h-8"
+                    className="vp-var-input font-mono"
                     data-testid={`fill-var-input-${v.name}`}
                     placeholder={v.example ? `e.g. ${v.example}` : ''}
                     value={values[v.name] || ''}
@@ -268,10 +307,27 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
                   />
                 </div>
               ))}
+            </div>
+
+            {script && (
+              <>
+                <div className="vp-section-label">{t('variablePrompt.resolved')}</div>
+                <pre className="vp-resolved" data-testid="fill-variables-resolved">
+                  {script.replace(/\{\{(\w+)\}\}/g, (match, name: string) => values[name] || match)}
+                </pre>
+              </>
+            )}
           </div>
-          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+
+          <div className="vp-hints">
+            <span className="vp-hint-grp"><Kbd>Tab</Kbd> {t('variablePrompt.hintNextField')}</span>
+            <span className="vp-hint-grp"><Kbd>Esc</Kbd> {t('variablePrompt.hintCancel')}</span>
+          </div>
+
+          <div className="vp-foot">
             <Button variant="ghost" size="sm" onClick={onCancel} data-testid="fill-variables-cancel">{t('variablePrompt.cancel')}</Button>
-            <Button variant="success" size="sm" onClick={handleSubmit} data-testid="fill-variables-execute">
+            <div className="vp-foot-spacer" />
+            <Button variant="default" size="sm" onClick={handleSubmit} data-testid="fill-variables-execute">
               <Play className="size-3.5" /> {t('variablePrompt.execute')}
             </Button>
           </div>
@@ -287,7 +343,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
           <div className="vp-layout">
             <div className="vp-preset-list">
               <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.presets')}</span>
+                <span className="vp-section-label mb-0">{t('variablePrompt.presets')}</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon-xs" onClick={() => handleCreatePreset(t('commandDetail.newPresetName'))}>
@@ -345,7 +401,7 @@ const VariablePrompt: React.FC<VariablePromptProps> = ({
             <div className="vp-center">
               {(selectedPreset || isCreatingNew) && (
                 <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('variablePrompt.preset')}</span>
+                  <span className="vp-section-label mb-0">{t('variablePrompt.preset')}</span>
                   {editingToolbarName ? (
                     <Input
                       ref={toolbarNameInputRef}
