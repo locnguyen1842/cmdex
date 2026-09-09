@@ -70,7 +70,8 @@ cmdex/
 │   │   ├── App.tsx            # Main application shell, tabs, modals, state
 │   │   ├── types.ts           # TypeScript interfaces matching Go models
 │   │   ├── i18n.ts            # i18next setup
-│   │   ├── style.css          # Global styles, CSS variables, theming
+│   │   ├── style.css          # Fonts, theme blocks, base/layout + @imports of styles/*.css
+│   │   ├── styles/            # Per-surface stylesheets + DESIGN.md token brief
 │   │   ├── components/        # UI components (Sidebar, CommandDetail, etc.)
 │   │   ├── hooks/             # Custom React hooks
 │   │   ├── utils/             # Utility functions (tab drafts, template vars)

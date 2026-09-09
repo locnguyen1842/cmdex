@@ -17,16 +17,20 @@ function fileFrom(obj: unknown) {
   return { name: 'theme.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(obj)) };
 }
 
-async function goToTypographyTab(page: Page) {
-  await page.getByRole('tab', { name: 'Typography' }).click();
-}
-
 async function goToGeneralTab(page: Page) {
   await page.getByRole('tab', { name: 'General' }).click();
 }
 
 async function goToAppearanceTab(page: Page) {
   await page.getByRole('tab', { name: 'Appearance' }).click();
+}
+
+async function goToTerminalTab(page: Page) {
+  await page.getByRole('tab', { name: 'Terminal' }).click();
+}
+
+async function goToDangerZoneTab(page: Page) {
+  await page.getByRole('tab', { name: 'Danger Zone' }).click();
 }
 
 test.describe('Settings — Appearance', () => {
@@ -81,10 +85,13 @@ test.describe('Settings — Appearance', () => {
 });
 
 test.describe('Settings — Typography', () => {
+  // UI Font / Monospace Font live on the Appearance section (the default
+  // section on open) as two <Select> dropdowns, not a separate Typography
+  // tab.
   test('selecting a UI font persists it', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await goToTypographyTab(page);
-    await page.getByRole('group', { name: 'UI font selection' }).getByText('Geist', { exact: true }).click();
+    await page.getByLabel('UI Font').click();
+    await page.getByRole('option', { name: 'Geist' }).click();
 
     await expect
       .poll(() =>
@@ -97,10 +104,10 @@ test.describe('Settings — Typography', () => {
       .toBe(true);
   });
 
-  test('selecting an editor (mono) font persists it', async ({ page, gotoSettings }) => {
+  test('selecting a monospace font persists it', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await goToTypographyTab(page);
-    await page.getByRole('group', { name: 'Editor font selection' }).getByText('Fira Code', { exact: true }).click();
+    await page.getByLabel('Monospace Font').click();
+    await page.getByRole('option', { name: 'Fira Code' }).click();
 
     await expect
       .poll(() =>
@@ -114,10 +121,10 @@ test.describe('Settings — Typography', () => {
   });
 });
 
-test.describe('Settings — General', () => {
+test.describe('Settings — Terminal', () => {
   test('editing the working directory persists only on blur, not on every keystroke', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await goToGeneralTab(page);
+    await goToTerminalTab(page);
     const input = page.locator('input[type="text"]').first();
     await input.fill('/some/path');
 
@@ -131,7 +138,7 @@ test.describe('Settings — General', () => {
 
   test('toggling shell integration persists immediately', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await goToGeneralTab(page);
+    await goToTerminalTab(page);
     await page.locator('#shell-integration-toggle').click();
 
     await expect
@@ -144,7 +151,9 @@ test.describe('Settings — General', () => {
       )
       .toBe(true);
   });
+});
 
+test.describe('Settings — General', () => {
   test('Updates: settings keeps only the auto-check toggle (checking lives in About)', async ({
     page,
     gotoSettings,
@@ -173,8 +182,10 @@ test.describe('Settings — General', () => {
       )
       .toBe(true);
   });
+});
 
-  test('Danger Zone: the two-step confirm resets all data via ResetAllData', async ({ page, seed, gotoSettings }) => {
+test.describe('Settings — Danger Zone', () => {
+  test('the two-step confirm resets all data via ResetAllData', async ({ page, seed, gotoSettings }) => {
     await seed({ commands: [{
       id: 'cmd-to-wipe',
       title: { String: 'Will Be Wiped', Valid: true },
@@ -184,7 +195,7 @@ test.describe('Settings — General', () => {
       position: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     }] });
     await gotoSettings();
-    await goToGeneralTab(page);
+    await goToDangerZoneTab(page);
 
     await page.locator(sel.dangerZoneResetButton).click();
     await expect(page.locator(sel.dangerZoneConfirm)).toBeVisible();
@@ -197,13 +208,13 @@ test.describe('Settings — General', () => {
     expect(await page.evaluate(() => window.__cmdexE2E!.callLog.filter((c) => c.method === 'ResetAllData').length)).toBe(1);
   });
 
-  test('Danger Zone: reset clears this window\'s own custom-theme state, so a later import cannot resurrect the deleted theme', async ({ page, gotoSettings }) => {
+  test('reset clears this window\'s own custom-theme state, so a later import cannot resurrect the deleted theme', async ({ page, gotoSettings }) => {
     await gotoSettings();
     // Import a custom theme so this window's customThemes state/ref is non-empty.
     await page.locator('input[type="file"]').setInputFiles(fileFrom(VALID_THEME));
     await expect(page.getByRole('button', { name: 'My Custom Theme theme, dark' })).toHaveAttribute('aria-pressed', 'true');
 
-    await goToGeneralTab(page);
+    await goToDangerZoneTab(page);
     await page.locator(sel.dangerZoneResetButton).click();
     await page.locator(sel.dangerZoneConfirm).click();
     await expect
@@ -229,7 +240,7 @@ test.describe('Settings — General', () => {
     expect(persistedNames).toEqual(['Second Custom Theme']);
   });
 
-  test('Danger Zone: reset also clears the local theme id, so a same-session theme import cannot persist the deleted theme id', async ({ page, gotoSettings }) => {
+  test('reset also clears the local theme id, so a same-session theme import cannot persist the deleted theme id', async ({ page, gotoSettings }) => {
     await gotoSettings();
     await page.locator('input[type="file"]').setInputFiles(fileFrom(VALID_THEME));
     await expect(page.getByRole('button', { name: 'My Custom Theme theme, dark' })).toHaveAttribute('aria-pressed', 'true');
@@ -241,7 +252,7 @@ test.describe('Settings — General', () => {
     });
     expect(deletedThemeId).toMatch(/^custom-/);
 
-    await goToGeneralTab(page);
+    await goToDangerZoneTab(page);
     await page.locator(sel.dangerZoneResetButton).click();
     await page.locator(sel.dangerZoneConfirm).click();
     await expect
@@ -272,9 +283,9 @@ test.describe('Settings — General', () => {
     expect(postResetThemeIds).not.toContain(deletedThemeId);
   });
 
-  test('Danger Zone: Cancel backs out without calling ResetAllData', async ({ page, gotoSettings }) => {
+  test('Cancel backs out without calling ResetAllData', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await goToGeneralTab(page);
+    await goToDangerZoneTab(page);
     await page.locator(sel.dangerZoneResetButton).click();
     await page.locator(sel.dangerZoneCancel).click();
 

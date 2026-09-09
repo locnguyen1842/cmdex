@@ -1,54 +1,32 @@
 import type { SVGProps } from 'react';
 
+/**
+ * The Cmdex mark as a standalone SVG (brand-gradient rounded square with the
+ * terminal-prompt glyph), for places that need an image rather than the
+ * CSS-driven `BrandMark` component — e.g. the About dialog. Mirrors
+ * `assets/logo.svg` and `build/appicon.png`.
+ */
 export function MainLogo(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      width="1024"
-      height="1024"
+      width="140"
+      height="140"
       viewBox="0 0 140 140"
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <rect
-        x="10"
-        y="10"
-        width="120"
-        height="120"
-        rx="16"
-        stroke="var(--primary)"
-        strokeWidth="10"
-        fill="none"
-        opacity="0.9"
-      />
-      <rect
-        x="25"
-        y="25"
-        width="90"
-        height="90"
-        rx="8"
-        stroke="var(--primary)"
-        strokeWidth="4"
-        strokeOpacity="0.8"
-        fill="none"
-      />
-      <path
-        d="m50 45 25 25-25 25"
-        stroke="var(--primary)"
-        strokeWidth="12"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ fill: 'none', filter: 'saturate(2) brightness(1.1)' }}
-      />
-      <path
-        stroke="var(--primary)"
-        strokeWidth="12"
-        strokeLinecap="round"
-        style={{ fill: 'none', filter: 'saturate(2) brightness(1.1)' }}
-        d="M80 95h10"
-      />
-      <circle cx="105" cy="70" r="6" fill="var(--primary)" opacity="0.8" />
-      <rect x="30" y="130" width="25" height="10" rx="2" fill="var(--primary)" />
-      <rect x="85" y="130" width="25" height="10" rx="2" fill="var(--primary)" />
+      <defs>
+        <linearGradient id="cmdex-brand-gradient" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="var(--brand, #a78bfa)" />
+          <stop offset="1" stopColor="var(--brand-2, #5b9dff)" />
+        </linearGradient>
+      </defs>
+      <rect x="8" y="8" width="124" height="124" rx="30" fill="url(#cmdex-brand-gradient)" />
+      <g stroke="#fdfdff" strokeWidth="10.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <polyline points="46 92 68 70 46 48" />
+        <line x1="74" y1="100" x2="100" y2="100" />
+      </g>
     </svg>
   );
 }

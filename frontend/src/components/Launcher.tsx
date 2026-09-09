@@ -52,6 +52,26 @@ interface LauncherProps {
   theme: string;
 }
 
+const VAR_PATTERN = /\{\{([^}]+)\}\}/g;
+
+/** Render a script preview line, turning `{{var}}` placeholders into pills. */
+function renderScriptPreview(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  VAR_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = VAR_PATTERN.exec(text))) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    parts.push(
+      <span key={`v${key++}`} className="launcher-var-chip">{match[1]}</span>,
+    );
+    lastIndex = VAR_PATTERN.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
 const Launcher: React.FC<LauncherProps> = ({ theme }) => {
   const [commands, setCommands] = useState<Command[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -365,7 +385,7 @@ const Launcher: React.FC<LauncherProps> = ({ theme }) => {
       {stage === 'running' ? (
         <div className="launcher-run-panel">
           <div className="launcher-run-header">
-            <TerminalIcon size={13} />
+            <TerminalIcon size={14} />
             <span className="launcher-run-title">
               {ranCommand ? getCommandDisplayTitle(ranCommand) : 'Running'}
             </span>
@@ -416,11 +436,13 @@ const Launcher: React.FC<LauncherProps> = ({ theme }) => {
                   onMouseEnter={() => setActiveIndex(i)}
                   onClick={() => activate(cmd)}
                 >
-                  <FileText size={14} className="launcher-item-icon" />
+                  <FileText size={15} className="launcher-item-icon" />
                   <div className="launcher-item-body">
                     <span className="launcher-item-title">{getCommandDisplayTitle(cmd)}</span>
                     {cmd.scriptContent && (
-                      <span className="launcher-item-script">{scriptSnippet(cmd.scriptContent)}</span>
+                      <span className="launcher-item-script">
+                        {renderScriptPreview(scriptSnippet(cmd.scriptContent))}
+                      </span>
                     )}
                   </div>
                   {catName && <span className="launcher-cat-badge">{catName}</span>}

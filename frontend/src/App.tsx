@@ -10,12 +10,14 @@ import type { TerminalHandle } from './components/Terminal';
 import ResizablePanel from './components/ResizablePanel';
 import TabBar, { type Tab } from './components/TabBar';
 import TerminalTabBar from './components/TerminalTabBar';
+import { Terminal as TerminalGlyph, ChevronUp, Search } from 'lucide-react';
 import CommandPalette from './components/CommandPalette';
 import WelcomeTab from './components/WelcomeTab';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import AboutDialog from './components/AboutDialog';
 import CommandDetailTab from './components/CommandDetailTab';
 import { useKeyboardShortcuts, cmdOrCtrl } from './hooks/useKeyboardShortcuts';
+import { cmdSymbol } from './lib/shortcuts';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -89,7 +91,8 @@ import {
 } from './utils/tabDraft';
 import { buildVariablesFromScript, variableDefinitionsToPrompts } from './utils/templateVars';
 import { copyText } from './utils/clipboard';
-import { MainLogo } from './assets/images/main-logo';
+import BrandMark from './components/BrandMark';
+import SidebarRail from './components/SidebarRail';
 import { applyTheme, applyDensity, applyFonts, parseCustomThemes } from './lib/theme-apply';
 
 const TerminalComponent = lazy(() => import('./components/Terminal'));
@@ -121,6 +124,10 @@ function App() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [commands, setCommands] = useState<Command[]>([]);
     const allCommandsRef = useRef<Command[]>([]);
+    // Warp-style ghost text + suggestion menu in the terminal (AppSettings.
+    // terminalSuggestions, nil = enabled). Unlike shell integration this
+    // applies to every open session the moment it changes.
+    const [terminalSuggestions, setTerminalSuggestions] = useState(true);
     const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
     const [modal, setModal] = useState<ModalState>({ type: 'none' });
 
@@ -153,12 +160,12 @@ function App() {
     const mainContentRef = useRef<HTMLDivElement>(null);
     const terminalRefs = useRef<Record<string, TerminalHandle>>({});
 
-    const [theme, setTheme] = useState<string>('vscode-dark');
+    const [theme, setTheme] = useState<string>('classic');
     // Custom themes must live in state (not only in settingsRef) so the theme
     // effect below re-runs when they are imported/removed in the settings window.
     const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
 
-    const [uiFont, setUiFont] = useState<string>('Inter');
+    const [uiFont, setUiFont] = useState<string>('Manrope');
     const [monoFont, setMonoFont] = useState<string>('JetBrains Mono');
     const [density, setDensity] = useState<string>('comfortable');
     const [defaultWorkingDir, setDefaultWorkingDir] = useState<OSPathMap>({});
@@ -188,6 +195,10 @@ function App() {
     const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [sessions, setSessions] = useState<SessionInfo[]>([]);
     const terminalOrderRef = useRef<string[]>([]);
+    // Live cwd per session, kept current via pty-cwd:<id> events (see
+    // subscribeSession below) — SessionInfo.cwd only reflects what was true
+    // at the last ListSessions/GetActiveSession call.
+    const [sessionCwds, setSessionCwds] = useState<Record<string, string>>({});
 
     const collapseTerminal = useCallback(() => {
         setTerminalCollapsed(true);
@@ -337,11 +348,11 @@ function App() {
     // Holds latest settings values for use in flushSettings without stale closures
     const settingsRef = useRef({
         locale: 'en',
-        theme: 'vscode-dark',
-        lastDarkTheme: 'vscode-dark',
-        lastLightTheme: 'vscode-light',
+        theme: 'classic',
+        lastDarkTheme: 'classic',
+        lastLightTheme: 'classic-light',
         customThemes: [] as CustomTheme[],
-        uiFont: 'Inter',
+        uiFont: 'Manrope',
         monoFont: 'JetBrains Mono',
         density: 'comfortable',
         defaultWorkingDir: {} as OSPathMap,
@@ -423,13 +434,17 @@ function App() {
 
         const subscribeSession = (sessionId: string) => {
             const ptyExitEvent = 'pty-exit:' + sessionId;
-            const cleanup = Events.On(ptyExitEvent, () => {
+            const cleanupExit = Events.On(ptyExitEvent, () => {
                 setSessions(prev => prev.map(s =>
                     s.id === sessionId ? { ...s, running: false } : s
                 ));
             });
-            cleanups.push(cleanup);
-            return cleanup;
+            const ptyCwdEvent = 'pty-cwd:' + sessionId;
+            const cleanupCwd = Events.On(ptyCwdEvent, (event: { data: { cwd: string } }) => {
+                const cwd = event?.data?.cwd;
+                if (cwd) setSessionCwds(prev => ({ ...prev, [sessionId]: cwd }));
+            });
+            cleanups.push(cleanupExit, cleanupCwd);
         };
 
         sessions.forEach(s => subscribeSession(s.id));
@@ -583,13 +598,13 @@ function App() {
                 };
 
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const migratedTheme = migrateField(s.theme, THEME_STORAGE_KEY, 'vscode-dark') ||
+                const migratedTheme = migrateField(s.theme, THEME_STORAGE_KEY, 'classic') ||
                     (prefersDark
-                        ? (localStorage.getItem(LAST_DARK_THEME_KEY) || 'vscode-dark')
-                        : (localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'vscode-light'));
-                const migratedLastDark = migrateField(s.lastDarkTheme, LAST_DARK_THEME_KEY, 'vscode-dark');
-                const migratedLastLight = migrateField(s.lastLightTheme, LAST_LIGHT_THEME_KEY, 'vscode-light');
-                const migratedUiFont = migrateField(s.uiFont, FONT_SANS_KEY, 'Inter');
+                        ? (localStorage.getItem(LAST_DARK_THEME_KEY) || 'classic')
+                        : (localStorage.getItem(LAST_LIGHT_THEME_KEY) || 'classic-light'));
+                const migratedLastDark = migrateField(s.lastDarkTheme, LAST_DARK_THEME_KEY, 'classic');
+                const migratedLastLight = migrateField(s.lastLightTheme, LAST_LIGHT_THEME_KEY, 'classic-light');
+                const migratedUiFont = migrateField(s.uiFont, FONT_SANS_KEY, 'Manrope');
                 const migratedMonoFont = migrateField(s.monoFont, FONT_MONO_KEY, 'JetBrains Mono');
                 const migratedDensity = migrateField(s.density, DENSITY_KEY, 'comfortable');
 
@@ -631,6 +646,7 @@ function App() {
                 setMonoFont(migratedMonoFont);
                 setDensity(migratedDensity);
                 setDefaultWorkingDir(s.defaultWorkingDir || {});
+                setTerminalSuggestions(s.terminalSuggestions ?? true);
 
                 // Clear legacy localStorage keys after successful migration
                 [THEME_STORAGE_KEY, LAST_DARK_THEME_KEY, LAST_LIGHT_THEME_KEY,
@@ -744,6 +760,7 @@ function App() {
             if (payload.monoFont) setMonoFont(payload.monoFont);
             if (payload.density) setDensity(payload.density);
             if (payload.defaultWorkingDir) setDefaultWorkingDir(payload.defaultWorkingDir);
+            if (typeof payload.terminalSuggestions === 'boolean') setTerminalSuggestions(payload.terminalSuggestions);
         });
         return cleanup;
     }, [eventsInitialized]);
@@ -767,22 +784,23 @@ function App() {
                     settingsRef.current = {
                         ...settingsRef.current,
                         locale: s.locale || 'en',
-                        theme: s.theme || 'vscode-dark',
-                        lastDarkTheme: s.lastDarkTheme || 'vscode-dark',
-                        lastLightTheme: s.lastLightTheme || 'vscode-light',
+                        theme: s.theme || 'classic',
+                        lastDarkTheme: s.lastDarkTheme || 'classic',
+                        lastLightTheme: s.lastLightTheme || 'classic-light',
                         customThemes: [],
-                        uiFont: s.uiFont || 'Inter',
+                        uiFont: s.uiFont || 'Manrope',
                         monoFont: s.monoFont || 'JetBrains Mono',
                         density: s.density || 'comfortable',
                         defaultWorkingDir: s.defaultWorkingDir || {},
                     };
                     if (s.locale) i18n.changeLanguage(s.locale);
                     setCustomThemes([]);
-                    setTheme(s.theme || 'vscode-dark');
-                    setUiFont(s.uiFont || 'Inter');
+                    setTheme(s.theme || 'classic');
+                    setUiFont(s.uiFont || 'Manrope');
                     setMonoFont(s.monoFont || 'JetBrains Mono');
                     setDensity(s.density || 'comfortable');
                     setDefaultWorkingDir(s.defaultWorkingDir || {});
+                    setTerminalSuggestions(s.terminalSuggestions ?? true);
                 })
                 .catch(() => {});
         });
@@ -1424,6 +1442,65 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refs via useSyncedRef are stable
     }, [openTab, handleFillVariablesByTab, handleExecute]);
 
+    // Header "Duplicate" / ⋮ menu "Duplicate" (CommandDetail): creates a copy
+    // of a saved command — same title (+ " copy"), description, script, tags,
+    // variables and working dir, uncategorized left as-is — then opens it in
+    // a new tab, mirroring handleSaveTab's create-then-open-tab flow.
+    const handleDuplicateCommand = useCallback(async (commandId: string) => {
+        const source = allCommandsRef.current.find((c) => c.id === commandId);
+        if (!source) return;
+        try {
+            const body = await GetScriptBody(commandId);
+            const title = source.title?.Valid && source.title.String.trim()
+                ? `${source.title.String.trim()} copy`
+                : '';
+            const description = source.description?.Valid ? source.description.String : '';
+            const cmd = await CreateCommand(
+                title,
+                description,
+                body,
+                source.categoryId,
+                [...source.tags],
+                source.variables.map((v) => ({ ...v })),
+                { ...(source.workingDir || {}) },
+            );
+            await loadData();
+            openTab(cmd);
+            toast.success(t('toast.commandCreated'));
+        } catch (err) {
+            console.error('Failed to duplicate command:', err);
+            toast.error(t('toast.commandSaveFailed'));
+        }
+    }, [loadData, openTab, t]);
+
+    // A saved command accepted from the terminal's suggestion menu that can't
+    // be typed onto the prompt as-is (it has {{variables}} or several lines).
+    // The terminal has already erased what was typed, so this is exactly the
+    // command-palette run flow: open its tab, prompt for any variable without
+    // a default, then run it in the active session.
+    const handleRunSavedCommandFromTerminal = useCallback((commandId: string) => {
+        const cmd = allCommandsRef.current.find((c) => c.id === commandId);
+        if (cmd) handlePaletteExecute(cmd);
+    }, [handlePaletteExecute]);
+
+    // Runs the active command tab the way its Run button / Cmd+Enter always
+    // has: straight away when every variable has a value, otherwise through
+    // the variable prompt pre-filled with what is known.
+    const runActiveCommand = useCallback(() => {
+        if (!selectedCommand || isNewCommandTabId(selectedCommand.id)) return;
+        if (resolvedVariables.length === 0) {
+            handleExecute(selectedCommand.id, {});
+            return;
+        }
+        const hasEmpty = resolvedVariables.some((v) => !currentResolvedValues[v.name]);
+        if (hasEmpty) {
+            handleFillVariables(currentResolvedValues);
+        } else {
+            handleExecute(selectedCommand.id, currentResolvedValues);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleFillVariables is a plain function recreated each render
+    }, [selectedCommand, resolvedVariables, currentResolvedValues, handleExecute]);
+
     /* eslint-disable react-hooks/refs -- keyboard shortcuts use ref-based handlers (not called during render) */
     useKeyboardShortcuts({
         [`${cmdOrCtrl}+p`]: () => setPaletteOpen(true),
@@ -1437,17 +1514,8 @@ function App() {
         [`${cmdOrCtrl}+enter`]: () => {
             const el = document.activeElement;
             if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
-            if (!selectedCommand || modal.type !== 'none' || isNewCommandTabId(selectedCommand.id)) return;
-            if (resolvedVariables.length === 0) {
-                handleExecute(selectedCommand!.id, {});
-            } else {
-                const hasEmpty = resolvedVariables.some((v) => !currentResolvedValues[v.name]);
-                if (hasEmpty) {
-                    handleFillVariables(currentResolvedValues);
-                } else {
-                    handleExecute(selectedCommand!.id, currentResolvedValues);
-                }
-            }
+            if (modal.type !== 'none') return;
+            runActiveCommand();
         },
 
         [`${cmdOrCtrl}+n`]: () => openNewCommandTab(),
@@ -1581,20 +1649,103 @@ function App() {
     // Driven by state so the executing tab remains pinned even if user switches tabs.
     const executingTabId = executingTabIdState;
 
+    // ── Terminal status bar ─────────────────────────────────────────────
+    // Last known exit code per session, refreshed only right when a run
+    // finishes (not polled) — that's the one moment shell-integration's OSC
+    // 133 capture (GetLastOutput) is actually worth a round-trip for.
+    const [sessionExitCodes, setSessionExitCodes] = useState<Record<string, number>>({});
+    const wasTerminalExecutingRef = useRef(false);
+    useEffect(() => {
+        const isExecuting = executingTabIdState !== null;
+        if (wasTerminalExecutingRef.current && !isExecuting && activeSessionId) {
+            const sid = activeSessionId;
+            GetLastOutput(sid).then((res) => {
+                if (res?.available) {
+                    setSessionExitCodes((prev) => ({ ...prev, [sid]: res.exitCode }));
+                }
+            }).catch(() => {});
+        }
+        wasTerminalExecutingRef.current = isExecuting;
+    }, [executingTabIdState, activeSessionId]);
+
+    // "/Users/name/…", "/home/name/…", "C:\Users\name\…" -> "~/…"
+    const shellBaseName = (shellPath: string) => {
+        if (!shellPath) return '';
+        const base = shellPath.split(/[\\/]/).pop() || '';
+        return base.replace(/\.exe$/i, '');
+    };
+    const abbreviateHomeDir = (dir: string) => {
+        if (!dir) return '';
+        return dir.replace(/^(?:\/(?:Users|home)\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/, '~');
+    };
+
+    // RunCommand always writes to whichever session is active at the moment
+    // it fires, so "a command is executing" is a single global flag here,
+    // not tracked per-session — it only ever needs to describe the session
+    // the user is currently looking at.
+    const activeTerminalSession = sessions.find((s) => s.id === activeSessionId);
+    const isTerminalExecuting = executingTabIdState !== null;
+
+    const terminalCwdLabel = activeTerminalSession
+        ? [
+            shellBaseName(activeTerminalSession.shellPath),
+            abbreviateHomeDir(
+                sessionCwds[activeTerminalSession.id] ?? activeTerminalSession.cwd ?? activeTerminalSession.workingDir
+            ) || '~',
+        ]
+            .filter(Boolean)
+            .join(' · ')
+        : '';
+
+    let terminalStatusDotClass = '';
+    let terminalStatusText = t('terminal.statusIdle');
+    if (activeTerminalSession) {
+        if (!activeTerminalSession.running) {
+            terminalStatusText = t('terminal.statusStopped');
+        } else if (isTerminalExecuting) {
+            terminalStatusDotClass = 'running';
+            terminalStatusText = t('terminal.statusRunning');
+        } else if (activeSessionId in sessionExitCodes) {
+            terminalStatusDotClass = 'ok';
+            terminalStatusText = t('terminal.statusExit', { code: sessionExitCodes[activeSessionId] });
+        }
+    }
+
     return (
         <TooltipProvider disableHoverableContent>
-            <div className="app-layout">
+            <div className="app-layout" data-platform={currentOS}>
+                {currentOS === 'darwin' && (
+                    // Hosts the traffic lights and drags the window; the native
+                    // title bar is hidden on macOS (main.go).
+                    <div className="titlebar-strip" data-testid="titlebar-strip">
+                        {/* VS Code-style command center: a search pill that opens the palette. */}
+                        <button
+                            type="button"
+                            className="titlebar-search"
+                            onClick={() => setPaletteOpen(true)}
+                            aria-label={t('sidebar.tabBar.openPalette')}
+                            data-testid="titlebar-search"
+                        >
+                            <Search size={12} strokeWidth={1.8} aria-hidden="true" />
+                            <span className="titlebar-search-text">{t('sidebar.searchPlaceholder')}</span>
+                            <kbd className="titlebar-search-kbd">{cmdSymbol} P</kbd>
+                        </button>
+                    </div>
+                )}
                 <div className="app-body">
                     <ResizablePanel
                         side="left"
-                        defaultWidth={280}
+                        defaultWidth={264}
                         minWidth={190}
                         maxWidth={460}
                         storageKey="cmdex-sidebar"
-                        collapsedIcon={
-                            <div className="logo-icon" style={{ width: 22, height: 22 }}>
-                                <MainLogo width="22" height="22" />
-                            </div>
+                        collapsedIcon={<BrandMark size={22} />}
+                        collapsedContent={
+                            <SidebarRail
+                                onNewCommand={() => openNewCommandTab()}
+                                onOpenPalette={() => setPaletteOpen(true)}
+                                onOpenSettings={() => openSettingsWithToast()}
+                            />
                         }
                     >
                         <Sidebar
@@ -1623,6 +1774,10 @@ function App() {
                             activeTabId={activeTabId}
                             onSelectTab={handleSelectTab}
                             onCloseTab={closeTab}
+                            onNewTab={() => openNewCommandTab()}
+                            onOpenPalette={() => setPaletteOpen(true)}
+                            onToggleTerminal={() => (terminalCollapsed ? expandTerminal() : collapseTerminal())}
+                            terminalVisible={!terminalCollapsed}
                         />
 
                         <div className="center-area-split">
@@ -1638,7 +1793,15 @@ function App() {
                                     {/* Welcome state: no command selected and no active draft */}
                                     {!selectedCommand && !activeDraft && (
                                         <div className="main-body">
-                                            <WelcomeTab onNewCommand={() => openNewCommandTab()} />
+                                            <WelcomeTab
+                                                onNewCommand={() => openNewCommandTab()}
+                                                onImport={async () => {
+                                                    const [cats, cmds] = await Promise.all([GetCategories(), GetCommands()]);
+                                                    setCategories(cats || []);
+                                                    setCommands(cmds || []);
+                                                }}
+                                                onShowShortcuts={() => setShortcutsDialogOpen(true)}
+                                            />
                                         </div>
                                     )}
 
@@ -1675,6 +1838,7 @@ function App() {
                                                     key={tab.id}
                                                     tabId={tab.id}
                                                     command={command}
+                                                    categories={categories}
                                                     draft={draft}
                                                     baseline={baseline}
                                                     isTabNew={isTabNew}
@@ -1696,6 +1860,8 @@ function App() {
                                                     onResolvedValuesChange={isTabActive ? setCurrentResolvedValues : undefined}
                                                     onSave={handleSaveTab}
                                                     onDiscard={handleDiscardTab}
+                                                    onDuplicate={handleDuplicateCommand}
+                                                    onDeleteCommand={handleDeleteCommand}
                                                 />
                                             );
                                         })}
@@ -1703,104 +1869,104 @@ function App() {
                                 </div>
                             </div>
 
-                            {!terminalCollapsed && (
-                                <>
-                                <TerminalTabBar
-                                    sessions={sessions}
-                                    activeSessionId={activeSessionId}
-                                    onSelectTab={switchTerminalSession}
-                                    onCloseTab={closeTerminalSession}
-                                    onReorderTabs={handleReorderTerminalTabs}
-                                    onCreateSession={createTerminalSession}
-                                    onRenameSession={renameTerminalSession}
-                                />
-                                <div
-                                    className={`terminal-divider ${isDragging ? 'dragging' : ''}`}
-                                    onMouseDown={handleTerminalResizeStart}
-                                >
-                                    <button
-                                        className="terminal-collapse-btn"
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        onClick={collapseTerminal}
-                                        aria-label="Collapse terminal panel"
-                                    >
-                                        ▼
-                                    </button>
-                                    <button
-                                        className="terminal-clear-btn"
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        onClick={() => {
-                                            const ref = terminalRefs.current[activeSessionId];
-                                            if (ref) ref.clear();
-                                        }}
-                                        aria-label="Clear terminal"
-                                        title="Clear terminal (Ctrl+L)"
-                                    >
-                                        {t('common.clear')}
-                                    </button>
-                                    <button
-                                        className="terminal-copy-btn"
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        onClick={() => copyLastOutput(activeSessionId)}
-                                        aria-label="Copy terminal output"
-                                        title="Copy last command output"
-                                    >
-                                        {t('common.copyLastOutput')}
-                                    </button>
+                            {sessions.length === 0 ? (
+                                <div className="terminal-panel-empty" data-testid="terminal-empty-state">
+                                    <TerminalGlyph size={16} aria-hidden="true" />
+                                    <span>{t('terminal.emptyState')}</span>
                                 </div>
-                            </>
-                            )}
+                            ) : (
+                                <div className={`terminal-panel${terminalCollapsed ? ' collapsed' : ''}`}>
+                                    {!terminalCollapsed && (
+                                        <>
+                                            {/* The panel's top edge doubles as the resize grip: one
+                                                hairline that brightens on hover/drag, no extra bar. */}
+                                            <div
+                                                className={`terminal-divider ${isDragging ? 'dragging' : ''}`}
+                                                onMouseDown={handleTerminalResizeStart}
+                                            />
+                                            <TerminalTabBar
+                                                sessions={sessions}
+                                                activeSessionId={activeSessionId}
+                                                onSelectTab={switchTerminalSession}
+                                                onCloseTab={closeTerminalSession}
+                                                onReorderTabs={handleReorderTerminalTabs}
+                                                onCreateSession={createTerminalSession}
+                                                onRenameSession={renameTerminalSession}
+                                                onCollapse={collapseTerminal}
+                                                onClear={() => {
+                                                    const ref = terminalRefs.current[activeSessionId];
+                                                    if (ref) ref.clear();
+                                                }}
+                                                onCopyLastOutput={() => copyLastOutput(activeSessionId)}
+                                            />
+                                        </>
+                                    )}
 
-                            <div
-                                className="terminal-pane"
-                                style={terminalCollapsed
-                                    ? { height: 8, minHeight: 8, maxHeight: 8 }
-                                    : { height: terminalHeight, minHeight: MIN_TERM_HEIGHT, maxHeight: maxTermHeight }
-                                }
-                            >
-                                <Suspense fallback={null}>
-                                {/* eslint-disable-next-line react-hooks/refs -- intentional: terminalOrderRef tracks stable iteration order; pair with setSessions() updates to trigger re-render */}
-                                {terminalOrderRef.current.map((id) => {
-                                    const session = sessions.find(s => s.id === id);
-                                    if (!session) return null;
-                                    return (
-                                        <TerminalComponent
-                                            key={id}
-                                            ref={(el) => {
-                                                if (el) {
-                                                    terminalRefs.current[id] = el;
-                                                } else {
-                                                    delete terminalRefs.current[id];
-                                                }
-                                            }}
-                                            isVisible={id === activeSessionId && !terminalCollapsed}
-                                            theme={theme}
-                                            sessionId={id}
-                                            initiallyRunning={session.running}
-                                            onShellExit={() => {
-                                                // Mark session as stopped
-                                                setSessions(prev => prev.map(s =>
-                                                    s.id === id ? { ...s, running: false } : s
-                                                ));
-                                                // If this was the active session and it exited, collapse terminal
-                                                if (id === activeSessionId) {
-                                                    collapseTerminal();
-                                                }
-                                            }}
-                                        />
-                                    );
-                                })}
-                                </Suspense>
-                                {terminalCollapsed && (
-                                    <button
-                                        className="terminal-collapsed-rail"
-                                        onClick={expandTerminal}
-                                        aria-label="Expand terminal panel"
+                                    <div
+                                        className="terminal-pane"
+                                        style={terminalCollapsed
+                                            ? { height: 8, minHeight: 8, maxHeight: 8 }
+                                            : { height: terminalHeight, minHeight: MIN_TERM_HEIGHT, maxHeight: maxTermHeight }
+                                        }
                                     >
-                                        ▲
-                                    </button>
-                                )}
-                            </div>
+                                        <Suspense fallback={null}>
+                                        {/* eslint-disable-next-line react-hooks/refs -- intentional: terminalOrderRef tracks stable iteration order; pair with setSessions() updates to trigger re-render */}
+                                        {terminalOrderRef.current.map((id) => {
+                                            const session = sessions.find(s => s.id === id);
+                                            if (!session) return null;
+                                            return (
+                                                <TerminalComponent
+                                                    key={id}
+                                                    ref={(el) => {
+                                                        if (el) {
+                                                            terminalRefs.current[id] = el;
+                                                        } else {
+                                                            delete terminalRefs.current[id];
+                                                        }
+                                                    }}
+                                                    isVisible={id === activeSessionId && !terminalCollapsed}
+                                                    theme={theme}
+                                                    sessionId={id}
+                                                    initiallyRunning={session.running}
+                                                    suggestionsEnabled={terminalSuggestions}
+                                                    suggestionCommands={commands}
+                                                    onRunSavedCommand={handleRunSavedCommandFromTerminal}
+                                                    onShellExit={() => {
+                                                        // Mark session as stopped
+                                                        setSessions(prev => prev.map(s =>
+                                                            s.id === id ? { ...s, running: false } : s
+                                                        ));
+                                                        // If this was the active session and it exited, collapse terminal
+                                                        if (id === activeSessionId) {
+                                                            collapseTerminal();
+                                                        }
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                        </Suspense>
+                                        {terminalCollapsed && (
+                                            <button
+                                                className="terminal-collapsed-rail"
+                                                onClick={expandTerminal}
+                                                aria-label="Expand terminal panel"
+                                            >
+                                                <ChevronUp size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {!terminalCollapsed && (
+                                        <div className="status-bar" data-testid="terminal-status-bar">
+                                            <span className="status-cwd">{terminalCwdLabel}</span>
+                                            <span className="status-ok">
+                                                <span className={`status-dot ${terminalStatusDotClass}`} />
+                                                {terminalStatusText}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1834,6 +2000,8 @@ function App() {
                         variables={modal.variables}
                         presets={[]}
                         initialValues={modal.initialValues}
+                        commandTitle={getCommandDisplayTitle(commands.find((c) => c.id === modal.commandId)) || undefined}
+                        script={commands.find((c) => c.id === modal.commandId)?.scriptContent.replace(/^#!.*\n?/, '') || undefined}
                         onSubmit={handleVariableSubmit}
                         onCancel={() => setModal({ type: 'none' })}
                         onSavePreset={async () => {}}

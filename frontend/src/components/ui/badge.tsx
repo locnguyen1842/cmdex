@@ -9,19 +9,19 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        default: "bg-[var(--brand)] text-[var(--brand-fg)] [a&]:hover:brightness-110",
         secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "bg-[var(--surface-2)] text-[var(--fg)] [a&]:hover:brightness-95",
         destructive:
-          "bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-[var(--danger)] text-white [a&]:hover:brightness-110 focus-visible:ring-destructive/20",
         success:
           "bg-success text-success-foreground [a&]:hover:bg-success/90",
         outline:
-          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
+          "border-[var(--border)] text-[var(--fg)] [a&]:hover:bg-[var(--surface-2)]",
+        ghost: "[a&]:hover:bg-[var(--surface-2)]",
+        link: "text-[var(--brand)] underline-offset-4 [a&]:hover:underline",
         "outline-default":
-          "border-border text-primary [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+          "border-[var(--border)] text-[var(--brand)] [a&]:hover:bg-[var(--surface-2)]",
       },
     },
     defaultVariants: {

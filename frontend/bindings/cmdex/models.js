@@ -219,6 +219,17 @@ export class AppSettings {
         }
         if (/** @type {any} */(false)) {
             /**
+             * TerminalSuggestions toggles the Warp-style autosuggestions in the built-in
+             * terminal (inline ghost text plus the suggestion menu, fed by shell history
+             * and saved commands — see suggestion_service.go). nil = unset, defaults to
+             * enabled; a change applies immediately to every open session.
+             * @member
+             * @type {boolean | null | undefined}
+             */
+            this["terminalSuggestions"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
              * Global quick launcher. The *bool fields use nil = "leave unchanged" so a
              * partial SetSettings payload cannot silently switch a flag off.
              * register the system-wide shortcut
@@ -739,6 +750,56 @@ export class LauncherStatus {
  */
 
 /**
+ * PathCompletion is one filesystem entry offered while completing a path
+ * argument at the prompt.
+ */
+export class PathCompletion {
+    /**
+     * Creates a new PathCompletion instance.
+     * @param {Partial<PathCompletion>} [$$source = {}] - The source object to create the PathCompletion.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * Name is the entry's display name (a directory name ends with "/").
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("insert" in $$source)) {
+            /**
+             * Insert is the full replacement for the token being completed: the
+             * typed directory part plus the entry, shell-escaped, with a trailing "/"
+             * for directories so the user can keep drilling down.
+             * @member
+             * @type {string}
+             */
+            this["insert"] = "";
+        }
+        if (!("isDir" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isDir"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PathCompletion instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {PathCompletion}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PathCompletion(/** @type {Partial<PathCompletion>} */($$parsedSource));
+    }
+}
+
+/**
  * SessionInfo is the public metadata for a terminal session, sent to the frontend.
  */
 export class SessionInfo {
@@ -781,6 +842,16 @@ export class SessionInfo {
              * @type {string}
              */
             this["workingDir"] = "";
+        }
+        if (!("cwd" in $$source)) {
+            /**
+             * Cwd is the shell's current working directory as last reported by shell
+             * integration (OSC 7), or WorkingDir until the first report. Changes are
+             * also pushed as `pty-cwd:<id>` events with `{ cwd }`.
+             * @member
+             * @type {string}
+             */
+            this["cwd"] = "";
         }
 
         Object.assign(this, $$source);

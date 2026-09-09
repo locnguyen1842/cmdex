@@ -28,17 +28,17 @@ if (isLauncherWindow) {
     // of the app because the Go side shows/hides the window rather than
     // creating and destroying it.
     function LauncherWindow() {
-        const [theme, setTheme] = useState('vscode-dark')
+        const [theme, setTheme] = useState('classic')
         const settingsGenerationRef = useRef(0)
 
         const applySettings = useCallback((s: Awaited<ReturnType<typeof GetSettings>> | null) => {
             if (!s) return
-            const t = s.theme || 'vscode-dark'
+            const t = s.theme || 'classic'
             const custom = resolveActiveCustomTheme(s.customThemes, t)
             setTheme(t)
             applyTheme(t, custom?.colors)
             applyDensity(s.density || 'comfortable')
-            applyFonts(s.uiFont || 'Inter', s.monoFont || 'JetBrains Mono')
+            applyFonts(s.uiFont || 'Manrope', s.monoFont || 'JetBrains Mono')
         }, [])
 
         useEffect(() => {
@@ -69,14 +69,14 @@ if (isLauncherWindow) {
     )
 } else if (isSettingsWindow) {
     function SettingsWindow() {
-        const [theme, setTheme] = useState('vscode-dark')
+        const [theme, setTheme] = useState('classic')
         const [density, setDensity] = useState('comfortable')
-        const [uiFont, setUiFont] = useState('Inter')
+        const [uiFont, setUiFont] = useState('Manrope')
         const [monoFont, setMonoFont] = useState('JetBrains Mono')
         const [customThemes, setCustomThemes] = useState<CustomTheme[]>([])
         const [locale, setLocale] = useState('en')
-        const [lastDarkTheme, setLastDarkTheme] = useState('vscode-dark')
-        const [lastLightTheme, setLastLightTheme] = useState('vscode-light')
+        const [lastDarkTheme, setLastDarkTheme] = useState('classic')
+        const [lastLightTheme, setLastLightTheme] = useState('classic-light')
         const [windowX, setWindowX] = useState(-1)
         const [windowY, setWindowY] = useState(-1)
         const [windowWidth, setWindowWidth] = useState(640)
@@ -95,10 +95,10 @@ if (isLauncherWindow) {
         useEffect(() => {
             GetSettings().then(s => {
                 if (!s) return
-                const t = s.theme || 'vscode-dark'
+                const t = s.theme || 'classic'
                 setTheme(t)
                 setDensity(s.density || 'comfortable')
-                setUiFont(s.uiFont || 'Inter')
+                setUiFont(s.uiFont || 'Manrope')
                 setMonoFont(s.monoFont || 'JetBrains Mono')
                 setLocale(s.locale || 'en')
                 if (s.windowX !== undefined) setWindowX(s.windowX)
@@ -113,7 +113,7 @@ if (isLauncherWindow) {
                 const loadedCustom = parsed.find(c => c.id === t)
                 applyTheme(t, loadedCustom?.colors)
                 applyDensity(s.density || 'comfortable')
-                applyFonts(s.uiFont || 'Inter', s.monoFont || 'JetBrains Mono')
+                applyFonts(s.uiFont || 'Manrope', s.monoFont || 'JetBrains Mono')
             }).catch(() => {})
         }, [syncCustomThemes])
 
@@ -170,7 +170,7 @@ if (isLauncherWindow) {
             // whichever RPC lands last decides, and the DB (or the main window)
             // can end up pointing at a theme that no longer exists.
             if (theme === themeId) {
-                handleThemeChange('vscode-dark')
+                handleThemeChange('classic')
                 return
             }
             const newSettings = {
@@ -197,18 +197,18 @@ if (isLauncherWindow) {
             // fresh post-reset settings before telling the main window to
             // reload too.
             const s = await GetSettings().catch(() => null)
-            const t = s?.theme || 'vscode-dark'
+            const t = s?.theme || 'classic'
             setTheme(t)
             setDensity(s?.density || 'comfortable')
-            setUiFont(s?.uiFont || 'Inter')
+            setUiFont(s?.uiFont || 'Manrope')
             setMonoFont(s?.monoFont || 'JetBrains Mono')
             setLocale(s?.locale || 'en')
-            setLastDarkTheme(s?.lastDarkTheme || 'vscode-dark')
-            setLastLightTheme(s?.lastLightTheme || 'vscode-light')
+            setLastDarkTheme(s?.lastDarkTheme || 'classic')
+            setLastLightTheme(s?.lastLightTheme || 'classic-light')
             syncCustomThemes([])
             applyTheme(t)
             applyDensity(s?.density || 'comfortable')
-            applyFonts(s?.uiFont || 'Inter', s?.monoFont || 'JetBrains Mono')
+            applyFonts(s?.uiFont || 'Manrope', s?.monoFont || 'JetBrains Mono')
             // The main window is holding stale commands/categories *and*
             // stale settings — tell it to reload both rather than requiring a
             // restart.

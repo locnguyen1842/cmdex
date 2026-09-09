@@ -10,7 +10,7 @@ import { sel } from '../utils/selectors';
 // a coincidence — none of these namespaces otherwise appear in prose.
 const I18N_NAMESPACES = [
   'common', 'sidebar', 'commandDetail', 'commandEditor', 'categoryEditor',
-  'variablePrompt', 'app', 'toast', 'settings', 'resizablePanel', 'welcome',
+  'variablePrompt', 'app', 'toast', 'settings', 'resizablePanel', 'welcome', 'terminalSuggest',
 ];
 const RAW_KEY_RE = new RegExp(`\\b(?:${I18N_NAMESPACES.join('|')})\\.[a-zA-Z][a-zA-Z0-9.]*\\b`);
 
@@ -99,20 +99,26 @@ test.describe('i18n key resolution guard', () => {
     await assertNoRawI18nKeys(page, 'the command palette');
   });
 
-  test('the settings window renders no raw i18n keys across all three tabs', async ({ page, gotoSettings }) => {
+  test('the settings window renders no raw i18n keys across all sections', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await assertNoRawI18nKeys(page, 'the settings window (Appearance tab)');
-
-    await page.getByRole('tab', { name: 'Typography' }).click();
-    await assertNoRawI18nKeys(page, 'the settings window (Typography tab)');
+    await assertNoRawI18nKeys(page, 'the settings window (Appearance section)');
 
     await page.getByRole('tab', { name: 'General' }).click();
-    await assertNoRawI18nKeys(page, 'the settings window (General tab)');
+    await assertNoRawI18nKeys(page, 'the settings window (General section)');
+
+    await page.getByRole('tab', { name: 'Terminal' }).click();
+    await assertNoRawI18nKeys(page, 'the settings window (Terminal section)');
+
+    await page.getByRole('tab', { name: 'Import / Export' }).click();
+    await assertNoRawI18nKeys(page, 'the settings window (Import / Export section)');
+
+    await page.getByRole('tab', { name: 'Danger Zone' }).click();
+    await assertNoRawI18nKeys(page, 'the settings window (Danger Zone section)');
   });
 
   test('the Danger Zone confirm panel renders no raw i18n keys', async ({ page, gotoSettings }) => {
     await gotoSettings();
-    await page.getByRole('tab', { name: 'General' }).click();
+    await page.getByRole('tab', { name: 'Danger Zone' }).click();
     await page.locator(sel.dangerZoneResetButton).click();
     await assertNoRawI18nKeys(page, 'the Danger Zone confirm panel');
   });

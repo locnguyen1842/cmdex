@@ -16,13 +16,15 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
-  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DropdownMenu } from 'radix-ui';
 import { useTranslation } from 'react-i18next';
-import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey } from '../types';
-import { getOSPath, setOSPath, shortenPath } from '../utils/path';
+import type { Command, TabDraft, VariablePrompt, OSPathMap, OSKey, Category } from '../types';
+import { getOSPath, setOSPath } from '../utils/path';
+import { formatRelativeTime } from '../utils/relativeTime';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +34,13 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverTitle,
+  PopoverDescription,
+} from '@/components/ui/popover';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -59,20 +68,30 @@ import {
 import {
   Copy,
   Check,
-  Play,
   Plus,
-  Loader2,
   Pencil,
   X,
   ALargeSmall,
   Hash,
-  LayoutTemplate,
-  ScanEye,
   FolderOpen,
+  Code2,
+  Save,
+  Play,
+  Loader2,
+  MoreVertical,
+  Trash2,
+  Link2,
+  Layers,
+  CircleHelp,
+  FileCode2,
+  Folder,
+  Clock,
+  Braces,
+  Search,
 } from 'lucide-react';
 import { PickDirectory } from '../../bindings/cmdex/app';
 import { toast } from 'sonner';
-import { ShortcutLabel, ShortcutHint } from '@/components/ui/kbd';
+import { ShortcutLabel } from '@/components/ui/kbd';
 import { Heading } from '@/components/ui/heading';
 
 import { cn } from '@/lib/utils';
@@ -142,12 +161,14 @@ const HighlightedTextarea: React.FC<HighlightedTextareaProps> = ({
   );
 };
 
-interface SortablePresetChipProps {
+interface SortablePresetRowProps {
   id: string;
   name: string;
   isActive: boolean;
   isRenaming: boolean;
   renamingDraft: string;
+  previewText: string;
+  matchesSearch: boolean;
   onSelect: () => void;
   onDoubleClick: () => void;
   onSetRenaming: (id: string, name: string) => void;
@@ -156,15 +177,18 @@ interface SortablePresetChipProps {
   onConfirmDelete: (id: string) => void;
   renameLabel: string;
   deleteLabel: string;
+  moreLabel: string;
   presetNamePlaceholder: string;
 }
 
-const SortablePresetChip: React.FC<SortablePresetChipProps> = ({
+const SortablePresetRow: React.FC<SortablePresetRowProps> = ({
   id,
   name,
   isActive,
   isRenaming,
   renamingDraft,
+  previewText,
+  matchesSearch,
   onSelect,
   onDoubleClick,
   onSetRenaming,
@@ -173,6 +197,7 @@ const SortablePresetChip: React.FC<SortablePresetChipProps> = ({
   onConfirmDelete,
   renameLabel,
   deleteLabel,
+  moreLabel,
   presetNamePlaceholder,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -181,12 +206,11 @@ const SortablePresetChip: React.FC<SortablePresetChipProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : undefined,
-    display: 'inline-flex',
   };
 
   if (isRenaming) {
     return (
-      <div ref={setNodeRef} style={style}>
+      <div ref={setNodeRef} style={style} className="preset-row-wrap" hidden={!matchesSearch}>
         <input
           className="preset-chip preset-chip-renaming"
           data-testid={`preset-chip-rename-${id}`}
@@ -206,21 +230,56 @@ const SortablePresetChip: React.FC<SortablePresetChipProps> = ({
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="preset-row-wrap" hidden={!matchesSearch} {...attributes} {...listeners}>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <button
-            type="button"
-            className={`preset-chip${isActive ? ' active' : ''}`}
+          <div
+            className={`preset-chip preset-row${isActive ? ' active' : ''}`}
             data-testid={`preset-chip-${id}`}
+            role="button"
+            aria-pressed={isActive}
+            tabIndex={0}
             onClick={onSelect}
             onDoubleClick={(e) => { e.preventDefault(); onDoubleClick(); }}
             onKeyDown={(e) => {
               if (e.key === 'F2') { e.preventDefault(); onDoubleClick(); }
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
             }}
           >
-            {name}
-          </button>
+            <span className={`preset-radio-dot${isActive ? ' active' : ''}`} aria-hidden="true" />
+            <span className="preset-row-name">{name}</span>
+            {previewText && (
+              <span className="preset-row-preview" title={previewText}>{previewText}</span>
+            )}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  className="preset-row-menu-btn"
+                  aria-label={moreLabel}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="size-3.5" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="menu-surface" align="end" sideOffset={4}>
+                  <DropdownMenu.Item
+                    className="menu-item"
+                    onSelect={() => { onSetRenaming(id, name); onSelect(); }}
+                  >
+                    {renameLabel}
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    className="menu-item menu-item-destructive"
+                    onSelect={() => onConfirmDelete(id)}
+                  >
+                    {deleteLabel}
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => { onSetRenaming(id, name); onSelect(); }}>
@@ -257,6 +316,17 @@ export interface CommandDetailProps {
   onSaveScript?: (scriptBody: string) => Promise<void>;
   currentOS?: OSKey;
   defaultWorkingDir?: OSPathMap;
+  /** Full category list, used to resolve the breadcrumb's dot color + name
+   * from command.categoryId. Optional — when omitted, no breadcrumb renders. */
+  categories?: Category[];
+  /** Header "Save" — mirrors the floating save bar's Save action. */
+  onSave?: () => void;
+  /** Whether this tab currently has unsaved changes (drives the header Save button). */
+  isDirty?: boolean;
+  /** Header "Duplicate" / ⋮ menu "Duplicate" — creates a copy of this saved command. */
+  onDuplicate?: (commandId: string) => void;
+  /** ⋮ menu "Delete command". */
+  onDeleteCommand?: (command: Command) => void;
 }
 
 const CommandDetail: React.FC<CommandDetailProps> = ({
@@ -278,8 +348,17 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   onSaveScript,
   currentOS,
   defaultWorkingDir,
+  categories,
+  onSave,
+  isDirty,
+  onDuplicate,
+  onDeleteCommand,
 }) => {
   const { t } = useTranslation();
+  const category = useMemo(
+    () => categories?.find((c) => c.id === command.categoryId),
+    [categories, command.categoryId],
+  );
   const commandWD = getOSPath(draft.workingDir, currentOS);
   const defaultWD = getOSPath(defaultWorkingDir, currentOS);
   const effectiveWD = commandWD || defaultWD;
@@ -305,6 +384,8 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const [showScriptDiscardConfirm, setShowScriptDiscardConfirm] = useState(false);
   const [workingDirDialogOpen, setWorkingDirDialogOpen] = useState(false);
   const [workingDirDraft, setWorkingDirDraft] = useState('');
+  const [presetSearch, setPresetSearch] = useState('');
+  const [confirmDeleteCommandOpen, setConfirmDeleteCommandOpen] = useState(false);
   const scriptWrapRef = useRef<HTMLDivElement>(null);
   const scriptEditDraftRef = useRef('');
   const scriptBodyRef = useRef('');
@@ -332,6 +413,11 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     () => (command.presets || []).map((p) => p.id),
     [command.presets],
   );
+
+  const openWorkingDirDialog = useCallback(() => {
+    setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
+    setWorkingDirDialogOpen(true);
+  }, [draft.workingDir, currentOS]);
 
   const scriptBody = draft.scriptBody;
 
@@ -551,52 +637,51 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [selectedPresetId, overrides, command.presets, variables]);
 
-  const scriptParts = useMemo(
-    () => (scriptBody ? scriptBody.split(/(\{\{\w+\}\})/g) : null),
-    [scriptBody],
-  );
-
-
-
-  const renderScriptUnified = useMemo(() => {
-    if (!scriptParts) return null;
-    if (!showPreview) {
-      // Template mode: same as renderScriptWithVars
-      return scriptParts.map((part, i) => {
-        if (/^\{\{\w+\}\}$/.test(part)) {
-          const varName = part.slice(2, -2);
+  const renderLinePart = useCallback(
+    (part: string, key: string) => {
+      if (/^\{\{\w+\}\}$/.test(part)) {
+        const varName = part.slice(2, -2);
+        if (!showPreview) {
           return (
-            <span key={i} className="var-missing" title={varName}>
+            <span key={key} className="var-missing" title={varName}>
               {part}
             </span>
           );
         }
-        return <span key={i}>{part}</span>;
-      });
-    }
-    // Preview mode: resolved values or dimmed placeholder [varName]
-    return scriptParts.map((part, i) => {
-      if (/^\{\{\w+\}\}$/.test(part)) {
-        const varName = part.slice(2, -2);
         const val = resolvedValues[varName];
         const isFocused = focusedVarName === varName;
         if (val) {
           return (
-            <span key={i} className={`var-filled${isFocused ? ' var-focused' : ''}`} title={`${varName}=${val}`}>
+            <span key={key} className={`var-filled${isFocused ? ' var-focused' : ''}`} title={`${varName}=${val}`}>
               {val}
             </span>
           );
         }
-        // No value: show dimmed [varName] placeholder (per D-03)
         return (
-          <span key={i} className={`var-placeholder-muted${isFocused ? ' var-focused' : ''}`} title={varName}>
+          <span key={key} className={`var-placeholder-muted${isFocused ? ' var-focused' : ''}`} title={varName}>
             [{varName}]
           </span>
         );
       }
-      return <span key={i}>{part}</span>;
-    });
-  }, [scriptParts, showPreview, resolvedValues, focusedVarName]);
+      return <span key={key}>{part}</span>;
+    },
+    [showPreview, resolvedValues, focusedVarName],
+  );
+
+  const scriptLines = useMemo(() => (scriptBody ? scriptBody.split('\n') : []), [scriptBody]);
+
+  const renderScriptLines = useMemo(
+    () =>
+      scriptLines.map((line, i) => {
+        const parts = line.split(/(\{\{\w+\}\})/g);
+        return (
+          <div key={i} className="script-line">
+            {line === '' ? ' ' : parts.map((part, j) => renderLinePart(part, `${i}-${j}`))}
+          </div>
+        );
+      }),
+    [scriptLines, renderLinePart],
+  );
 
   const getResolvedScript = useMemo(() => {
     if (!scriptBody) return '';
@@ -605,12 +690,36 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
     });
   }, [scriptBody, resolvedValues]);
 
+  const resolveScriptForPreset = useCallback(
+    (presetValues: Record<string, string>) => {
+      if (!scriptBody) return '';
+      return scriptBody.replace(/\{\{(\w+)\}\}/g, (_match, varName) => {
+        const val = presetValues[varName] ?? variables.find((v) => v.name === varName)?.defaultValue ?? '';
+        return val || `{{${varName}}}`;
+      });
+    },
+    [scriptBody, variables],
+  );
+
   const handleCopy = useCallback(() => {
     const text = showPreview ? getResolvedScript : scriptBody;
     copy(text).catch(() => {
       toast.error(t('commandDetail.copyFailed'));
     });
   }, [showPreview, getResolvedScript, scriptBody, copy, t]);
+
+  const handleHeaderRun = useCallback(() => {
+    if (variables.length === 0) {
+      onExecute({});
+      return;
+    }
+    const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
+    if (hasEmpty) {
+      onFillVariables(resolvedValues);
+    } else {
+      onExecute(resolvedValues);
+    }
+  }, [variables, resolvedValues, onExecute, onFillVariables]);
 
   const TAG_REGEX = /^[a-zA-Z0-9-]+$/;
 
@@ -649,209 +758,305 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
   const showDescription = draft.revealed.description;
   const showTags = draft.revealed.tags;
 
+  const filteredPresetsCount = useMemo(() => {
+    const q = presetSearch.trim().toLowerCase();
+    if (!q) return command.presets?.length ?? 0;
+    return (command.presets || []).filter((p) => p.name.toLowerCase().includes(q)).length;
+  }, [command.presets, presetSearch]);
+
   return (
-    // Spacing controlled by .main-body CSS (24px 24px) — no inline padding overrides in this component
+    // Spacing controlled by .main-body CSS (28px 32px 100px) — no inline padding overrides in this component
     <div className="command-detail">
-      {showHeaderBlock && (
-        <div className="detail-header">
-          {showTitle && (
-            <div className="hover-actions-host detail-header-title-wrap inline-icon-field">
-              <Heading
-                ref={titleHeadingRef}
-                level={1}
-                className={cn(
-                  'text-center title-contenteditable w-full min-w-0 cursor-text outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm',
-                  !draft.title.trim() && 'title-contenteditable--empty',
-                )}
-                contentEditable
-                suppressContentEditableWarning
-                data-testid="command-title"
-                aria-label={t('commandEditor.title')}
-                data-placeholder={t('commandEditor.titlePlaceholder')}
-                onInput={handleTitleInput}
-                onKeyDown={handleTitleKeyDown}
-                onPaste={handleTitlePaste}
+      <div className="editor-header-row">
+        <div className="editor-header-main">
+          {categories !== undefined && !isNewCommand && (
+            <div className="detail-crumb">
+              <span
+                className="crumb-dot"
+                style={{ background: category ? (category.color || 'var(--brand)') : '#6c6c88' }}
               />
-              {(!draft.revealed.description || !draft.revealed.tags) && (
-                <div className="add-field-pill-anchor">
-                  {!draft.revealed.description && (
-                    <button
-                      type="button"
-                      className="add-title-pill"
-                      onClick={(e) => { e.stopPropagation(); reveal('description'); }}
-                    >
-                      <ALargeSmall className="size-3 shrink-0" />
-                      <span className="add-title-pill-label">{t('commandDetail.addDescription')}</span>
-                    </button>
-                  )}
-                  {!draft.revealed.tags && (
-                    <button
-                      type="button"
-                      className="add-title-pill"
-                      onClick={(e) => { e.stopPropagation(); reveal('tags'); }}
-                    >
-                      <Hash className="size-3 shrink-0" />
-                      <span className="add-title-pill-label">{t('commandDetail.addTags')}</span>
-                    </button>
+              <span>{category ? category.name : t('sidebar.uncategorized')}</span>
+            </div>
+          )}
+
+          {showHeaderBlock && (
+            <div className="detail-header">
+              {showTitle && (
+                <div className="hover-actions-host detail-header-title-wrap inline-icon-field">
+                  <div className="detail-title-row">
+                    <span className="detail-title-bar" aria-hidden="true" />
+                    <Heading
+                      ref={titleHeadingRef}
+                      level={1}
+                      className={cn(
+                        'text-left title-contenteditable w-full min-w-0 cursor-text outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm',
+                        !draft.title.trim() && 'title-contenteditable--empty',
+                      )}
+                      contentEditable
+                      suppressContentEditableWarning
+                      data-testid="command-title"
+                      aria-label={t('commandEditor.title')}
+                      data-placeholder={t('commandEditor.titlePlaceholder')}
+                      onInput={handleTitleInput}
+                      onKeyDown={handleTitleKeyDown}
+                      onPaste={handleTitlePaste}
+                    />
+                  </div>
+                  {(!draft.revealed.description || !draft.revealed.tags) && (
+                    <div className="add-field-pill-anchor">
+                      {!draft.revealed.description && (
+                        <button
+                          type="button"
+                          className="add-title-pill"
+                          onClick={(e) => { e.stopPropagation(); reveal('description'); }}
+                        >
+                          <ALargeSmall className="size-3 shrink-0" />
+                          <span className="add-title-pill-label">{t('commandDetail.addDescription')}</span>
+                        </button>
+                      )}
+                      {!draft.revealed.tags && (
+                        <button
+                          type="button"
+                          className="add-title-pill"
+                          onClick={(e) => { e.stopPropagation(); reveal('tags'); }}
+                        >
+                          <Hash className="size-3 shrink-0" />
+                          <span className="add-title-pill-label">{t('commandDetail.addTags')}</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
-            </div>
-          )}
 
-          {showTags && (
-            <div className="inline-icon-field pt-0!">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Hash className="inline-icon-field-icon" color="var(--primary)" />
-                </TooltipTrigger>
-                <TooltipContent>{t('commandDetail.tagsTooltip')}</TooltipContent>
-              </Tooltip>
-              <div className="tags-badge-row">
-                {draft.tags.map((tag, idx) => (
-                  <Badge key={tag} variant="outline-default" className="tag-badge group">
-                    {editingTagIndex === idx ? (
-                      <input
-                        className="tag-edit-input"
-                        autoFocus
-                        style={{ width: '23ch' }}
-                        value={editingTagDraft}
-                        onChange={(e) => {
-                          let trimmed = e.target.value.replace(/[^a-zA-Z0-9-]/g, '');
-                          if (trimmed.length > 30) {
-                            trimmed = trimmed.slice(0, 30);
-                          }
-                          setEditingTagDraft(trimmed);
-                        }}
-                        onBlur={commitEditTag}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') { e.preventDefault(); commitEditTag(); }
-                          if (e.key === 'Escape') setEditingTagIndex(null);
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <span
-                          className="tag-name"
-                          onClick={() => { setEditingTagIndex(idx); setEditingTagDraft(tag); }}
-                        >
-                          {tag}
-                        </span>
-                        <button
-                          type="button"
-                          className="tag-remove-btn"
-                          onClick={() => onDraftChange({ tags: draft.tags.filter((x) => x !== tag) })}
-                        >
-                        <X className="size-2.5" />
-                        </button>
-                      </>
-                    )}
-                  </Badge>
-                ))}
-                {addingTag ? (
-                  <Badge variant="outline" className="tag-badge w-fit">
-                    <input
-                      className="tag-edit-input"
-                      autoFocus
-                      value={tagInput}
-                      style={{ width: '23ch' }}
-                      onChange={(e) => {
-                        let trimmed = e.target.value.replace(/[^a-zA-Z0-9-]/g, '');
-                        if (trimmed.length > 30) {
-                          trimmed = trimmed.slice(0, 30);
-                        }
-                        setTagInput(trimmed);
-                      }}
-                      onBlur={commitNewTag}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); commitNewTag(); }
-                        if (e.key === 'Escape') { setTagInput(''); setAddingTag(false); }
-                      }}
-                      placeholder={t('commandDetail.tagNamePlaceholder')}
-                    />
-                  </Badge>
-                ) : (
+              {showTags && (
+                <div className="inline-icon-field pt-0!">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="tag-add-btn"
-                        onClick={() => { setTagInput(''); setAddingTag(true); }}
-                      >
-                        <Plus className="size-3" />
-                      </button>
+                      <Hash className="inline-icon-field-icon" color="var(--primary)" />
                     </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.addTag')}</TooltipContent>
+                    <TooltipContent>{t('commandDetail.tagsTooltip')}</TooltipContent>
                   </Tooltip>
-                )}
-              </div>
+                  <div className="tags-badge-row">
+                    {draft.tags.map((tag, idx) => (
+                      <Badge key={tag} variant="outline-default" className="tag-badge group">
+                        {editingTagIndex === idx ? (
+                          <input
+                            className="tag-edit-input"
+                            autoFocus
+                            style={{ width: '23ch' }}
+                            value={editingTagDraft}
+                            onChange={(e) => {
+                              let trimmed = e.target.value.replace(/[^a-zA-Z0-9-]/g, '');
+                              if (trimmed.length > 30) {
+                                trimmed = trimmed.slice(0, 30);
+                              }
+                              setEditingTagDraft(trimmed);
+                            }}
+                            onBlur={commitEditTag}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); commitEditTag(); }
+                              if (e.key === 'Escape') setEditingTagIndex(null);
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <span
+                              className="tag-name"
+                              onClick={() => { setEditingTagIndex(idx); setEditingTagDraft(tag); }}
+                            >
+                              {tag}
+                            </span>
+                            <button
+                              type="button"
+                              className="tag-remove-btn"
+                              onClick={() => onDraftChange({ tags: draft.tags.filter((x) => x !== tag) })}
+                            >
+                            <X className="size-2.5" />
+                            </button>
+                          </>
+                        )}
+                      </Badge>
+                    ))}
+                    {addingTag ? (
+                      <Badge variant="outline" className="tag-badge w-fit">
+                        <input
+                          className="tag-edit-input"
+                          autoFocus
+                          value={tagInput}
+                          style={{ width: '23ch' }}
+                          onChange={(e) => {
+                            let trimmed = e.target.value.replace(/[^a-zA-Z0-9-]/g, '');
+                            if (trimmed.length > 30) {
+                              trimmed = trimmed.slice(0, 30);
+                            }
+                            setTagInput(trimmed);
+                          }}
+                          onBlur={commitNewTag}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitNewTag(); }
+                            if (e.key === 'Escape') { setTagInput(''); setAddingTag(false); }
+                          }}
+                          placeholder={t('commandDetail.tagNamePlaceholder')}
+                        />
+                      </Badge>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="tag-add-btn"
+                            onClick={() => { setTagInput(''); setAddingTag(true); }}
+                          >
+                            <Plus className="size-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('commandDetail.addTag')}</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {showDescription && (
+                <div className="inline-icon-field mt-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <ALargeSmall className="inline-icon-field-icon mt-0.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>{t('commandDetail.descriptionTooltip')}</TooltipContent>
+                  </Tooltip>
+                <Textarea
+                  className="detail-description-textarea"
+                  rows={1}
+                  data-testid="command-description"
+                  value={draft?.description}
+                  onChange={(e) => {
+                    onDraftChange({ description: e.target.value });
+                    const el = e.target;
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(el.scrollHeight, 400) + 'px';
+                  }}
+                  onFocus={(e) => {
+                    const el = e.target;
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(el.scrollHeight, 450) + 'px';
+                  }}
+                  onBlur={(e) => {
+                    onDraftChange({ description: e.target.value });
+                    const el = e.target;
+                    el.style.height = '';
+                    requestAnimationFrame(() => {
+                      el.scrollTop = 0;
+                      el.setSelectionRange(0, 0);
+                    });
+                  }}
+                  placeholder={t('commandEditor.descriptionPlaceholder')}
+                />
+                </div>
+              )}
+
             </div>
           )}
 
-          {showDescription && (
-            <div className="inline-icon-field mt-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <ALargeSmall className="inline-icon-field-icon mt-0.5" />
-                </TooltipTrigger>
-                <TooltipContent>{t('commandDetail.descriptionTooltip')}</TooltipContent>
-              </Tooltip>
-            <Textarea
-              className="detail-description-textarea"
-              data-testid="command-description"
-              value={draft?.description}
-              onChange={(e) => {
-                onDraftChange({ description: e.target.value });
-                const el = e.target;
-                el.style.height = 'auto';
-                el.style.height = Math.min(el.scrollHeight, 400) + 'px';
-              }}
-              onFocus={(e) => {
-                const el = e.target;
-                el.style.height = 'auto';
-                el.style.height = Math.min(el.scrollHeight, 450) + 'px';
-              }}
-              onBlur={(e) => {
-                onDraftChange({ description: e.target.value });
-                const el = e.target;
-                el.style.height = '';
-                requestAnimationFrame(() => {
-                  el.scrollTop = 0;
-                  el.setSelectionRange(0, 0);
-                });
-              }}
-              placeholder={t('commandEditor.descriptionPlaceholder')}
-            />
-            </div>
+          {!isNewCommand && !showDescription && (
+            <p className="detail-subtitle">{t('commandDetail.subtitleHint')}</p>
           )}
 
+          {!isNewCommand && (
+            <div className="detail-meta-row">
+              <span className="detail-meta-chip">
+                <FileCode2 className="detail-meta-icon" />
+                {t('commandDetail.metaCommandLabel')}
+              </span>
+              <span className="detail-meta-chip">
+                <Folder className="detail-meta-icon" />
+                {category ? category.name : t('sidebar.uncategorized')}
+              </span>
+              {command.updatedAt && (
+                <span className="detail-meta-chip">
+                  <Clock className="detail-meta-icon" />
+                  {t('commandDetail.metaUpdated', { time: formatRelativeTime(command.updatedAt) })}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-      )}
+
+        {!isNewCommand && (
+          <div className="editor-header-actions">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="command-save-btn-header"
+              disabled={!isDirty}
+              onClick={() => onSave?.()}
+            >
+              <Save className="size-3.5" />
+              {t('commandEditor.save')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="command-duplicate-btn-header"
+              onClick={() => onDuplicate?.(command.id)}
+            >
+              <Copy className="size-3.5" />
+              {t('commandDetail.duplicate')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              data-testid="command-run-btn"
+              disabled={isExecuting}
+              onClick={handleHeaderRun}
+            >
+              {isExecuting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Play className="size-3.5" fill="currentColor" />
+              )}
+              {t('commandDetail.run')}
+            </Button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={t('commandDetail.moreActions')}
+                >
+                  <MoreVertical className="size-3.5" />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="menu-surface" align="end" sideOffset={6}>
+                  <DropdownMenu.Item className="menu-item" onSelect={openWorkingDirDialog}>
+                    <FolderOpen className="size-3.5" />
+                    {t('commandDetail.manageWorkingDirectory')}
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="menu-item" onSelect={() => onDuplicate?.(command.id)}>
+                    <Copy className="size-3.5" />
+                    {t('commandDetail.duplicate')}
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator className="menu-separator" />
+                  <DropdownMenu.Item
+                    className="menu-item menu-item-destructive"
+                    onSelect={() => setConfirmDeleteCommandOpen(true)}
+                  >
+                    <Trash2 className="size-3.5" />
+                    {t('commandDetail.deleteCommand')}
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
+        )}
+      </div>
 
       <div className="detail-section">
-        <div className="detail-section-title">
-          {t('commandDetail.command')}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="script-mode-toggle"
-                hidden={isNewCommand || variables.length <= 0}
-                onClick={() => setPreviewOpen(!showPreview)}
-                aria-label={showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
-              >
-                {showPreview ? (
-                  <ScanEye className="size-3" />
-                ) : (
-                  <LayoutTemplate className="size-3" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {showPreview ? t('commandDetail.showTemplate') : t('commandDetail.showPreview')}
-            </TooltipContent>
-          </Tooltip>
-        </div>
         <div className="hover-actions-host script-area-hover command-text-box-glow">
           {!draft.revealed.title && scriptBody.trim().length > 0 && (
             <div className="add-title-pill-anchor">
@@ -867,123 +1072,79 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
           )}
           <div className="command-text-box-inner" ref={scriptWrapRef}>
             <div className="command-text-box-header">
-              <div className="flex items-center gap-1.5">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="cmd-header-dim-btn"
-                      onClick={() => {
-                        setWorkingDirDraft(getOSPath(draft.workingDir, currentOS));
-                        setWorkingDirDialogOpen(true);
-                      }}
-                    >
-                      <FolderOpen className="size-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {effectiveWD
-                      ? shortenPath(effectiveWD)
-                      : t('commandDetail.workingDirectoryNotSet')}
-                  </TooltipContent>
-                </Tooltip>
-                <span className="command-text-box-label">
-                  {showPreview ? t('commandDetail.preview') : t('commandDetail.template')}
-                </span>
-                {!isNewCommand && (
+              <div className="command-text-box-header-left">
+                <Code2 className="command-text-box-icon" />
+                <span className="command-text-box-title">{t('commandDetail.command')}</span>
+                <div
+                  className="script-mode-toggle"
+                  hidden={isNewCommand || variables.length <= 0}
+                >
+                  <button
+                    type="button"
+                    className={`script-mode-chip${!showPreview ? ' active' : ''}`}
+                    onClick={() => setPreviewOpen(false)}
+                    aria-label={t('commandDetail.showTemplate')}
+                  >
+                    {t('commandDetail.template')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`script-mode-chip${showPreview ? ' active' : ''}`}
+                    onClick={() => setPreviewOpen(true)}
+                    aria-label={t('commandDetail.showPreview')}
+                  >
+                    {t('commandDetail.preview')}
+                  </button>
+                </div>
+              </div>
+              <div className="command-text-box-header-right">
+                <span className="command-text-box-hint">{t('commandDetail.scriptHint')}</span>
+                <div className="command-text-box-header-actions">
+                  {scriptEditor && !isNewCommand && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" data-testid="script-edit-discard-btn" onClick={discardScriptEdit}>
+                          <X className="size-3.5 text-destructive" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('commandDetail.revertScript')}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {hasScriptChanges && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" data-testid="script-edit-save-btn" onClick={saveScriptEdit}>
+                          <Check className="size-3.5 text-success" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('commandDetail.saveScript')}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {!scriptEditor && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" data-testid="script-edit-enter-btn" onClick={enterScriptEdit}>
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('commandDetail.editScript')}</TooltipContent>
+                    </Tooltip>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="text-primary hover:text-primary"
-                        disabled={isExecuting}
-                        data-testid="command-run-btn"
-                        onClick={() => {
-                          if (variables.length > 0) {
-                            const hasEmpty = variables.some((v) => !resolvedValues[v.name]);
-                            if (hasEmpty) {
-                              onFillVariables(resolvedValues);
-                            } else {
-                              onExecute(resolvedValues);
-                            }
-                          } else {
-                            onExecute({});
-                          }
-                        }}
-                      >
-                        {isExecuting ? (
-                          <Loader2 className="size-3.5 animate-spin" />
+                      <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
+                        {copied ? (
+                          <Check className="size-3.5 text-success" />
                         ) : (
-                          <Play 
-                            className="size-3.5" 
-                            style={{
-                              filter: `
-                                drop-shadow(0 0  4px rgb(from var(--primary) r g b / 1))
-                                drop-shadow(0 0 16px rgb(from var(--primary) r g b / 0.9))
-                                drop-shadow(0 0 32px rgb(from var(--primary) r g b / 0.5))
-                              `
-                            }}
-                          />
+                          <Copy className="size-3.5" />
                         )}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {isExecuting ? (
-                        t('commandDetail.running')
-                      ) : (
-                        <ShortcutHint label={t('commandDetail.execute')} id="execute" />
-                      )}
+                    <TooltipContent>
+                      {copied ? t('commandDetail.copied') : t('commandDetail.copyCommand')}
                     </TooltipContent>
                   </Tooltip>
-                )}
-              </div>
-              <div className="command-text-box-header-actions">
-                {scriptEditor && !isNewCommand && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" data-testid="script-edit-discard-btn" onClick={discardScriptEdit}>
-                        <X className="size-3.5 text-destructive" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.revertScript')}</TooltipContent>
-                  </Tooltip>
-                )}
-                {hasScriptChanges && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" data-testid="script-edit-save-btn" onClick={saveScriptEdit}>
-                        <Check className="size-3.5 text-success" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.saveScript')}</TooltipContent>
-                  </Tooltip>
-                )}
-                {!scriptEditor && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" data-testid="script-edit-enter-btn" onClick={enterScriptEdit}>
-                        <Pencil className="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.editScript')}</TooltipContent>
-                  </Tooltip>
-                )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
-                      {copied ? (
-                        <Check className="size-3.5 text-success" />
-                      ) : (
-                        <Copy className="size-3.5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {copied ? t('commandDetail.copied') : t('commandDetail.copyCommand')}
-                  </TooltipContent>
-                </Tooltip>
+                </div>
               </div>
             </div>
             {scriptEditor ? (
@@ -1043,157 +1204,244 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               </Tooltip>
             ) : (
               <div className="command-text-box script-preview-compact">
-                <code className="whitespace-pre-wrap">{renderScriptUnified}</code>
+                <div className="script-gutter-row">
+                  <div className="script-gutter" aria-hidden="true">
+                    {(scriptLines.length > 0 ? scriptLines : ['']).map((_, i) => (
+                      <span key={i} className="script-gutter-no">{i + 1}</span>
+                    ))}
+                  </div>
+                  <code className="script-gutter-code whitespace-pre-wrap">
+                    {renderScriptLines.length > 0 ? renderScriptLines : <div className="script-line">{' '}</div>}
+                  </code>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {!isNewCommand && variables.length > 0 && (
-        <div className="detail-section mt-4">
-          <div className="detail-section-title">{t('commandDetail.presets')}</div>
+      {!isNewCommand && (
+        <div className="detail-section mt-2">
+          <div className="cols">
+            <div className="panel-card col-variables">
+              <div className="panel-card-header">
+                <span className="panel-card-title">
+                  <Link2 className="panel-card-icon" />
+                  {t('commandEditor.variables')}
+                </span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="how-it-works-link">
+                      <CircleHelp className="size-3" />
+                      {t('commandDetail.howItWorks')}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="how-it-works-popover">
+                    <PopoverTitle>{t('commandDetail.howItWorksTitle')}</PopoverTitle>
+                    <PopoverDescription>{t('commandDetail.howItWorksDescription')}</PopoverDescription>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-          <div className="preset-chips">
-            <DndContext sensors={presetSensors} collisionDetection={closestCenter} onDragEnd={handlePresetDragEnd}>
-              <SortableContext items={presetIds} strategy={horizontalListSortingStrategy}>
-                {command.presets?.map((p) => (
-                  <SortablePresetChip
-                    key={p.id}
-                    id={p.id}
-                    name={p.name}
-                    isActive={selectedPresetId === p.id}
-                    isRenaming={renamingChipId === p.id}
-                    renamingDraft={renamingChipDraft}
-                    onSelect={() => setSelectedPresetId((prev) => (prev === p.id ? '' : p.id))}
-                    onDoubleClick={() => {
-                      setSelectedPresetId(p.id);
-                      setRenamingChipId(p.id);
-                      setRenamingChipDraft(p.name);
-                    }}
-                    onSetRenaming={(id, name) => {
-                      setRenamingChipId(id);
-                      setRenamingChipDraft(name);
-                    }}
-                    onRenameChange={setRenamingChipDraft}
-                    onCommitRename={commitChipRename}
-                    onConfirmDelete={setConfirmDeletePresetId}
-                    renameLabel={t('commandDetail.rename')}
-                    deleteLabel={t('commandDetail.delete')}
-                    presetNamePlaceholder={t('commandDetail.presetNamePlaceholder')}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="preset-chip preset-chip-add"
-                  data-testid="preset-chip-add"
-                  onClick={async () => {
-                    preAddPresetIdRef.current = selectedPresetId;
-                    const hasValues = Object.values(resolvedValues).some((v) => v.trim());
-                    const newId = await onAddPreset(hasValues ? resolvedValues : undefined);
-                    setSelectedPresetId(newId);
-                    setRenamingChipId(newId);
-                    setNewlyCreatedPresetId(newId);
-                    setRenamingChipDraft('');
-                  }}
-                >
-                  <Plus size={12} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{t('commandDetail.addPreset')}</TooltipContent>
-            </Tooltip>
-          </div>
+              <div className="panel-card-body">
+                {variables.length > 0 ? (
+                  <div className="var-info-list">
+                    {variables.map((v) => (
+                      <div key={v.name} className="var-info-row">
+                        <span className="var-info-name">{'{{' + v.name + '}}'}</span>
+                        {(v.description || v.example) && (
+                          <span className="var-info-desc">{v.description || v.example}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="var-empty-state">
+                    <div className="var-empty-icon">
+                      <Braces className="size-5" />
+                    </div>
+                    <div className="var-empty-title">{t('commandDetail.noVariablesTitle')}</div>
+                    <div className="var-empty-hint">{t('commandDetail.noVariablesHint')}</div>
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <div className="command-text-box-glow mt-3">
-            <div className="command-text-box-inner">
-              <div className="preset-vars-panel">
-                <div className="preset-vars-list">
-                  {variables.map((v) => {
-                    const val = resolvedValues[v.name];
-                    return (
-                      <div
-                        key={v.name}
-                        className={`preset-var-row${val ? '' : ' preset-var-row-empty'}`}
-                      >
-                        <span className="preset-var-name" title={'{{' + v.name + '}}'}>
-                          {v.name}
-                        </span>
-                        <input
-                          className={`preset-var-input preset-var-value${val ? '' : ' empty'}`}
-                          data-testid={`preset-var-input-${v.name}`}
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck={false}
-                          value={val}
-                          onChange={(e) =>
-                            setOverrides((prev) => ({ ...prev, [v.name]: e.target.value }))
-                          }
-                          onFocus={() => setFocusedVarName(v.name)}
-                          onBlur={() =>
-                            setFocusedVarName((current) => (current === v.name ? null : current))
-                          }
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (selectedPresetId) {
-                                try {
+            <div className="panel-card col-presets">
+              <div className="panel-card-header">
+                <span className="panel-card-title">
+                  <Layers className="panel-card-icon" />
+                  {t('commandDetail.presets')}
+                </span>
+              </div>
+
+              <div className="panel-card-body">
+                <div className="preset-search-row">
+                  <div className="preset-search-input-wrap">
+                    <Search className="preset-search-icon" />
+                    <input
+                      type="text"
+                      className="preset-search-input"
+                      value={presetSearch}
+                      onChange={(e) => setPresetSearch(e.target.value)}
+                      placeholder={t('commandDetail.searchPresets')}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="preset-chip-add"
+                    aria-label={t('commandDetail.addPreset')}
+                    onClick={async () => {
+                      preAddPresetIdRef.current = selectedPresetId;
+                      const hasValues = Object.values(resolvedValues).some((v) => v.trim());
+                      const newId = await onAddPreset(hasValues ? resolvedValues : undefined);
+                      setSelectedPresetId(newId);
+                      setRenamingChipId(newId);
+                      setNewlyCreatedPresetId(newId);
+                      setRenamingChipDraft('');
+                    }}
+                  >
+                    <Plus className="size-3.5" />
+                    {t('commandDetail.addPreset')}
+                  </Button>
+                </div>
+
+                {(command.presets?.length ?? 0) === 0 ? (
+                  <div className="preset-empty">{t('commandDetail.noPresetsFound')}</div>
+                ) : (
+                  <>
+                    <DndContext sensors={presetSensors} collisionDetection={closestCenter} onDragEnd={handlePresetDragEnd}>
+                      <SortableContext items={presetIds} strategy={verticalListSortingStrategy}>
+                        <div className="preset-rows">
+                          {command.presets?.map((p) => {
+                            const q = presetSearch.trim().toLowerCase();
+                            const matchesSearch = !q || p.name.toLowerCase().includes(q);
+                            return (
+                              <SortablePresetRow
+                                key={p.id}
+                                id={p.id}
+                                name={p.name}
+                                isActive={selectedPresetId === p.id}
+                                isRenaming={renamingChipId === p.id}
+                                renamingDraft={renamingChipDraft}
+                                previewText={resolveScriptForPreset(p.values)}
+                                matchesSearch={matchesSearch}
+                                onSelect={() => setSelectedPresetId((prev) => (prev === p.id ? '' : p.id))}
+                                onDoubleClick={() => {
+                                  setSelectedPresetId(p.id);
+                                  setRenamingChipId(p.id);
+                                  setRenamingChipDraft(p.name);
+                                }}
+                                onSetRenaming={(id, name) => {
+                                  setRenamingChipId(id);
+                                  setRenamingChipDraft(name);
+                                }}
+                                onRenameChange={setRenamingChipDraft}
+                                onCommitRename={commitChipRename}
+                                onConfirmDelete={setConfirmDeletePresetId}
+                                renameLabel={t('commandDetail.rename')}
+                                deleteLabel={t('commandDetail.delete')}
+                                moreLabel={t('commandDetail.presetRowMenu')}
+                                presetNamePlaceholder={t('commandDetail.presetNamePlaceholder')}
+                              />
+                            );
+                          })}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    {filteredPresetsCount === 0 && (
+                      <div className="preset-empty">{t('commandDetail.noPresetsFound')}</div>
+                    )}
+                  </>
+                )}
+
+                {variables.length > 0 && (
+                  <div className="preset-values-form">
+                    <div className="preset-values-header">
+                      <span>{t('commandDetail.presetValuesLabel')}</span>
+                      {hasUnsavedChanges && (
+                        <div className="var-section-actions">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon-xs" data-testid="preset-values-revert" onClick={() => setOverrides({})}>
+                                <X className="size-3.5 text-destructive" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('commandDetail.revertChanges')}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                data-testid="preset-values-save"
+                                onClick={async () => {
                                   await onSavePresetValues(selectedPresetId, resolvedValues);
                                   setOverrides({});
-                                } catch {
-                                  toast.error(t('commandDetail.savePresetFailed'));
-                                }
+                                }}
+                              >
+                                <Check className="size-3.5 text-success" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('commandDetail.savePresetValues')}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="var-cards-list">
+                      {variables.map((v) => {
+                        const val = resolvedValues[v.name];
+                        return (
+                          <div key={v.name} className={`var-card${val ? '' : ' var-card-empty'}`}>
+                            <div className="var-label" title={'{{' + v.name + '}}'}>{v.name}</div>
+                            <input
+                              className="var-input preset-var-input"
+                              data-testid={`preset-var-input-${v.name}`}
+                              autoComplete="off"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck={false}
+                              value={val}
+                              onChange={(e) =>
+                                setOverrides((prev) => ({ ...prev, [v.name]: e.target.value }))
                               }
-                            }
-                            if (e.key === 'Escape') {
-                              e.preventDefault();
-                              setOverrides((prev) => {
-                                const next = { ...prev };
-                                delete next[v.name];
-                                return next;
-                              });
-                            }
-                          }}
-                          title={t('commandDetail.clickToEdit')}
-                          placeholder={t('commandDetail.clickToSet')}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+                              onFocus={() => setFocusedVarName(v.name)}
+                              onBlur={() =>
+                                setFocusedVarName((current) => (current === v.name ? null : current))
+                              }
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (selectedPresetId) {
+                                    try {
+                                      await onSavePresetValues(selectedPresetId, resolvedValues);
+                                      setOverrides({});
+                                    } catch {
+                                      toast.error(t('commandDetail.savePresetFailed'));
+                                    }
+                                  }
+                                }
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setOverrides((prev) => {
+                                    const next = { ...prev };
+                                    delete next[v.name];
+                                    return next;
+                                  });
+                                }
+                              }}
+                              title={t('commandDetail.clickToEdit')}
+                              placeholder={t('commandDetail.clickToSet')}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-              {hasUnsavedChanges && (
-                <div className="command-text-box-header-actions" style={{ justifyContent: 'flex-end', padding: '4px 8px 8px' }}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" data-testid="preset-values-revert" onClick={() => setOverrides({})}>
-                        <X className="size-3.5 text-destructive" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.revertChanges')}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        data-testid="preset-values-save"
-                        onClick={async () => {
-                          await onSavePresetValues(selectedPresetId, resolvedValues);
-                          setOverrides({});
-                        }}
-                      >
-                        <Check className="size-3.5 text-success" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('commandDetail.savePresetValues')}</TooltipContent>
-                  </Tooltip>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1256,6 +1504,31 @@ const CommandDetail: React.FC<CommandDetailProps> = ({
               saveScriptEdit();
             }}>
               {t('commandDetail.saveScript')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmDeleteCommandOpen}
+        onOpenChange={setConfirmDeleteCommandOpen}
+      >
+        <AlertDialogContent data-testid="confirm-delete-command-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('commandDetail.deleteCommandTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('commandDetail.deleteCommandDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="confirm-delete-command-cancel">{t('commandDetail.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              data-testid="confirm-delete-command-confirm"
+              onClick={() => {
+                onDeleteCommand?.(command);
+                setConfirmDeleteCommandOpen(false);
+              }}
+            >
+              {t('commandDetail.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

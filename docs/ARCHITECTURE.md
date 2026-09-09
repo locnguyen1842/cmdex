@@ -71,7 +71,7 @@ The `App` struct manages application lifecycle and the secondary settings window
 
 ### Services
 
-CmDex registers **eight** Wails v3 services in `main.go`:
+CmDex registers **ten** Wails v3 services in `main.go`:
 
 | Service | File | Responsibility |
 |---------|------|----------------|
@@ -83,6 +83,8 @@ CmDex registers **eight** Wails v3 services in `main.go`:
 | `EventService` | `event_service.go` | Exposes event name constants so both sides use the same strings |
 | `TerminalService` | `terminal_service.go` | Multi-session PTY terminals, output capture, shell integration |
 | `LauncherService` | `launcher_service.go` | Global launcher window, shortcut registration, launch-at-login, and its internal terminal session |
+| `UpdateService` | `update_service.go` | Release checks, download, and restart-to-update (About dialog) |
+| `SuggestionService` | `suggestion_service.go` | Shell-history source for the terminal's Warp-style autosuggestions (`shell_history.go` parses zsh/bash/fish/PSReadLine history files) |
 
 ### Database (`db.go`)
 
@@ -441,7 +443,8 @@ cmdex/
 │   │   ├── App.tsx             # Central state, tabs, modals, terminal sessions
 │   │   ├── types.ts            # TypeScript interfaces (mirror of Go models)
 │   │   ├── i18n.ts             # i18n configuration
-│   │   ├── style.css           # Global CSS variables & themes
+│   │   ├── style.css           # Fonts, theme blocks (shadcn palette + design tokens), base/layout
+│   │   ├── styles/             # Per-surface stylesheets (sidebar, editor, terminal, …) + DESIGN.md
 │   │   ├── components/         # Feature components + ui/ (shadcn primitives)
 │   │   ├── hooks/              # useKeyboardShortcuts, useResizable, useSyncedRef, …
 │   │   ├── utils/              # tab, tabDraft, templateVars, path, clipboard

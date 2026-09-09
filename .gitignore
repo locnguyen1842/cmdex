@@ -43,3 +43,7 @@ playwright/.auth/
 # HISTFILE is ever misdirected there again during local testing — never a
 # shipped asset (see shell-integration/zsh/.zshrc).
 shell-integration/zsh/.zsh_history
+
+# Subagent scratch state
+.claude/agent-memory/
+frontend/.claude/

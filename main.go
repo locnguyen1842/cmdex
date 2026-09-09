@@ -25,10 +25,13 @@ var assets embed.FS
 const mainWindowName = "main"
 
 const (
-	mainWindowWidth                            = 1200
-	mainWindowHeight                           = 800
-	mainWindowMinWidth                         = 900
-	mainWindowMinHeight                        = 600
+	mainWindowWidth     = 1200
+	mainWindowHeight    = 800
+	mainWindowMinWidth  = 900
+	mainWindowMinHeight = 600
+	// Height of the app's own top bar (sidebar header / tab bar) that doubles
+	// as the window drag region on macOS.
+	mainWindowChromeHeight                     = 44
 	windowBgR, windowBgG, windowBgB, windowBgA = 15, 15, 20, 255
 )
 
@@ -48,6 +51,7 @@ func main() {
 			application.NewService(&EventService{}),
 			application.NewService(&LauncherService{}),
 			application.NewService(&UpdateService{}),
+			application.NewService(&SuggestionService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.BundledAssetFileServer(assets),
@@ -104,6 +108,17 @@ func main() {
 		Hidden:             startHidden,
 		UseApplicationMenu: true,
 		BackgroundColour:   application.NewRGBA(windowBgR, windowBgG, windowBgB, windowBgA),
+		// Warp-style chrome on macOS: no native title bar. The traffic lights
+		// render at their standard spot inside a slim strip the frontend draws
+		// across the top (App.tsx `titlebar-strip`, only on darwin), and that
+		// strip is the window's drag region. MacTitleBarHidden rather than
+		// HiddenInset: the inset variant installs an NSToolbar, which on
+		// macOS 26 also inflates the window's corner radius. Windows and Linux
+		// keep their native frame.
+		Mac: application.MacWindow{
+			TitleBar:                application.MacTitleBarHidden,
+			InvisibleTitleBarHeight: mainWindowChromeHeight,
+		},
 	})
 
 	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {

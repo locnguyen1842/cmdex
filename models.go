@@ -167,6 +167,12 @@ type AppSettings struct {
 	// takes effect for sessions started after the change, not existing ones.
 	ShellIntegration *bool `json:"shellIntegration,omitempty"`
 
+	// TerminalSuggestions toggles the Warp-style autosuggestions in the built-in
+	// terminal (inline ghost text plus the suggestion menu, fed by shell history
+	// and saved commands — see suggestion_service.go). nil = unset, defaults to
+	// enabled; a change applies immediately to every open session.
+	TerminalSuggestions *bool `json:"terminalSuggestions,omitempty"`
+
 	// Global quick launcher. The *bool fields use nil = "leave unchanged" so a
 	// partial SetSettings payload cannot silently switch a flag off.
 	LauncherEnabled  *bool  `json:"launcherEnabled,omitempty"` // register the system-wide shortcut

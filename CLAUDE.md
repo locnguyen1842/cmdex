@@ -51,7 +51,7 @@ cd frontend && pnpm install
 
 ### Wails Bindings (Go ↔ Frontend)
 
-Eight services are registered as `application.Service` in `main.go` — not a single monolithic `App` struct. Wails auto-generates TypeScript bindings per service under `frontend/bindings/cmdex/<servicename>.js` (**not** `frontend/wailsjs/`, which doesn't exist in this v3 project). To add a backend feature:
+Ten services are registered as `application.Service` in `main.go` — not a single monolithic `App` struct. Wails auto-generates TypeScript bindings per service under `frontend/bindings/cmdex/<servicename>.js` (**not** `frontend/wailsjs/`, which doesn't exist in this v3 project). To add a backend feature:
 
 1. Add a method to the relevant service struct (or create a new service and register it in `main.go`'s `Services` slice)
 2. Run `wails3 generate bindings` (or `wails3 dev`, which regenerates automatically)
@@ -63,7 +63,7 @@ Eight services are registered as `application.Service` in `main.go` — not a si
 
 | File | Responsibility |
 | --- | --- |
-| `main.go` | Entry point: `application.New(...)`, registration of all 8 services, native menu, main window config |
+| `main.go` | Entry point: `application.New(...)`, registration of all 10 services, native menu, main window config |
 | `app.go` | `App` service: lifecycle (`ServiceStartup`/`ServiceShutdown`), settings-window management, `GetOS`, `PickDirectory`; owns the package-level `db`/`executor`/`terminalSvc`/`wailsApp` vars other services read |
 | `command_service.go` | `CommandService`: CRUD for categories/commands/presets, reordering, FTS search, `ResetAllData` |
 | `execution_service.go` | `ExecutionService`: `GetVariables` (CEL defaults), `RunCommand`, working-directory resolution |
@@ -72,6 +72,7 @@ Eight services are registered as `application.Service` in `main.go` — not a si
 | `event_service.go` | `EventService`: `GetEventNames` — exposes the `EventNames` constants so the frontend never hardcodes event strings |
 | `terminal_service.go` | `TerminalService`: multi-session PTY terminals (create/close/rename/activate, write, resize, clear, start/stop). `MaxSessions = 10` |
 | `launcher_service.go` | `LauncherService`: global launcher window, shortcut registration, launch-at-login, and its one persistent internal terminal session (eagerly started after `TerminalService`) |
+| `suggestion_service.go`, `shell_history.go` | `SuggestionService`: `GetShellHistory` — reads the session shell's own history file (zsh/bash/fish/PSReadLine formats, tail-bounded, mtime-cached) for the terminal's Warp-style autosuggestions |
 | `pty_backend.go`, `pty_backend_unix.go`, `pty_backend_windows.go`, `pty_backend_mock.go` | PTY abstraction (`ptyHandle`/`ptyProcess`) per platform: `creack/pty` on Unix, `charmbracelet/x/conpty` on Windows, plus a mock backend for tests |
 | `pty_env.go` | `buildPtyEnv`: supplies `TERM`/`COLORTERM`/`LANG` etc. that launchd-started GUI apps don't inherit, and merges shell-integration env |
 | `shell_integration.go` | Materializes the embedded `shell-integration/` scripts to `~/.cmdex` and activates OSC 133 markers in the session shell via a per-session nonce |
@@ -113,6 +114,7 @@ Per-session terminal events are **not** in `EventNames` — they are built by st
 - `pty-output:<sessionId>` — `{ data: string }`, raw PTY bytes
 - `pty-exit:<sessionId>` — `{ exitCode: number, wasIntentional: boolean }`
 - `pty-cleared:<sessionId>` — no payload
+- `pty-cwd:<sessionId>` — `{ cwd: string }`, the shell's live working directory from its OSC 7 report (shell integration only)
 
 There is no `cmd-output` event. Older docs referenced one; it does not exist.
 
@@ -127,7 +129,7 @@ There is no `cmd-output` event. Older docs referenced one; it does not exist.
 - **Hooks** in `src/hooks/`: `useKeyboardShortcuts`, `useResizable`, `useSyncedRef`, `useCopyToClipboard`
 - **Utils** in `src/utils/`: `tab.ts` (tab IDs + display titles), `tabDraft.ts` (draft/baseline/dirty), `templateVars.ts`, `clipboard.ts`, `path.ts`
 - **Lib** in `src/lib/`: `utils.ts` (`cn`), `shortcuts.ts` (shortcut registry), `theme-apply.ts` (`applyTheme`/`applyDensity`/`applyFonts` write CSS custom properties)
-- Styling: Tailwind CSS v4 with custom CSS variables in `style.css` (`--bg-primary`, `--accent-primary`, …)
+- Styling: Tailwind CSS v4. `style.css` holds bundled fonts, the shadcn theme mapping, every theme block, density/base/layout, and `@import`s of the per-surface stylesheets in `src/styles/*.css` (`sidebar`, `tabbar`, `editor`, `welcome`, `palette`, `variable-prompt`, `terminal`, `launcher`, `settings`). Two token vocabularies: the shadcn palette (`--background`, `--primary`, `--muted`, `--accent` = hover surface, …) that themes and custom themes define, and the design-system tokens component CSS reads (`--bg`, `--bg-2`, `--surface`, `--surface-2`, `--border-strong`, `--fg`, `--fg-muted`, `--fg-faint`, `--brand` = the purple accent, `--brand-soft`, `--ok`, `--danger`, `--r*`, `--shadow-pop`). `:root` derives the design tokens from the palette, so all built-in and custom themes adapt; `classic` (default) and `classic-light` pin the exact design values. Brief: `src/styles/DESIGN.md`. Never hardcode colors
 
 There is no `OutputPane` or `HistoryPane` — both were removed when execution moved into the PTY terminal.
 
@@ -161,7 +163,16 @@ The editor is tab-based (it replaced a modal `CommandEditor`):
 - Each session gets a fresh random **nonce** passed via a mode-0600 file (`oscNonceFileEnvVar`), not an env var value — the scripts read it and delete the file before sourcing any user profile, so spawned processes can't read it back out of `/proc/<pid>/environ` and forge markers.
 - `terminal_capture.go` scans the raw stream for `C`/`D` markers and records the bytes between them as the last command's output (bounded by `maxCaptureBytes`, 1 MiB, keeping the tail). `GetLastOutput` returns `TerminalLastOutput{Available, Text, ExitCode, Truncated}`; `Available: false` means the shell has no integration and the frontend should fall back to scraping the xterm buffer. Exit code never gates `Available` — output is captured verbatim regardless of whether the command succeeded or failed. `Available: true` with blank `Text` is also possible (e.g. a stale "D" with no preceding "C"); the frontend's `copyLastOutput` (`App.tsx`) falls back to the xterm scrape in that case too, not only when `Available` is false.
 - `ansi.go`'s `stripANSI` collapses bare-`\r` redraws per line by keeping the **last non-empty** segment between carriage returns, not unconditionally the text after the final one — a trailing `\r` with nothing after it (a ConPTY repaint, or PowerShell's own error-record rendering) must not wipe the line. Getting this wrong previously made "copy last output" return blank lines instead of the real error text for a failed Windows command.
+- The integration scripts also print a standard **OSC 7** working-directory report (`ESC ] 7 ; file://<host><percent-encoded cwd> BEL`) right after every `D` marker and once at startup. `captureScan` decodes it into `sessionState.cwd` (guarded by `capMu`, read via `liveCwd`), keeps its bytes out of the capture, and `scanOutput` emits `pty-cwd:<id>` `{ cwd }` when it changes. `SessionInfo.Cwd` reports the live value (falling back to `workingDir`); `sessionCwd` (`shell_completion.go`) is what `CompletePath` lists against. OSC 7 is deliberately **not** nonce-gated — it only steers completion. `resetCwd` runs on the restart path only, not from `Clear`: zsh/bash don't run their prompt hooks on Ctrl+L, so wiping it there would leave completion pointing at `workingDir` until the next command.
 - Toggled by `AppSettings.ShellIntegration` (nil = enabled). A change applies to **newly started sessions only**.
+
+### Terminal Autosuggestions (Warp-style)
+
+- `Terminal.tsx` shows the most recent matching command as inline **ghost text** after the cursor (an xterm decoration on the cursor row) and lists further matches in a **menu** under the input. Candidates: commands submitted in this session, the shell's history file (`SuggestionService.GetShellHistory`, `shell_history.go`), and saved commands (`utils/terminalSuggest.ts` ranks them: prefix > word prefix > substring > subsequence; ties keep candidate order so recency wins).
+- The prompt input is recovered from the xterm buffer by `lib/terminalInputTracker.ts`: OSC 133 `C`/`D` markers (parsed again on the frontend via `term.parser.registerOscHandler(133, …)`) say whether keystrokes go to a prompt or a running program, and the first keystroke after a prompt pins an xterm marker where the input starts. Without shell integration only the keystroke signal exists, so typing into a running program can show suggestions — a documented limitation.
+- Keys: `→` / `End` / `Ctrl+F` accept the ghost (`Alt+→` one word); `↓` highlights a menu row, then `⇥` inserts it, `↵` inserts and submits, `↑` past the top deselects; `Esc` dismisses until the input changes. **With nothing highlighted every key still reaches the shell** — except `⇥`, which completes the top row when it's a token completion (see below); with only whole-line rows, `⇥` still passes through so the shell's own completion keeps working. Saved commands with `{{variables}}` or several lines are never ghost text; accepting one erases the typed text (Backspace × chars) and runs it through `handlePaletteExecute`.
+- **Tab completion** (Warp-style, layered on top of the above): on every `refresh()`, `utils/terminalCompletion.ts`'s `parseCommandLine`/`completionContext` resolve the typed line against `lib/completionSpecs.ts` (a static Fig-like table for ~60 CLIs — git, docker, npm/pnpm/yarn/bun, kubectl, …) into one of `command` (first token), `subcommand`, `option` (dash-prefixed token), `path`, or `none`. Subcommand/option results are synchronous spec lookups; `command`/`path` results come from `SuggestionService.CompleteCommands`/`CompletePath` (`suggestionservice.js`), debounced ~40ms, cached per `(kind, prefix, cwd)`, and cancelled by comparing the request's text against the latest before firing. The path cache is cleared on a `pty-cwd:<id>` event or an OSC 133 `D` marker. Results merge into one menu, token completions first, then the existing whole-line suggestions; accepting a directory (trailing `/`) skips the debounce on the very next fetch so drilling down feels instant.
+- Toggled by `AppSettings.TerminalSuggestions` (nil = enabled); applies to every open session immediately. The launcher's terminal leaves the props unset, so it never suggests.
 - `captureScan` must be called only from the session's single read-loop goroutine, and it treats the byte slice it is handed as immutable — it may retain a trailing partial marker in `capCarry`.
 
 ### Preset & Variable UX Patterns

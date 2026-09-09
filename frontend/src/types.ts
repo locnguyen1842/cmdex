@@ -39,7 +39,8 @@ export const THEMES: ReadonlyArray<{ id: string; label: string; type: 'dark' | '
   { id: 'monokai', label: 'Monokai', type: 'dark' },
   { id: 'tokyo-night', label: 'Tokyo Night', type: 'dark' },
   { id: 'one-dark', label: 'One Dark Pro', type: 'dark' },
-  { id: 'classic', label: 'Classic (Purple)', type: 'dark' },
+  { id: 'classic', label: 'Cmdex Classic', type: 'dark' },
+  { id: 'classic-light', label: 'Cmdex Classic Light', type: 'light' },
   { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', type: 'dark' },
   { id: 'dracula', label: 'Dracula', type: 'dark' },
 ];
@@ -83,6 +84,10 @@ export interface SessionInfo {
   running: boolean;
   shellPath: string;
   workingDir: string;
+  /** Live cwd as last reported by shell integration (OSC 7), or `workingDir`
+   * until the first report. Kept current afterwards via `pty-cwd:<id>`
+   * events — see App.tsx's `sessionCwds`. */
+  cwd: string;
 }
 
 export interface ExecutionRecord {
@@ -129,6 +134,8 @@ export interface SettingsPayload {
   windowY?: number;
   windowWidth?: number;
   windowHeight?: number;
+  shellIntegration?: boolean;
+  terminalSuggestions?: boolean;
   autoUpdateCheck?: boolean;
   betaChannel?: boolean;
   lastUpdateCheck?: string;

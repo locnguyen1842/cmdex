@@ -7,8 +7,9 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import LauncherSettings from './LauncherSettings';
+import BrandMark from './BrandMark';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Upload, Download, X, FolderOpen } from 'lucide-react';
+import { Upload, Download, X, FolderOpen, Plus, SlidersHorizontal, Palette, Terminal, AlertTriangle } from 'lucide-react';
 import { SetSettings, GetSettings } from '../../bindings/cmdex/settingsservice';
 import { PickDirectory, GetOS } from '../../bindings/cmdex/app';
 import { SaveThemeTemplate } from '../../bindings/cmdex/importexportservice';
@@ -24,6 +25,7 @@ const LANGUAGES = [
 ];
 
 const UI_FONTS = [
+  { id: 'Manrope', label: 'Manrope', fontFamily: "'Manrope', system-ui, sans-serif" },
   { id: 'Inter', label: 'Inter', fontFamily: "'Inter', system-ui, sans-serif" },
   { id: 'Geist', label: 'Geist', fontFamily: "'Geist', system-ui, sans-serif" },
   { id: 'Nunito', label: 'Nunito', fontFamily: "'Nunito', system-ui, sans-serif" },
@@ -43,7 +45,8 @@ const THEME_DOTS: Record<string, [string, string, string, string]> = {
   'monokai':            ['#272822', '#2d2e27', '#a6e22e', '#f8f8f2'],
   'tokyo-night':        ['#1a1b26', '#16161e', '#7aa2f7', '#a9b1d6'],
   'one-dark':           ['#282c34', '#21252b', '#61afef', '#abb2bf'],
-  'classic':            ['#0f0f14', '#16161e', '#7c6aef', '#e8e8f0'],
+  'classic':            ['#1a1b23', '#121318', '#a78bfa', '#ececf1'],
+  'classic-light':      ['#fafafc', '#f2f2f6', '#7c5ce6', '#2b2b35'],
   'catppuccin-mocha':   ['#1e1e2e', '#181825', '#cba6f7', '#cdd6f4'],
   'dracula':            ['#282a36', '#21222c', '#bd93f9', '#f8f8f2'],
 };
@@ -66,66 +69,24 @@ function ThemeSwatch({ label, themeType, dots, selected, onSelect, onRemove }: T
       aria-label={`${label} theme, ${themeType}`}
       aria-pressed={selected}
       onClick={onSelect}
-      className={[
-        'relative flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full',
-        selected
-          ? 'ring-2 ring-primary ring-offset-1 border-primary'
-          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
-      ].join(' ')}
+      className="settings-theme-tile"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1">
-          {dots.map((color, i) => (
-            <span
-              key={i}
-              className="w-3 h-3 rounded-full inline-block flex-shrink-0"
-              style={{ backgroundColor: color }}
-            />
-          ))}
-        </div>
-        <span className="text-[10px] leading-none text-muted-foreground ml-1">
-          {themeType === 'dark' ? '🌙' : '☀️'}
-        </span>
+      <div className="settings-theme-swatches">
+        {dots.map((color, i) => (
+          <span key={i} className="settings-theme-sw" style={{ backgroundColor: color }} />
+        ))}
       </div>
-      <span className="text-[11px] mt-1 truncate leading-[1.3] pr-4">{label}</span>
+      <span className="settings-theme-name">{label}</span>
       {onRemove && (
         <button
           type="button"
           aria-label={`Remove ${label} theme`}
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="absolute bottom-2 right-2 text-[14px] leading-none text-muted-foreground hover:text-destructive transition-colors"
+          className="settings-theme-remove"
         >
           <X size={12} />
         </button>
       )}
-    </button>
-  );
-}
-
-interface FontPickerCardProps {
-  fontFamily: string;
-  label: string;
-  selected: boolean;
-  onSelect: () => void;
-}
-
-function FontPickerCard({ fontFamily, label, selected, onSelect }: FontPickerCardProps) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className={[
-        'flex flex-col p-2 rounded-md border text-left transition-colors duration-150 w-full min-h-[56px]',
-        selected
-          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary'
-          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30',
-      ].join(' ')}
-    >
-      <span style={{ fontFamily }} className="text-sm font-medium truncate leading-[1.4]">{label}</span>
-      <span style={{ fontFamily }} className="text-[11px] text-muted-foreground mt-0.5 leading-[1.3]">
-        ABC abc 012
-      </span>
     </button>
   );
 }
@@ -149,7 +110,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   customThemes,
   onImportTheme,
   onRemoveCustomTheme,
-  uiFont = 'Inter',
+  uiFont = 'Manrope',
   monoFont = 'JetBrains Mono',
   density = 'comfortable',
 }) => {
@@ -171,6 +132,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [draftWorkingDir, setDraftWorkingDir] = useState('');
   const [currentOS, setCurrentOS] = useState<OSKey>('unknown');
   const [shellIntegration, setShellIntegrationState] = useState(true);
+  const [terminalSuggestions, setTerminalSuggestionsState] = useState(true);
   const [autoUpdateCheck, setAutoUpdateCheckState] = useState(false);
 
   // Refs track the latest values so the async GetSettings → merge → SetSettings
@@ -182,6 +144,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const draftMonoFontRef = useRef(draftMonoFont);
   const draftDensityRef = useRef(draftDensity);
   const shellIntegrationRef = useRef(shellIntegration);
+  const terminalSuggestionsRef = useRef(terminalSuggestions);
   const autoUpdateCheckRef = useRef(autoUpdateCheck);
 
   // Sync refs after every render so async callbacks always read the latest.
@@ -192,6 +155,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     draftMonoFontRef.current = draftMonoFont;
     draftDensityRef.current = draftDensity;
     shellIntegrationRef.current = shellIntegration;
+    terminalSuggestionsRef.current = terminalSuggestions;
     autoUpdateCheckRef.current = autoUpdateCheck;
   });
 
@@ -209,14 +173,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       const merged = {
         locale: localeRef.current,
         theme: draftThemeRef.current,
-        lastDarkTheme: current?.lastDarkTheme || 'vscode-dark',
-        lastLightTheme: current?.lastLightTheme || 'vscode-light',
+        lastDarkTheme: current?.lastDarkTheme || 'classic',
+        lastLightTheme: current?.lastLightTheme || 'classic-light',
         customThemes: current?.customThemes || customThemesStrRef.current,
         uiFont: draftUiFontRef.current,
         monoFont: draftMonoFontRef.current,
         density: draftDensityRef.current,
         defaultWorkingDir: current?.defaultWorkingDir || {},
         shellIntegration: shellIntegrationRef.current,
+        terminalSuggestions: terminalSuggestionsRef.current,
         autoUpdateCheck: autoUpdateCheckRef.current,
         ...override,
       };
@@ -262,6 +227,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     persistSettings({ shellIntegration: v });
   }, [markTouched, persistSettings]);
 
+  const changeTerminalSuggestions = useCallback((v: boolean) => {
+    markTouched();
+    setTerminalSuggestionsState(v);
+    persistSettings({ terminalSuggestions: v });
+  }, [markTouched, persistSettings]);
+
   const changeAutoUpdateCheck = useCallback((v: boolean) => {
     markTouched();
     setAutoUpdateCheckState(v);
@@ -295,15 +266,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         setDraftWorkingDir(wd);
         const loc = s?.locale || i18n.language || 'en';
         setLocale(loc);
-        setSavedTheme(s.theme || 'vscode-dark');
-        setDraftTheme(s.theme || 'vscode-dark');
-        setSavedUiFont(s.uiFont || 'Inter');
-        setDraftUiFont(s.uiFont || 'Inter');
+        setSavedTheme(s.theme || 'classic');
+        setDraftTheme(s.theme || 'classic');
+        setSavedUiFont(s.uiFont || 'Manrope');
+        setDraftUiFont(s.uiFont || 'Manrope');
         setSavedMonoFont(s.monoFont || 'JetBrains Mono');
         setDraftMonoFont(s.monoFont || 'JetBrains Mono');
         setSavedDensity(s.density || 'comfortable');
         setDraftDensity(s.density || 'comfortable');
         setShellIntegrationState(s.shellIntegration ?? true);
+        setTerminalSuggestionsState(s.terminalSuggestions ?? true);
         setAutoUpdateCheckState(s.autoUpdateCheck ?? false);
       })
       .catch(() => {});
@@ -411,169 +383,46 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }, []);
 
+  const uiFontFamily = UI_FONTS.find(f => f.id === draftUiFont)?.fontFamily ?? UI_FONTS[0].fontFamily;
+  const monoFontFamily = MONO_FONTS.find(f => f.id === draftMonoFont)?.fontFamily ?? MONO_FONTS[0].fontFamily;
+
   return (
-    <div className="p-4 space-y-4">
-      <Tabs defaultValue="appearance" className="w-full">
-        <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-border h-auto mb-0">
-          <TabsTrigger
-            value="appearance"
-            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
-          >
-            {t('settings.tabs.appearance')}
+    <Tabs defaultValue="appearance" orientation="vertical" className="settings-shell">
+      <nav className="settings-nav" aria-label={t('settings.title')}>
+        <div className="settings-nav-title"><BrandMark size={18} />{t('settings.title')}</div>
+        <TabsList className="settings-nav-list" aria-label={t('settings.title')}>
+          <TabsTrigger value="general" className="settings-nav-item">
+            <SlidersHorizontal size={15} strokeWidth={1.8} />
+            {t('settings.nav.general')}
           </TabsTrigger>
-          <TabsTrigger
-            value="typography"
-            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
-          >
-            {t('settings.tabs.typography')}
+          <TabsTrigger value="appearance" className="settings-nav-item">
+            <Palette size={15} strokeWidth={1.8} />
+            {t('settings.nav.appearance')}
           </TabsTrigger>
-          <TabsTrigger
-            value="general"
-            className="rounded-none border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground bg-transparent shadow-none"
-          >
-            {t('settings.tabs.general')}
+          <TabsTrigger value="terminal" className="settings-nav-item">
+            <Terminal size={15} strokeWidth={1.8} />
+            {t('settings.nav.terminal')}
+          </TabsTrigger>
+          <TabsTrigger value="import-export" className="settings-nav-item">
+            <Upload size={15} strokeWidth={1.8} />
+            {t('settings.nav.importExport')}
+          </TabsTrigger>
+          <TabsTrigger value="danger" className="settings-nav-item settings-nav-item-danger">
+            <AlertTriangle size={15} strokeWidth={1.8} />
+            {t('settings.dangerZone')}
           </TabsTrigger>
         </TabsList>
+      </nav>
 
-        <TabsContent value="appearance" className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground">{t('settings.theme')}</p>
-            <div
-              role="group"
-              aria-label="Theme selection"
-              className="grid grid-cols-4 gap-2 p-3 max-h-[200px] overflow-y-auto scrollbar-hide"
-            >
-              {THEMES.map(th => (
-                <ThemeSwatch
-                  key={th.id}
-                  id={th.id}
-                  label={th.label}
-                  themeType={th.type}
-                  dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
-                  selected={draftTheme === th.id}
-                  onSelect={() => changeTheme(th.id)}
-                />
-              ))}
-            </div>
-          </div>
+      <div className="settings-content">
+        <TabsContent value="general" className="settings-page">
+          <h2 className="settings-page-title">{t('settings.nav.general')}</h2>
+          <p className="settings-page-sub">{t('settings.sectionSubtitles.general')}</p>
 
-          {(customThemes?.length ?? 0) > 0 && (
-            <div className="pt-3 border-t border-border space-y-2">
-              <p className="text-[11px] text-muted-foreground">{t('settings.customThemes')}</p>
-              <div role="group" aria-label="Custom themes" className="grid grid-cols-2 gap-2">
-                {customThemes!.map(ct => (
-                  <ThemeSwatch
-                    key={ct.id}
-                    id={ct.id}
-                    label={ct.name}
-                    themeType={ct.type}
-                    dots={[
-                      ct.colors.background ?? '#888',
-                      ct.colors.card ?? '#666',
-                      ct.colors.primary ?? '#aaa',
-                      ct.colors.foreground ?? '#ccc',
-                    ]}
-                    selected={draftTheme === ct.id}
-                    onSelect={() => changeTheme(ct.id)}
-                    onRemove={() => onRemoveCustomTheme?.(ct.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload size={14} className="mr-1" />
-              {t('settings.importTheme')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="flex-1"
-              onClick={handleDownloadTemplate}
-            >
-              <Download size={14} className="mr-1.5" />
-              {t('settings.downloadTemplate')}
-            </Button>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            aria-hidden="true"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-
-          <div className="pt-3 border-t border-border space-y-2">
-            <p className="text-sm font-medium">{t('settings.densityLabel')}</p>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              value={draftDensity}
-              onValueChange={(v) => { if (v) changeDensity(v); }}
-              className="w-full"
-            >
-              <ToggleGroupItem value="compact" className="flex-1">
-                {t('settings.densityCompact')}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="comfortable" className="flex-1">
-                {t('settings.densityComfortable')}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="spacious" className="flex-1">
-                {t('settings.densitySpacious')}
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="typography" className="space-y-5 pt-4">
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">{t('settings.uiFontLabel')}</Label>
-            <div role="group" aria-label="UI font selection" className="grid grid-cols-3 gap-2">
-              {UI_FONTS.map(font => (
-                <FontPickerCard
-                  key={font.id}
-                  fontFamily={font.fontFamily}
-                  label={font.label}
-                  selected={draftUiFont === font.id}
-                  onSelect={() => changeUiFont(font.id)}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">{t('settings.monoFontLabel')}</Label>
-            <div role="group" aria-label="Editor font selection" className="grid grid-cols-3 gap-2">
-              {MONO_FONTS.map(font => (
-                <FontPickerCard
-                  key={font.id}
-                  fontFamily={font.fontFamily}
-                  label={font.label}
-                  selected={draftMonoFont === font.id}
-                  onSelect={() => changeMonoFont(font.id)}
-                />
-              ))}
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="general" className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <Label>{t('settings.language')}</Label>
+          <div className="settings-field">
+            <Label className="settings-field-label">{t('settings.language')}</Label>
             <Select value={locale} onValueChange={changeLocale}>
-              <SelectTrigger>
+              <SelectTrigger className="settings-select-trigger">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -583,8 +432,129 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>{t('settings.workingDirectory')}</Label>
+
+          <div className="settings-section">
+            <LauncherSettings />
+          </div>
+
+          <div className="settings-section">
+            <p className="settings-field-label">{t('settings.updates')}</p>
+            <div className="settings-toggle-row">
+              <div>
+                <Label htmlFor="auto-update-check-toggle">{t('settings.autoUpdateCheck')}</Label>
+                <p className="settings-hint">{t('settings.autoUpdateCheckHint')}</p>
+              </div>
+              <Switch
+                id="auto-update-check-toggle"
+                checked={autoUpdateCheck}
+                onCheckedChange={changeAutoUpdateCheck}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="appearance" className="settings-page">
+          <h2 className="settings-page-title">{t('settings.nav.appearance')}</h2>
+          <p className="settings-page-sub">{t('settings.sectionSubtitles.appearance')}</p>
+
+          <div className="settings-field-label">{t('settings.theme')}</div>
+          <div role="group" aria-label="Theme selection" className="settings-theme-grid">
+            {THEMES.map(th => (
+              <ThemeSwatch
+                key={th.id}
+                id={th.id}
+                label={th.label}
+                themeType={th.type}
+                dots={THEME_DOTS[th.id] ?? ['#888', '#666', '#aaa', '#ccc']}
+                selected={draftTheme === th.id}
+                onSelect={() => changeTheme(th.id)}
+              />
+            ))}
+            {customThemes?.map(ct => (
+              <ThemeSwatch
+                key={ct.id}
+                id={ct.id}
+                label={ct.name}
+                themeType={ct.type}
+                dots={[
+                  ct.colors.background ?? '#888',
+                  ct.colors.card ?? '#666',
+                  ct.colors.primary ?? '#aaa',
+                  ct.colors.foreground ?? '#ccc',
+                ]}
+                selected={draftTheme === ct.id}
+                onSelect={() => changeTheme(ct.id)}
+                onRemove={() => onRemoveCustomTheme?.(ct.id)}
+              />
+            ))}
+            <button
+              type="button"
+              className="settings-theme-tile settings-theme-tile-add"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Plus size={16} strokeWidth={2} />
+              <span>{t('settings.addCustomTheme')}</span>
+            </button>
+          </div>
+
+          <div className="settings-row2">
+            <div className="settings-field">
+              <Label htmlFor="ui-font-select" className="settings-field-label">{t('settings.uiFontLabel')}</Label>
+              <Select value={draftUiFont} onValueChange={changeUiFont}>
+                <SelectTrigger id="ui-font-select" className="settings-font-select" style={{ fontFamily: uiFontFamily }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UI_FONTS.map(font => (
+                    <SelectItem key={font.id} value={font.id} style={{ fontFamily: font.fontFamily }}>
+                      {font.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="settings-field">
+              <Label htmlFor="mono-font-select" className="settings-field-label">{t('settings.monoFontLabel')}</Label>
+              <Select value={draftMonoFont} onValueChange={changeMonoFont}>
+                <SelectTrigger id="mono-font-select" className="settings-font-select" style={{ fontFamily: monoFontFamily }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONO_FONTS.map(font => (
+                    <SelectItem key={font.id} value={font.id} style={{ fontFamily: font.fontFamily }}>
+                      {font.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="settings-field-label">{t('settings.densityLabel')}</div>
+          <ToggleGroup
+            type="single"
+            value={draftDensity}
+            onValueChange={(v) => { if (v) changeDensity(v); }}
+            className="settings-density-group"
+          >
+            <ToggleGroupItem value="compact" className="settings-density-item">
+              {t('settings.densityCompact')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="comfortable" className="settings-density-item">
+              {t('settings.densityComfortable')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="spacious" className="settings-density-item">
+              {t('settings.densitySpacious')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </TabsContent>
+
+        <TabsContent value="terminal" className="settings-page">
+          <h2 className="settings-page-title">{t('settings.nav.terminal')}</h2>
+          <p className="settings-page-sub">{t('settings.sectionSubtitles.terminal')}</p>
+
+          <div className="settings-field">
+            <Label className="settings-field-label">{t('settings.workingDirectory')}</Label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -592,7 +562,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 onChange={(e) => changeWorkingDir(e.target.value)}
                 onBlur={handleWorkingDirBlur}
                 placeholder={t('settings.workingDirectoryPlaceholder')}
-                className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="settings-text-input flex-1"
               />
               <Button
                 type="button"
@@ -621,25 +591,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                  changeWorkingDir('');
-                  persistWorkingDir('');
-                }}
+                    changeWorkingDir('');
+                    persistWorkingDir('');
+                  }}
                 >
                   <X size={14} />
                 </Button>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              {t('settings.workingDirectoryHint')}
-            </p>
+            <p className="settings-hint">{t('settings.workingDirectoryHint')}</p>
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
+          <div className="settings-toggle-row">
+            <div>
               <Label htmlFor="shell-integration-toggle">{t('settings.shellIntegration')}</Label>
-              <p className="text-[11px] text-muted-foreground">
-                {t('settings.shellIntegrationHint')}
-              </p>
+              <p className="settings-hint">{t('settings.shellIntegrationHint')}</p>
             </div>
             <Switch
               id="shell-integration-toggle"
@@ -647,90 +613,128 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               onCheckedChange={changeShellIntegration}
             />
           </div>
-          <LauncherSettings />
 
-          <div className="border-t border-border pt-4 mt-2 space-y-3">
-            <p className="text-sm font-medium">{t('settings.updates')}</p>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="auto-update-check-toggle">{t('settings.autoUpdateCheck')}</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  {t('settings.autoUpdateCheckHint')}
-                </p>
-              </div>
-              <Switch
-                id="auto-update-check-toggle"
-                checked={autoUpdateCheck}
-                onCheckedChange={changeAutoUpdateCheck}
-              />
+          <div className="settings-toggle-row">
+            <div>
+              <Label htmlFor="terminal-suggestions-toggle">{t('settings.terminalSuggestions')}</Label>
+              <p className="settings-hint">{t('settings.terminalSuggestionsHint')}</p>
+            </div>
+            <Switch
+              id="terminal-suggestions-toggle"
+              checked={terminalSuggestions}
+              onCheckedChange={changeTerminalSuggestions}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="import-export" className="settings-page">
+          <h2 className="settings-page-title">{t('settings.nav.importExport')}</h2>
+          <p className="settings-page-sub">{t('settings.sectionSubtitles.importExport')}</p>
+
+          <div className="settings-field">
+            <Label className="settings-field-label">{t('settings.customThemes')}</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={14} className="mr-1" />
+                {t('settings.importTheme')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleDownloadTemplate}
+              >
+                <Download size={14} className="mr-1.5" />
+                {t('settings.downloadTemplate')}
+              </Button>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="danger" className="settings-page">
+          <h2 className="settings-page-title settings-page-title-danger">{t('settings.dangerZone')}</h2>
+          <p className="settings-page-sub">{t('settings.sectionSubtitles.dangerZone')}</p>
 
           {onResetAllData && (
-            <div className="border-t border-border pt-4 mt-2">
-              <Label className="text-destructive text-xs font-semibold uppercase tracking-wide">{t('settings.dangerZone')}</Label>
-              {confirmReset ? (
-                <div className="mt-2 p-3 rounded-md border border-destructive/40 bg-destructive/5 space-y-2">
-                  <p className="text-sm text-destructive">{t('settings.resetConfirm')}</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="flex-1"
-                      data-testid="danger-zone-confirm"
-                      onClick={async () => {
-                        await onResetAllData();
-                        GetSettings().then(s => {
-                          if (!s) return;
-                          const t = s.theme || 'vscode-dark';
-                          setSavedTheme(t);
-                          setDraftTheme(t);
-                          setSavedUiFont(s.uiFont || 'Inter');
-                          setDraftUiFont(s.uiFont || 'Inter');
-                          setSavedMonoFont(s.monoFont || 'JetBrains Mono');
-                          setDraftMonoFont(s.monoFont || 'JetBrains Mono');
-                          setSavedDensity(s.density || 'comfortable');
-                          setDraftDensity(s.density || 'comfortable');
-                          const wd = getOSPath(s.defaultWorkingDir, currentOS);
-                          setDraftWorkingDir(wd);
-                          setLocale(s.locale || 'en');
-                          setShellIntegrationState(s.shellIntegration ?? true);
-                          setAutoUpdateCheckState(s.autoUpdateCheck ?? false);
-                        }).catch(() => {});
-                        userTouchedRef.current = false;
-                        setConfirmReset(false);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                    >
-                      {t('settings.resetConfirmYes')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      data-testid="danger-zone-cancel"
-                      onClick={() => setConfirmReset(false)}
-                    >
-                      {t('settings.resetConfirmNo')}
-                    </Button>
-                  </div>
+            confirmReset ? (
+              <div className="settings-danger-panel">
+                <p>{t('settings.resetConfirm')}</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="flex-1"
+                    data-testid="danger-zone-confirm"
+                    onClick={async () => {
+                      await onResetAllData();
+                      GetSettings().then(s => {
+                        if (!s) return;
+                        const t = s.theme || 'classic';
+                        setSavedTheme(t);
+                        setDraftTheme(t);
+                        setSavedUiFont(s.uiFont || 'Manrope');
+                        setDraftUiFont(s.uiFont || 'Manrope');
+                        setSavedMonoFont(s.monoFont || 'JetBrains Mono');
+                        setDraftMonoFont(s.monoFont || 'JetBrains Mono');
+                        setSavedDensity(s.density || 'comfortable');
+                        setDraftDensity(s.density || 'comfortable');
+                        const wd = getOSPath(s.defaultWorkingDir, currentOS);
+                        setDraftWorkingDir(wd);
+                        setLocale(s.locale || 'en');
+                        setShellIntegrationState(s.shellIntegration ?? true);
+                        setTerminalSuggestionsState(s.terminalSuggestions ?? true);
+                        setAutoUpdateCheckState(s.autoUpdateCheck ?? false);
+                      }).catch(() => {});
+                      userTouchedRef.current = false;
+                      setConfirmReset(false);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                  >
+                    {t('settings.resetConfirmYes')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    data-testid="danger-zone-cancel"
+                    onClick={() => setConfirmReset(false)}
+                  >
+                    {t('settings.resetConfirmNo')}
+                  </Button>
                 </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 text-destructive border-destructive/40 hover:bg-destructive/10 w-full"
-                  data-testid="danger-zone-reset-button"
-                  onClick={() => setConfirmReset(true)}
-                >
-                  {t('settings.resetAllData')}
-                </Button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="settings-danger-button"
+                data-testid="danger-zone-reset-button"
+                onClick={() => setConfirmReset(true)}
+              >
+                {t('settings.resetAllData')}
+              </Button>
+            )
           )}
         </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+
+      {/* Always mounted (not scoped to a single TabsContent) so the
+       * Appearance "+ Custom theme" tile and the Import/Export "Import
+       * theme" button both work no matter which section is active. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        aria-hidden="true"
+        className="hidden"
+        onChange={handleImportFile}
+      />
+    </Tabs>
   );
 };
 
