@@ -144,4 +144,6 @@ export interface AppInfo {
   lastCheck: string;
   state: string;
   pendingVersion: string;
+  /** Message of the last check/download failure; '' unless state is 'error'. */
+  lastError: string;
 }

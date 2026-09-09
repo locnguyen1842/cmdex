@@ -103,6 +103,15 @@ var pendingVersionMu sync.RWMutex
 // About dialog can name it. Guarded by pendingVersionMu.
 var pendingUpdateVersion string
 
+// pendingErrorMu guards pendingUpdateError, mirroring pendingVersionMu.
+var pendingErrorMu sync.RWMutex
+
+// pendingUpdateError holds the message of the last check/download failure so
+// GetAppInfo can seed the About dialog's error status even when the dialog
+// wasn't open (or hadn't subscribed yet) to catch the wails:updater:error
+// event live. Guarded by pendingErrorMu.
+var pendingUpdateError string
+
 // initUpdater configures app.Updater with the channel-aware GitHub provider.
 // No Window is configured: the in-app About dialog is the update UI and
 // renders progress from the wails:updater:* events. Must be called after
@@ -221,10 +230,16 @@ func doUpdateCheck() {
 	pendingVersionMu.Lock()
 	pendingUpdateVersion = ""
 	pendingVersionMu.Unlock()
+	pendingErrorMu.Lock()
+	pendingUpdateError = ""
+	pendingErrorMu.Unlock()
 	rel, err := wailsApp.Updater.Check(context.Background())
 	recordUpdateCheckTime()
 	if err != nil {
 		wailsApp.Logger.Error("update check failed", "error", err)
+		pendingErrorMu.Lock()
+		pendingUpdateError = err.Error()
+		pendingErrorMu.Unlock()
 		return
 	}
 	if rel == nil {
@@ -235,6 +250,9 @@ func doUpdateCheck() {
 	pendingVersionMu.Unlock()
 	if err := wailsApp.Updater.DownloadAndInstall(context.Background()); err != nil {
 		wailsApp.Logger.Error("update download failed", "error", err)
+		pendingErrorMu.Lock()
+		pendingUpdateError = err.Error()
+		pendingErrorMu.Unlock()
 	}
 }
 
@@ -256,6 +274,11 @@ func recordUpdateCheckTime() {
 	}
 }
 
+// menuCheckStartDelay gives the About dialog time to mount and subscribe to
+// wails:updater:* events before the check starts, so a fast-resolving check
+// (e.g. a cached "no update") can't fire its events into an empty room.
+const menuCheckStartDelay = 250 * time.Millisecond
+
 // checkForUpdatesFromMenu opens About (the update UI) and kicks off a check
 // whose progress About renders inline. Dev builds just open About, which
 // shows the dev-build state with the button disabled.
@@ -264,7 +287,7 @@ func checkForUpdatesFromMenu() {
 		return
 	}
 	wailsApp.Event.Emit(eventNames.OpenAbout)
-	go runUpdateCheck()
+	time.AfterFunc(menuCheckStartDelay, runUpdateCheck)
 }
 
 // GetAppVersion returns the build-time version, or "dev" for local builds.
@@ -317,6 +340,9 @@ type AppInfo struct {
 	LastCheck      string `json:"lastCheck"`
 	State          string `json:"state"`
 	PendingVersion string `json:"pendingVersion"`
+	// LastError is the message of the last check/download failure; "" unless
+	// State is "error".
+	LastError string `json:"lastError"`
 }
 
 // GetAppInfo returns the About snapshot. Dev builds report updatesEnabled
@@ -341,6 +367,11 @@ func (s *UpdateService) GetAppInfo() AppInfo {
 	pendingVersionMu.RLock()
 	info.PendingVersion = pendingUpdateVersion
 	pendingVersionMu.RUnlock()
+	if info.State == string(updater.StateError) {
+		pendingErrorMu.RLock()
+		info.LastError = pendingUpdateError
+		pendingErrorMu.RUnlock()
+	}
 	return info
 }
 
@@ -351,20 +382,19 @@ func (s *UpdateService) SetBetaChannel(enabled bool) error {
 	if db == nil {
 		return errors.New("settings store unavailable")
 	}
-	settings, err := db.GetSettings()
-	if err != nil {
-		return err
-	}
-	settings.BetaChannel = &enabled
-	if err := db.SetSettings(settings); err != nil {
-		return err
-	}
+	// Rebuild the provider before persisting: if setBeta fails, settings must
+	// stay untouched so the DB and the live provider don't disagree.
 	if updateChannelProvider != nil {
 		if err := updateChannelProvider.setBeta(enabled); err != nil {
 			return err
 		}
 	}
-	return nil
+	settings, err := db.GetSettings()
+	if err != nil {
+		return err
+	}
+	settings.BetaChannel = &enabled
+	return db.SetSettings(settings)
 }
 
 // GetUpdateState returns the updater lifecycle state

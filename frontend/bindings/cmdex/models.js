@@ -70,6 +70,15 @@ export class AppInfo {
              */
             this["pendingVersion"] = "";
         }
+        if (!("lastError" in $$source)) {
+            /**
+             * LastError is the message of the last check/download failure; "" unless
+             * State is "error".
+             * @member
+             * @type {string}
+             */
+            this["lastError"] = "";
+        }
 
         Object.assign(this, $$source);
     }

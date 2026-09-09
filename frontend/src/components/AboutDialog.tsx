@@ -57,7 +57,7 @@ interface ErrorPayload {
   message?: string;
 }
 
-function statusFromState(state: string, pendingVersion: string): UpdateStatus {
+function statusFromState(state: string, pendingVersion: string, lastError: string): UpdateStatus {
   switch (state) {
     case "checking":
       return { kind: "checking" };
@@ -73,7 +73,7 @@ function statusFromState(state: string, pendingVersion: string): UpdateStatus {
     case "up-to-date":
       return { kind: "upToDate" };
     case "error":
-      return { kind: "error", message: "" };
+      return { kind: "error", message: lastError || "unknown error" };
     default:
       return { kind: "idle" };
   }
@@ -104,7 +104,7 @@ export default function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
       // false so the fresh snapshot can't clobber the just-settled state
       // (the mock resolves GetAppInfo with a stale pre-flow state).
       if (seedStatus && !flowActiveRef.current) {
-        setStatus(statusFromState(snapshot.state, snapshot.pendingVersion));
+        setStatus(statusFromState(snapshot.state, snapshot.pendingVersion, snapshot.lastError));
       }
     } catch {
       // Dev/mock builds without the binding keep the dialog usable.

@@ -20,7 +20,8 @@ import * as $models from "./models.js";
  * CheckForUpdates kicks off a headless check (+ auto-download when a release
  * is found). It returns immediately; the About dialog renders progress from
  * the wails:updater:* events. Dev builds get an error instead of silent
- * nothing.
+ * nothing. A check already in flight reports a busy error so the dialog can
+ * stay in its checking state instead of hanging without events.
  * @returns {$CancellablePromise<void>}
  */
 export function CheckForUpdates() {

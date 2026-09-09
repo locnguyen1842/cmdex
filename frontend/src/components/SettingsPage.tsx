@@ -650,6 +650,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           <LauncherSettings />
 
           <div className="border-t border-border pt-4 mt-2 space-y-3">
+            <p className="text-sm font-medium">{t('settings.updates')}</p>
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="auto-update-check-toggle">{t('settings.autoUpdateCheck')}</Label>
