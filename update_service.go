@@ -263,13 +263,8 @@ func recordUpdateCheckTime() {
 	if db == nil {
 		return
 	}
-	settings, err := db.GetSettings()
-	if err != nil {
-		return
-	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	settings.LastUpdateCheck = &now
-	if err := db.SetSettings(settings); err != nil {
+	if err := db.SetSettings(AppSettings{LastUpdateCheck: &now}); err != nil {
 		fmt.Println("record update check time error:", err)
 	}
 }
@@ -389,12 +384,7 @@ func (s *UpdateService) SetBetaChannel(enabled bool) error {
 			return err
 		}
 	}
-	settings, err := db.GetSettings()
-	if err != nil {
-		return err
-	}
-	settings.BetaChannel = &enabled
-	return db.SetSettings(settings)
+	return db.SetSettings(AppSettings{BetaChannel: &enabled})
 }
 
 // GetUpdateState returns the updater lifecycle state

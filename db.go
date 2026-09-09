@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,12 @@ import (
 type DB struct {
 	conn    *sql.DB
 	dataDir string
+	// settingsMu serializes SetSettings' read-merge-write cycle. Without it,
+	// two concurrent partial updates (e.g. the background update-check loop
+	// stamping LastUpdateCheck while the user changes a setting) can each read
+	// the same pre-update row and the later write silently drops the other's
+	// change.
+	settingsMu sync.Mutex
 }
 
 // appendToEndPosition is an out-of-range index passed to UpdateCommandPosition
@@ -1353,6 +1360,9 @@ func (db *DB) GetSettings() (AppSettings, error) {
 }
 
 func (db *DB) SetSettings(s AppSettings) error {
+	db.settingsMu.Lock()
+	defer db.settingsMu.Unlock()
+
 	existing, err := db.GetSettings()
 	if err != nil {
 		return fmt.Errorf("get existing settings: %w", err)
