@@ -51,6 +51,9 @@ const METHOD_IDS = {
   Resize: 270758441,
   Clear: 493646090,
   GetLastOutput: 4011093730,
+  GetShellHistory: 1701603833,
+  CompleteCommands: 1899960052,
+  CompletePath: 3142581141,
   CreateInternalSession: 98262348,
   GetEventNames: 2407475739,
   GetOS: 816844233,
@@ -107,6 +110,9 @@ const NEVER_REJECTS = new Set<MethodName>([
   'GetVariables',
   'GetSettings',
   'RunCommand',
+  'GetShellHistory',
+  'CompleteCommands',
+  'CompletePath',
 ]);
 
 let categories: any[] = [];
@@ -114,11 +120,11 @@ let commands: any[] = [];
 const presets: Record<string, any[]> = {};
 const DEFAULT_SETTINGS: Record<string, any> = {
   locale: 'en',
-  theme: 'vscode-dark',
-  lastDarkTheme: 'vscode-dark',
-  lastLightTheme: 'vscode-light',
+  theme: 'classic',
+  lastDarkTheme: 'classic',
+  lastLightTheme: 'classic-light',
   customThemes: '[]',
-  uiFont: 'Inter',
+  uiFont: 'Manrope',
   monoFont: 'JetBrains Mono',
   density: 'comfortable',
   launcherEnabled: false,
@@ -146,6 +152,7 @@ let launcherSession: {
   running: boolean;
   shellPath: string;
   workingDir: string;
+  cwd: string;
 } | null = null;
 let launcherRunResult: any | null = null;
 
@@ -198,6 +205,16 @@ const callLog: Array<{ method: MethodName; args: any[] }> = [];
 // cancel semantic — a test opts into "the user picked a file" explicitly.
 let pendingImportResult: any[] | null = null;
 let pickDirectoryResult = '/mock/path';
+// SuggestionService.GetShellHistory result, newest first (see terminal-suggestions.spec.ts).
+let shellHistory: string[] = [];
+// SuggestionService.CompletePath result, keyed by the exact `partial` argument
+// a test expects (real prefix matching happens on the Go side; the mock is a
+// deterministic lookup, filtered to directories when dirsOnly is requested).
+let pathCompletions: Record<string, Array<{ name: string; insert: string; isDir: boolean }>> = {};
+// SuggestionService.CompleteCommands' pool of "installed executables" for a
+// test to seed; CompleteCommands filters it by prefix itself, like the real
+// backend does against $PATH.
+let commandCompletions: string[] = [];
 // The mock models a dev build by default (GetAppVersion 'dev',
 // UpdatesEnabled false — update_service.go's updaterDisabled). A test can
 // flip to a configured release build via __cmdexE2E.setUpdateInfo.
@@ -230,6 +247,7 @@ let terminalSessions: Array<{
   running: boolean;
   shellPath: string;
   workingDir: string;
+  cwd: string;
 }> = [];
 let activeTerminalSessionId: string | null = null;
 let terminalSessionCounter = 0;
@@ -249,6 +267,7 @@ function createMockTerminalSession() {
     running: true,
     shellPath: '/bin/mock-shell',
     workingDir: '/mock/path',
+    cwd: '/mock/path',
   };
   terminalSessions.push(info);
   if (!activeTerminalSessionId) activeTerminalSessionId = info.id;
@@ -643,6 +662,7 @@ const handlersByName: Record<MethodName, (...args: any[]) => any> = {
         running: true,
         shellPath: '/bin/mock-shell',
         workingDir: '/mock/path',
+        cwd: '/mock/path',
       };
     }
     return launcherSession;
@@ -700,6 +720,27 @@ const handlersByName: Record<MethodName, (...args: any[]) => any> = {
 
   GetLastOutput: () => ({ ...lastOutputResult }),
 
+  GetShellHistory: () => [...shellHistory],
+
+  // Deterministic lookup by the exact `partial` a test seeded — see
+  // __cmdexE2E.setPathCompletions. dirsOnly still filters, matching the real
+  // backend's contract (CompletePath(sessionID, partial, dirsOnly)).
+  CompletePath: (_sessionID: string, partial: string, dirsOnly: boolean) => {
+    const list = pathCompletions[partial] || [];
+    return dirsOnly ? list.filter((e) => e.isDir) : list;
+  },
+
+  // Filters the seeded pool by prefix (case-insensitive), sorted, like the
+  // real backend's $PATH + builtins scan. Empty prefix is always empty.
+  CompleteCommands: (_sessionID: string, prefix: string) => {
+    if (!prefix) return [];
+    const p = prefix.toLowerCase();
+    return commandCompletions
+      .filter((c) => c.toLowerCase().startsWith(p))
+      .sort()
+      .slice(0, 50);
+  },
+
   // ── Launcher ────────────────────────────────────────────
   ApplySettings: () => getLauncherStatus(),
 
@@ -711,6 +752,7 @@ const handlersByName: Record<MethodName, (...args: any[]) => any> = {
         running: true,
         shellPath: '/bin/mock-shell',
         workingDir: '/mock/path',
+        cwd: '/mock/path',
       };
     }
     return launcherSession.id;
@@ -865,13 +907,26 @@ export class CancellablePromise<T> extends Promise<T> {
     updateInfo = { version: 'dev', enabled: false, beta: false, lastCheck: '', state: 'idle', pendingVersion: '' };
     openedUrls.length = 0;
     lastOutputResult = { available: false, text: '', exitCode: 0, truncated: false };
+    shellHistory = [];
+    pathCompletions = {};
+    commandCompletions = [];
   },
   seed(data: {
     categories?: any[];
     commands?: any[];
     presets?: Record<string, any[]>;
     settings?: Record<string, any>;
-    terminalSessions?: Array<{ id: string; name: string; running: boolean; shellPath: string; workingDir: string }>;
+    shellHistory?: string[];
+    pathCompletions?: Record<string, Array<{ name: string; insert: string; isDir: boolean }>>;
+    commandCompletions?: string[];
+    terminalSessions?: Array<{
+      id: string;
+      name: string;
+      running: boolean;
+      shellPath: string;
+      workingDir: string;
+      cwd?: string;
+    }>;
     updateInfo?: {
       version: string;
       enabled: boolean;
@@ -888,6 +943,9 @@ export class CancellablePromise<T> extends Promise<T> {
     // Settings are merged, not replaced, so a partial seed keeps the defaults
     // for every field it does not mention — same as the init-script path below.
     if (data.settings) Object.assign(settings, data.settings);
+    if (data.shellHistory) shellHistory = [...data.shellHistory];
+    if (data.pathCompletions) pathCompletions = { ...data.pathCompletions };
+    if (data.commandCompletions) commandCompletions = [...data.commandCompletions];
     if (data.updateInfo?.version && typeof data.updateInfo?.enabled === 'boolean') {
       updateInfo = {
         version: data.updateInfo.version,
@@ -899,7 +957,7 @@ export class CancellablePromise<T> extends Promise<T> {
       };
     }
     if (data.terminalSessions) {
-      terminalSessions = data.terminalSessions;
+      terminalSessions = data.terminalSessions.map((s) => ({ ...s, cwd: s.cwd ?? s.workingDir }));
       activeTerminalSessionId = data.terminalSessions[0]?.id ?? null;
     }
     nextId = Math.max(
@@ -929,6 +987,11 @@ export class CancellablePromise<T> extends Promise<T> {
   // without going through the Clear RPC.
   emitPtyCleared(sessionId: string) {
     Events.Emit(`pty-cleared:${sessionId}`, null);
+  },
+  // Simulate a backend-emitted pty-cwd:<id> event (the session's cwd
+  // changed, per shell integration's OSC 7 report).
+  emitPtyCwd(sessionId: string, cwd: string) {
+    Events.Emit(`pty-cwd:${sessionId}`, { cwd });
   },
   // True once the app has subscribed to `eventName`. Tests must wait for this
   // before emitting: the app registers its listeners only after the async
@@ -971,6 +1034,15 @@ export class CancellablePromise<T> extends Promise<T> {
   // Configure GetLastOutput's next return value.
   setLastOutput(data: { available: boolean; text: string; exitCode: number; truncated: boolean }) {
     lastOutputResult = { ...data };
+  },
+  // Configure CompletePath's results, keyed by the exact `partial` argument
+  // a test expects the app to request.
+  setPathCompletions(map: Record<string, Array<{ name: string; insert: string; isDir: boolean }>>) {
+    pathCompletions = { ...map };
+  },
+  // Configure the pool CompleteCommands filters by prefix.
+  setCommandCompletions(names: string[]) {
+    commandCompletions = [...names];
   },
   setLauncherRunResult(result: any | null) {
     launcherRunResult = result;
@@ -1017,6 +1089,9 @@ if (seed) {
   if (seed.presets) Object.assign(presets, seed.presets);
   if (seed.commands) seedPresetsFromCommands(seed.commands);
   if (seed.settings) Object.assign(settings, seed.settings);
+  if (seed.shellHistory) shellHistory = [...seed.shellHistory];
+  if (seed.pathCompletions) pathCompletions = { ...seed.pathCompletions };
+  if (seed.commandCompletions) commandCompletions = [...seed.commandCompletions];
   if (seed.updateInfo?.version && typeof seed.updateInfo?.enabled === 'boolean') {
     updateInfo = {
       version: seed.updateInfo.version,
@@ -1028,7 +1103,7 @@ if (seed) {
     };
   }
   if (seed.terminalSessions) {
-    terminalSessions = seed.terminalSessions;
+    terminalSessions = seed.terminalSessions.map((s: any) => ({ ...s, cwd: s.cwd ?? s.workingDir }));
     activeTerminalSessionId = seed.terminalSessions[0]?.id ?? null;
   }
   nextId = 100;

@@ -9,6 +9,15 @@ export interface CmdexE2ETerminalSession {
     running: boolean;
     shellPath: string;
     workingDir: string;
+    /** Defaults to `workingDir` when omitted (mirrors SessionInfo.cwd). */
+    cwd?: string;
+}
+
+/** One SuggestionService.CompletePath result entry (PathCompletion). */
+export interface CmdexE2EPathCompletion {
+    name: string;
+    insert: string;
+    isDir: boolean;
 }
 
 export interface CmdexE2ESeed {
@@ -16,6 +25,13 @@ export interface CmdexE2ESeed {
     commands?: Array<Record<string, unknown>>;
     presets?: Record<string, Array<Record<string, unknown>>>;
     settings?: Record<string, unknown>;
+    shellHistory?: string[];
+    // SuggestionService.CompletePath results, keyed by the exact `partial`
+    // argument a test expects the app to request.
+    pathCompletions?: Record<string, CmdexE2EPathCompletion[]>;
+    // Pool of "installed executables" SuggestionService.CompleteCommands
+    // filters by prefix.
+    commandCompletions?: string[];
     terminalSessions?: CmdexE2ETerminalSession[];
     // Flip the mocked build between a dev build (default: updater disabled)
     // and a configured release build (update UI fully interactive).
@@ -70,6 +86,9 @@ export type CmdexE2EMethodName =
     | 'Resize'
     | 'Clear'
     | 'GetLastOutput'
+    | 'GetShellHistory'
+    | 'CompleteCommands'
+    | 'CompletePath'
     | 'CreateInternalSession'
     | 'GetEventNames'
     | 'GetOS'
@@ -110,6 +129,9 @@ declare global {
             emitPtyOutput(sessionId: string, data: string): void;
             emitPtyExit(sessionId: string, exitCode: number, wasIntentional: boolean): void;
             emitPtyCleared(sessionId: string): void;
+            // Simulate a backend-emitted pty-cwd:<id> event (shell integration's
+            // OSC 7 cwd report).
+            emitPtyCwd(sessionId: string, cwd: string): void;
             hasListener(eventName: string): boolean;
             // Call counters for TerminalService methods — see
             // terminal.spec.ts for the regressions these guard against.
@@ -137,6 +159,13 @@ declare global {
             setPickDirectoryResult(path: string): void;
             // Configure GetLastOutput's next return value.
             setLastOutput(data: { available: boolean; text: string; exitCode: number; truncated: boolean }): void;
+            // Configure GetShellHistory's return value (newest first).
+            setShellHistory(entries: string[]): void;
+            // Configure CompletePath's results, keyed by the exact `partial`
+            // argument a test expects the app to request.
+            setPathCompletions(map: Record<string, CmdexE2EPathCompletion[]>): void;
+            // Configure the pool CompleteCommands filters by prefix.
+            setCommandCompletions(names: string[]): void;
             // Configure the in-band launcher execution result used by launcher
             // search/output regression tests.
             setLauncherRunResult(result: Record<string, unknown> | null): void;

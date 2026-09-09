@@ -744,6 +744,93 @@ func TestShellIntegration_UnintegratedShellReportsUnavailable(t *testing.T) {
 	}
 }
 
+// waitForCwd polls GetActiveSession-equivalent session info until Cwd
+// equals want, failing the test if timeout elapses first.
+func waitForCwd(t *testing.T, s *TerminalService, sessionID, want string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last string
+	for time.Now().Before(deadline) {
+		for _, info := range s.ListSessions() {
+			if info.ID == sessionID {
+				last = info.Cwd
+			}
+		}
+		if last == want {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for SessionInfo.Cwd = %q (last seen %q)", want, last)
+}
+
+// realCwd resolves symlinks the way a shell's $PWD (logical) may not: on
+// macOS t.TempDir() lives under /var, a symlink to /private/var, and zsh
+// reports whichever spelling it cd'd into — so tests cd into the resolved
+// path and expect exactly that back.
+func realCwd(t *testing.T, dir string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", dir, err)
+	}
+	return resolved
+}
+
+// TestShellIntegration_ZshReportsCwdViaOSC7 proves the zsh script's OSC 7
+// report round-trips through a real PTY: SessionInfo.Cwd starts at the
+// session's working directory and follows a cd — including into a directory
+// whose name needs percent-encoding.
+func TestShellIntegration_ZshReportsCwdViaOSC7(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	if _, err := os.Stat("/bin/zsh"); err != nil {
+		t.Skip("/bin/zsh not present on this machine")
+	}
+	t.Setenv("SHELL", "/bin/zsh")
+
+	s := newTestTerminalServiceWithShellIntegration(t)
+	id := mustCreateAndStart(t, s)
+
+	target := filepath.Join(t.TempDir(), "my dir é")
+	if err := os.MkdirAll(target, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	target = realCwd(t, target)
+	if err := s.Write(id, "cd "+shellQuoteDir(target)+"\n"); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+	waitForCwd(t, s, id, target, 5*time.Second)
+}
+
+// TestShellIntegration_BashReportsCwdViaOSC7 is the bash counterpart,
+// exercising cmdex-bashrc.sh's pure-shell percent-encoder on macOS's bash
+// 3.2 (whose printf reports high bytes as negative numbers) as well as
+// newer releases.
+func TestShellIntegration_BashReportsCwdViaOSC7(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	if _, err := os.Stat("/bin/bash"); err != nil {
+		t.Skip("/bin/bash not present on this machine")
+	}
+	t.Setenv("SHELL", "/bin/bash")
+
+	s := newTestTerminalServiceWithShellIntegration(t)
+	id := mustCreateAndStart(t, s)
+
+	target := filepath.Join(t.TempDir(), "my dir é")
+	if err := os.MkdirAll(target, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	target = realCwd(t, target)
+	if err := s.Write(id, "cd "+shellQuoteDir(target)+"\n"); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+	waitForCwd(t, s, id, target, 5*time.Second)
+}
+
 // --- pwsh's cmdex.ps1: exercised directly (no PTY/TerminalService), since
 // pwsh is never auto-detected outside Windows (see detectShell) and this
 // project's own dev machine has no way to drive it through a real PTY ---

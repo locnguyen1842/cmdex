@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { GripVertical, Plus, X } from 'lucide-react';
+import { Plus, X, Terminal as TerminalIcon, ChevronDown, Eraser, Copy } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -32,6 +32,12 @@ interface TerminalTabBarProps {
   onReorderTabs: (sessions: SessionInfo[]) => void;
   onCreateSession: () => void;
   onRenameSession: (id: string, name: string) => void;
+  /** Collapse (▼) / Clear / Copy last output — moved here from the resize
+   * divider so the divider can be a slim, control-free drag grip. Same
+   * handlers, aria-labels and titles the divider used to own. */
+  onCollapse: () => void;
+  onClear: () => void;
+  onCopyLastOutput: () => void;
 }
 
 interface SortableTerminalTabProps {
@@ -57,6 +63,7 @@ function SortableTerminalTab({
     setNodeRef,
     transform,
     transition,
+    isDragging,
   } = useSortable({ id: session.id });
 
   const style = {
@@ -96,17 +103,21 @@ function SortableTerminalTab({
         <div
           ref={setNodeRef}
           style={style}
-          className={`tab-item${isActive ? ' active' : ''}`}
+          className={`tab-item${isActive ? ' active' : ''}${isDragging ? ' dragging' : ''}`}
           data-testid={`terminal-tab-${session.id}`}
           onClick={() => onSelect(session.id)}
+          // The whole tab is the drag handle: the PointerSensor's 5px
+          // activation distance keeps plain clicks selecting the tab, and
+          // the rename input / close button stop pointerdown below so
+          // typing or closing never turns into a drag.
+          {...attributes}
+          {...listeners}
         >
-          <span className="tab-drag-handle" {...attributes} {...listeners}>
-            <GripVertical size={12} />
-          </span>
           <span
             className={`tab-status-dot ${session.running ? 'running' : 'stopped'}`}
             data-testid={`terminal-tab-status-${session.id}`}
           />
+          <TerminalIcon className="tab-term-icon" size={12} aria-hidden="true" />
           {isRenaming ? (
             <input
               ref={renameInputRef}
@@ -124,6 +135,7 @@ function SortableTerminalTab({
               }}
               onBlur={commitRename}
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             />
           ) : (
             <span className="tab-title" title={session.name}>
@@ -135,6 +147,7 @@ function SortableTerminalTab({
               className="tab-close"
               role="button"
               aria-label={`Close ${session.name}`}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose(session.id);
@@ -168,6 +181,9 @@ export default function TerminalTabBar({
   onReorderTabs,
   onCreateSession,
   onRenameSession,
+  onCollapse,
+  onClear,
+  onCopyLastOutput,
 }: TerminalTabBarProps) {
   const activeRef = useRef<HTMLDivElement | null>(null);
 
@@ -198,7 +214,7 @@ export default function TerminalTabBar({
   const isLastTab = sessions.length <= 1;
 
   return (
-    <div className="tab-bar" data-testid="terminal-tab-bar">
+    <div className="terminal-tab-bar" data-testid="terminal-tab-bar">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -225,15 +241,42 @@ export default function TerminalTabBar({
           })}
         </SortableContext>
       </DndContext>
-      <div
-        className="tab-new-session-btn"
-        data-testid="terminal-new-session-btn"
-        role="button"
-        aria-label="Create new terminal session"
-        title="New Session (Ctrl+T)"
-        onClick={onCreateSession}
-      >
-        <Plus size={14} />
+      <div className="term-tabbar-actions">
+        <button
+          className="tab-new-session-btn"
+          data-testid="terminal-new-session-btn"
+          aria-label="Create new terminal session"
+          title="New Session (Ctrl+T)"
+          onClick={onCreateSession}
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          className="terminal-collapse-btn icon-btn"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={onCollapse}
+          aria-label="Collapse terminal panel"
+        >
+          <ChevronDown size={14} />
+        </button>
+        <button
+          className="terminal-clear-btn icon-btn"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={onClear}
+          aria-label="Clear terminal"
+          title="Clear terminal (Ctrl+L)"
+        >
+          <Eraser size={14} />
+        </button>
+        <button
+          className="terminal-copy-btn icon-btn"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={onCopyLastOutput}
+          aria-label="Copy terminal output"
+          title="Copy last command output"
+        >
+          <Copy size={14} />
+        </button>
       </div>
     </div>
   );

@@ -98,12 +98,60 @@ __cmdex_capture_exit() {
     __cmdex_ec=$?
 }
 
+# __cmdex_urlencode percent-encodes its argument for the path part of a
+# file:// URL: everything except unreserved ASCII and "/" is written as %XX
+# per UTF-8 byte, using the same "copy the safe run, encode one byte,
+# repeat" loop as vte.sh. It runs in a subshell so LC_ALL=C — which makes
+# ${str#?} strip a single byte (not a character) and "'$str" yield that
+# byte's value — never leaks into the user's session. The "& 255" mask is
+# for bash 3.2 (macOS's /bin/bash), whose printf reports bytes >= 0x80 as
+# negative numbers.
+__cmdex_urlencode() (
+    LC_ALL=C
+    local str="$1" safe c
+    while [ -n "$str" ]; do
+        safe="${str%%[!A-Za-z0-9/._~-]*}"
+        printf '%s' "$safe"
+        str="${str#"$safe"}"
+        if [ -n "$str" ]; then
+            c=$(printf '%d' "'$str")
+            printf '%%%02X' "$(( c & 255 ))"
+            str="${str#?}"
+        fi
+    done
+)
+
+# __cmdex_report_cwd emits the standard OSC 7 "current working directory"
+# sequence (ESC ] 7 ; file://<host><percent-encoded $PWD> BEL) that
+# terminal_capture.go decodes into SessionInfo.Cwd, so the app's own path
+# completion (shell_completion.go) can list the directory the shell is
+# actually in rather than the one it was started in. Unlike the OSC 133
+# markers this carries no nonce: it's a standard, widely emitted sequence
+# (macOS Terminal, VTE, kitty, fish all speak it), and the worst a forged one
+# can do is point Tab completion at the wrong directory.
+__cmdex_report_cwd() {
+    printf '\e]7;file://%s%s\a' "$HOSTNAME" "$(__cmdex_urlencode "$PWD")"
+}
+
+# The cwd report comes AFTER the D marker so it never lands inside a C..D
+# capture span, and runs on every prompt (not only when $PWD changes) so a
+# cd inside a sourced script is still picked up.
 __cmdex_emit_marker() {
     printf '\e]133;D;%s;%s\a' "$__cmdex_nonce" "$__cmdex_ec"
+    __cmdex_report_cwd
     __cmdex_armed=1
 }
 
 trap '__cmdex_debug_trap' DEBUG
+
+# Report the starting directory right away so completion has a value before
+# the first prompt (PROMPT_COMMAND reports it again then). bash only reads
+# --rcfile for an interactive shell, so this is always interactive in
+# practice; the guard just keeps a manual `source` of this file from writing
+# escape sequences into a non-terminal stdout.
+if [[ $- == *i* ]]; then
+    __cmdex_report_cwd
+fi
 
 # bash only started running PROMPT_COMMAND as an array (each element run in
 # order) in 5.1; before that it was always a single string bash evaluated

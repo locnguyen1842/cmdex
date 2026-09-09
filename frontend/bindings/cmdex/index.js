@@ -9,6 +9,7 @@ import * as ExecutionService from "./executionservice.js";
 import * as ImportExportService from "./importexportservice.js";
 import * as LauncherService from "./launcherservice.js";
 import * as SettingsService from "./settingsservice.js";
+import * as SuggestionService from "./suggestionservice.js";
 import * as TerminalService from "./terminalservice.js";
 import * as UpdateService from "./updateservice.js";
 export {
@@ -19,6 +20,7 @@ export {
     ImportExportService,
     LauncherService,
     SettingsService,
+    SuggestionService,
     TerminalService,
     UpdateService
 };
@@ -31,6 +33,7 @@ export {
     EventNames,
     ExecutionRecord,
     LauncherStatus,
+    PathCompletion,
     SessionInfo,
     TerminalLastOutput,
     VariableDefinition,

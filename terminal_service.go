@@ -73,6 +73,10 @@ type SessionInfo struct {
 	Running    bool   `json:"running"`
 	ShellPath  string `json:"shellPath"`
 	WorkingDir string `json:"workingDir"`
+	// Cwd is the shell's current working directory as last reported by shell
+	// integration (OSC 7), or WorkingDir until the first report. Changes are
+	// also pushed as `pty-cwd:<id>` events with `{ cwd }`.
+	Cwd string `json:"cwd"`
 }
 
 // sessionState is the internal per-session state: PTY, process, goroutine tracking.
@@ -155,6 +159,11 @@ type sessionState struct {
 	lastExitCode   int
 	lastTruncated  bool
 	lastValid      bool
+	// cwd is the shell's working directory as last reported via OSC 7 by
+	// shell integration, or "" before the first report (and again after a
+	// restart — see resetCwd). Guarded by capMu like the rest of the
+	// capture state since captureScan writes it; read via liveCwd.
+	cwd string
 }
 
 // TerminalService manages multiple PTY-backed shell sessions.
@@ -180,12 +189,17 @@ type TerminalService struct {
 func (ss *sessionState) info() *SessionInfo {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
+	cwd := ss.liveCwd()
+	if cwd == "" {
+		cwd = ss.workingDir
+	}
 	return &SessionInfo{
 		ID:         ss.id,
 		Name:       ss.name,
 		Running:    ss.running,
 		ShellPath:  ss.shellPath,
 		WorkingDir: ss.workingDir,
+		Cwd:        cwd,
 	}
 }
 
@@ -587,6 +601,10 @@ func (s *TerminalService) startSessionLocked(ss *sessionState, cols, rows int) e
 	// read (or its stopCh leftover flush) can repopulate stale capture state
 	// for the new session right after it was cleared.
 	ss.resetCapture()
+	// The replacement shell starts back in workingDir; forget the old one's
+	// last OSC 7 report so SessionInfo.Cwd doesn't keep pointing at wherever
+	// the previous shell had wandered off to until the new one reports.
+	ss.resetCwd()
 
 	handle, proc, err := s.ptyBackend.Start(shellPath, launchFlag, ss.workingDir, rows, cols, opts)
 
@@ -705,7 +723,7 @@ func (ss *sessionState) readLoop(ptmx ptyHandle, stopCh chan struct{}, captureAc
 		case <-stopCh:
 			if len(leftover) > 0 {
 				if captureActive {
-					ss.captureScan(leftover)
+					ss.scanOutput(leftover)
 				}
 				ss.enqueueOutput(string(leftover))
 			}
@@ -717,7 +735,7 @@ func (ss *sessionState) readLoop(ptmx ptyHandle, stopCh chan struct{}, captureAc
 		if err != nil {
 			if len(leftover) > 0 {
 				if captureActive {
-					ss.captureScan(leftover)
+					ss.scanOutput(leftover)
 				}
 				ss.enqueueOutput(string(leftover))
 			}
@@ -755,10 +773,33 @@ func (ss *sessionState) readLoop(ptmx ptyHandle, stopCh chan struct{}, captureAc
 
 		if len(data) > 0 {
 			if captureActive {
-				ss.captureScan(data)
+				ss.scanOutput(data)
 			}
 			ss.enqueueOutput(string(data))
 		}
+	}
+}
+
+// scanOutput runs captureScan over a chunk of PTY output and, when the chunk
+// carried an OSC 7 report that moved the shell's working directory, pushes
+// the new value to the frontend as a `pty-cwd:<id>` event. The emit happens
+// here rather than inside captureScan so it never runs with capMu held.
+// readLoop-only, like captureScan itself.
+func (ss *sessionState) scanOutput(data []byte) {
+	if cwd, changed := ss.captureScan(data); changed {
+		ss.emitCwd(cwd)
+	}
+}
+
+// emitCwd publishes the session's live working directory. Sent straight
+// from readLoop rather than through the batching emitter: it's a rare,
+// tiny, latest-value-wins signal, and ordering relative to the raw output
+// bytes doesn't matter to its only consumer (path completion).
+func (ss *sessionState) emitCwd(cwd string) {
+	if wailsApp != nil {
+		wailsApp.Event.Emit("pty-cwd:"+ss.id, map[string]any{
+			"cwd": cwd,
+		})
 	}
 }
 
