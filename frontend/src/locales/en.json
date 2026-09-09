@@ -278,6 +278,7 @@
     "installing": "Installing update…",
     "ready": "Version {{version}} is ready — restart to apply it.",
     "restart": "Restart to Update",
+    "restartFailed": "Couldn't restart to update: {{message}}",
     "upToDate": "You have the latest version",
     "lastChecked": "(last checked {{when}})",
     "lastCheckedOnly": "Last checked {{when}}.",

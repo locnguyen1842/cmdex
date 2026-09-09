@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Browser, Events } from "@wailsio/runtime";
 import {
   CheckForUpdates,
@@ -201,10 +202,14 @@ export default function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
     setRestartBusy(true);
     try {
       await RestartToUpdate();
-    } catch {
+    } catch (err) {
+      const message = String(err);
       setRestartBusy(false);
+      flowActiveRef.current = false;
+      setStatus({ kind: "error", message });
+      toast.error(t("about.restartFailed", { message }));
     }
-  }, []);
+  }, [t]);
 
   const openExternal = useCallback((url: string) => {
     try {

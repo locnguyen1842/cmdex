@@ -226,10 +226,17 @@ func runUpdateCheck() {
 }
 
 // doUpdateCheck runs the check body with updateCheckMu already held.
+//
+// pendingUpdateVersion is deliberately NOT cleared up front: GetAppInfo
+// doesn't gate it on State (unlike LastError), so wiping it here raced with
+// the updater's own state transition inside Check — a snapshot taken in that
+// window could read the still-"ready" state from a previous flow alongside
+// an already-blanked version, rendering "ready to install" with no version
+// and a Restart button whose target had effectively vanished from the
+// snapshot. Only ever moving it forward (set once a new release is found)
+// means a stale-but-real version can briefly outlive its state, which is
+// harmless since no state that renders it can follow up-to-date/error.
 func doUpdateCheck() {
-	pendingVersionMu.Lock()
-	pendingUpdateVersion = ""
-	pendingVersionMu.Unlock()
 	pendingErrorMu.Lock()
 	pendingUpdateError = ""
 	pendingErrorMu.Unlock()
